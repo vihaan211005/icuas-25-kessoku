@@ -27,9 +27,9 @@ If you have an NVIDIA GPU, please install `nvidia-container-toolkit` by followin
 
 ### Setting up
 
-Clone the [repository](https://github.com/marijana23/icuas_competition_2025.git):
+Clone the this repository:
 ```
-git clone https://github.com/marijana23/icuas_competition_2025.git
+git clone git@github.com:marijana23/icuas_competition_2025.git
 ```
 Add  to  `~/.bashrc` and source it, or type in the current terminal:
 ```
@@ -38,19 +38,17 @@ export DOCKER_BUILDKIT=1
 Run Dockerfile from the project root directory using the following commands:
 ```bash
 # Build a Dockerfile
-# To install ros1_bridge and ROS Noetic set the argument INSTALL_BRIDGE to true.
-# Otherwise set it to false, and it will only install ROS2.
 docker build --ssh default -t crazysim_icuas_img .
 
 # Run the crazysim_img2 container for the fist time
 ./first_run.sh
 
-# This will create docker container crazyswarm_container and position you into the container
+# This will create docker container crazysim_icuas container and position you into the container
 
-# Start the crazysim_cont:
+# Start the crazysim_icuas_cont:
 docker start -i crazysim_icuas_cont
 
-# Start the crazysim_cont in another terminal, while it is already started:
+# Start the crazysim_icuas_cont in another terminal, while it is already started:
 docker exec -it crazysim_icuas_cont bash
 
 # Stop the conatainer
@@ -65,70 +63,32 @@ The docker contains packages for crazyflies simulator [CrazySim](https://github.
 > [!NOTE]
 > The ros2 workspace is located in /root/CrazySim/ros2_ws
 
-Generaly, since here are installed ROS1 and ROS2, sourcing should be considered and before running any ros2 package you need to source ros2  using alias:
-
-```
-ros2_ws
-source_ros2
-```
-Notice that in this case aliases are already used in .bashrc and it is not needed to do that, however if you intend to use ros1_bridge, you will need to do it. 
-
 ### RUN ICUAS EXAMPLE
 
-Navigate to `/root/CrazySim/ros2_ws/relay_race/startup`. Start the example: 
+Navigate to `/root/CrazySim/ros2_ws/icuas25_competition/startup`. Start the example: 
 
 ```
 ./start.sh
 ```
 
-If needed, do `chmod +x start.sh` before. It starts the example with 4 crazyflies and 5 aruco markers. In the first pane of the second window you can start teleop_twist, which is already in history. It controls cf_1.
+If needed, do `chmod +x start.sh` before. It starts the example with 5 crazyflies and 5 aruco markers. In the first pane of the second window you can start teleop_twist, which is already in history. It controls cf_1.
 
 #### Interesting topics
 
 * `cf_x/odom` - odometry (can be used for feedback)
 * `cf_x/image` - image from camera (the name of the topic can be changed)
-* `cf_x/battery` - percentage of the battery and general state
+* `cf_x/battery_status` - percentage of the battery and general state
 
 #### How can crazyflies be controlled:
 * `cf_x/cmd_attitude` - low level controller (it is used in the MPC scripts)
 * `cf_x/cmd_hover` - velocities for horizontal hovering, height can be changed by dynamically changing hovering height 
 * `cf_x/start_trajectory`,`cf_x/upload_trajectory` - services for executing trajectories
 * `cf_x/go_to` - service to define point to which cf should go
+* `cf_x/cmd_vel` - horizontal velocity control, vel_mux.py node subscrbes to it and publishes to `cf_x/cmd_hover`
 
-
-### Running MPC experiments
-
-In the folder `/root/startup` is `start.sh` script that starts the session with the examples from [CraySim page](https://github.com/gtfactslab/CrazySim).
-
-Before starting the session, please comment out all crazyflies that are not in Gazebo in file `ros2_ws/src/crazyswarm2/crazyflie/config/crazyflies.yaml` ([Check this](https://github.com/gtfactslab/CrazySim?tab=readme-ov-file#configuration) for more info).
-
-When starting the example script, if the frames of crazyflies do not appear in rviz and you wait too long, please check [this issue](https://github.com/gtfactslab/CrazySim/issues/1#issuecomment-1933212957).
-
-### ROS1 info
-This package is primarily supported in ROS2, and we strongly suggest using ROS2 for development. If you insist on using ROS1, here is an example on how to start rosbridge that will enable communication between ROS1 and ROS2.
-
-Note that ROS2 and ROS1 packages should always run in separate terminals to avoid mixing library paths.
-
-Before starting the bridge, start roscore either locally, or if starting it in container, open new terminal:
-
-```
-source_ros
-roscore
-```
-
-Command to start bridge in the new terminal (please mind the order of using aliases for sourcing):
-
-```
-source_ros
-ros2_ws
-source_ros2
-ros2 run ros1_bridge dynamic_bridge --bridge-all-topics
 ```
 If you are working in the group and you are all using the same network, please check [ROS_DOMAIN_ID](https://docs.ros.org/en/eloquent/Tutorials/Configuring-ROS2-Environment.html#the-ros-domain-id-variable) in .bashrc in container. Random number should be set during the build, however it is not impossible that some of you got the same number. If that is the situatation please change it, so that your simulations do  not crash.
 
-General information about Crazyflies can be found [here](https://www.bitcraze.io/products/crazyflie-2-1/).
-
-General info on bridge can be found [here](https://github.com/ros2/ros1_bridge/blob/master/README.md) and [here](https://docs.ros.org/en/humble/How-To-Guides/Using-ros1_bridge-Jammy-upstream.html)
 
 ## Bonus section
 The provided Docker image comes with a few preinstalled tools and configs which may simplify your life.
