@@ -103,11 +103,3 @@ Here are some links: [Tmuxinator](https://github.com/tmuxinator/tmuxinator), [Ge
 **Htop** is a better version of `top` - command line interface task manager. Start it with the command `htop` and exit with `q`.
 
 **VS Code** - If you normally use VS Code as your IDE, you can install [Dev Containers](https://code.visualstudio.com/docs/remote/containers#_sharing-git-credentials-with-your-container) extension which will allow you to continue using it inside the container. Simply start the container in your terminal (`docker start -i mrs_project`) and then attach to it from the VS code (open action tray with `Ctrl+Shift+P` and select `Dev Containers: Attach to Running Container`).
-
-### TODO
-- [x] Create separate repo for icuas_competition ros2 package and rename it to relay_race
-- [x] Clean the docker, are ros1, MPC example, ros1_bridge needed? 
-- [x] Add charging node
-- [ ] Add sdf file of a space
-- [ ] Change https to ssh
-- [ ] One alias for sourcing
