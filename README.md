@@ -43,12 +43,20 @@ docker build --ssh default -t crazysim_icuas_img .
 # Run the crazysim_img2 container for the fist time
 ./first_run.sh
 
-# This will create docker container crazysim_icuas container and position you into the container
+# This will create docker container crazysim_icuas_cont and position you into the container
 
+```
+
+For subsequent use of the container, you can use:
+```bash
 # Start the crazysim_icuas_cont:
 docker start -i crazysim_icuas_cont
 
-# Start the crazysim_icuas_cont in another terminal, while it is already started:
+```
+
+The following docker commands can also be helpful:
+```bash
+# Start another bash shell in the already running crazysim_icuas_cont container:
 docker exec -it crazysim_icuas_cont bash
 
 # Stop the conatainer
@@ -58,20 +66,24 @@ docker stop crazysim_icuas_cont
 docker rm crazysim_icuas_cont
 
 ```
-The docker contains packages for crazyflies simulator [CrazySim](https://github.com/gtfactslab/CrazySim). General information about Crazyflies can be found [here](https://www.bitcraze.io/products/crazyflie-2-1/).
+
+If you remove the container, you can always rebuild it from scratch by using `first_run.sh` script. 
+
+
+The containers `crazysim_icuas_cont` consists of packages for Crazyflies simulator [CrazySim](https://github.com/gtfactslab/CrazySim). General information about Crazyflies can be found [here](https://www.bitcraze.io/products/crazyflie-2-1/).
 
 > [!NOTE]
 > The ros2 workspace is located in /root/CrazySim/ros2_ws
 
 ### RUN ICUAS EXAMPLE
 
-Navigate to `/root/CrazySim/ros2_ws/src/icuas25_competition/startup`. Start the example: 
+Once inside the container, navigate to `/root/CrazySim/ros2_ws/src/icuas25_competition/startup`. Start the example: 
 
 ```
 ./start.sh
 ```
 
-If needed, do `chmod +x start.sh` before. It starts the example with 5 crazyflies and 5 aruco markers. In the first pane of the second window you can start teleop_twist, which is already in history. It controls cf_1.
+If needed, make startup script executable with `chmod +x start.sh`. It starts the example with 5 Crazyflies and 5 aruco markers in an empty world. To test that everything is working, in the first pane of the second window you can start `teleop_twist`, which is already in history. It controls the Crazyflie with id `cf_1`.
 
 #### Interesting topics
 
@@ -80,13 +92,13 @@ If needed, do `chmod +x start.sh` before. It starts the example with 5 crazyflie
 * `cf_x/battery_status` - percentage of the battery and general state
 
 #### How can crazyflies be controlled:
-* `cf_x/cmd_attitude` - low level controller (it is used in the MPC scripts)
+* `cf_x/cmd_attitude` - low level controller
 * `cf_x/cmd_hover` - velocities for horizontal hovering, height can be changed by dynamically changing hovering height 
 * `cf_x/start_trajectory`,`cf_x/upload_trajectory` - services for executing trajectories
 * `cf_x/go_to` - service to define point to which cf should go
 * `cf_x/cmd_vel` - horizontal velocity control, vel_mux.py node subscrbes to it and publishes to `cf_x/cmd_hover`
 
-If you are working in the group and you are all using the same network, please check [ROS_DOMAIN_ID](https://docs.ros.org/en/eloquent/Tutorials/Configuring-ROS2-Environment.html#the-ros-domain-id-variable) in .bashrc in container. Random number should be set during the build, however it is not impossible that some of you got the same number. If that is the situatation please change it, so that your simulations do  not crash.
+If you are working in the group and you are all using the same network, please check [ROS_DOMAIN_ID](https://docs.ros.org/en/eloquent/Tutorials/Configuring-ROS2-Environment.html#the-ros-domain-id-variable) in `.bashrc` in the container. Random number should be set during the build, however it is possible that some of you got the same number. If that is the situation please change it, so that your simulations do not crash.
 
 
 ## Bonus section
@@ -102,4 +114,4 @@ Here are some links: [Tmuxinator](https://github.com/tmuxinator/tmuxinator), [Ge
 
 **Htop** is a better version of `top` - command line interface task manager. Start it with the command `htop` and exit with `q`.
 
-**VS Code** - If you normally use VS Code as your IDE, you can install [Dev Containers](https://code.visualstudio.com/docs/remote/containers#_sharing-git-credentials-with-your-container) extension which will allow you to continue using it inside the container. Simply start the container in your terminal (`docker start -i mrs_project`) and then attach to it from the VS code (open action tray with `Ctrl+Shift+P` and select `Dev Containers: Attach to Running Container`).
+**VS Code** - If you normally use VS Code as your IDE, you can install [Dev Containers](https://code.visualstudio.com/docs/remote/containers#_sharing-git-credentials-with-your-container) extension which will allow you to continue using it inside the container. Simply start the container in your terminal (`docker start -i crazysim_icuas_cont `) and then attach to it from the VS code (open action tray with `Ctrl+Shift+P` and select `Dev Containers: Attach to Running Container`).
