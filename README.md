@@ -29,7 +29,7 @@ If you have an NVIDIA GPU, please install `nvidia-container-toolkit` by followin
 
 Clone the this repository:
 ```
-git clone git@github.com:marijana23/icuas_competition_2025.git
+git clone git@github.com:larics/icuas25_competition.git
 ```
 Add  to  `~/.bashrc` and source it, or type in the current terminal:
 ```
@@ -65,7 +65,7 @@ The docker contains packages for crazyflies simulator [CrazySim](https://github.
 
 ### RUN ICUAS EXAMPLE
 
-Navigate to `/root/CrazySim/ros2_ws/icuas25_competition/startup`. Start the example: 
+Navigate to `/root/CrazySim/ros2_ws/src/icuas25_competition/startup`. Start the example: 
 
 ```
 ./start.sh
