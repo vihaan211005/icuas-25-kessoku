@@ -75,7 +75,7 @@ The containers `crazysim_icuas_cont` consists of packages for Crazyflies simulat
 > [!NOTE]
 > The ros2 workspace is located in /root/CrazySim/ros2_ws
 
-### RUN ICUAS EXAMPLE
+### RUN EMPTY WORLD EXAMPLE
 
 Once inside the container, navigate to `/root/CrazySim/ros2_ws/src/icuas25_competition/startup`. Start the example: 
 
@@ -84,6 +84,14 @@ Once inside the container, navigate to `/root/CrazySim/ros2_ws/src/icuas25_compe
 ```
 
 If needed, make startup script executable with `chmod +x start.sh`. It starts the example with 5 Crazyflies and 5 aruco markers in an empty world. To test that everything is working, in the first pane of the second window you can start `teleop_twist`, which is already in history. It controls the Crazyflie with id `cf_1`.
+
+### RUN CITY_1 WORLD EXAMPLE
+Once inside the container, navigate to `/root/CrazySim/ros2_ws/src/icuas25_competition/startup`. Edit the `_setup.sh` script to export `ENV_NAME=city_1`, then start everything with:
+```
+./start.sh
+```
+> [!NOTE]
+> This will not spawn aruco markers. Place them on your own to test!
 
 #### Interesting topics
 

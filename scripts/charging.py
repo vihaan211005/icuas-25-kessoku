@@ -27,7 +27,7 @@ class GzServiceNode(Node):
 
         # Parse the charging area
         charging_area = data.get('charging_area', {})
-        self.charging_area = [charging_area.get('upper_left', None), charging_area.get('down_righ', None)]
+        self.charging_area = [charging_area.get('upper_left', None), charging_area.get('down_right', None)]
 
         
         self.odom_subscribers = {}
