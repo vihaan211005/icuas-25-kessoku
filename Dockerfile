@@ -153,6 +153,7 @@ RUN cd $HOME/CrazySim/crazyflie-firmware \
     &&  mkdir -p sitl_make/build && cd sitl_make/build \
     &&  cmake .. \
     &&  make all
+
     
 #install other ROS2 ws packages
 WORKDIR $HOME/CrazySim/ros2_ws/src
@@ -171,7 +172,7 @@ COPY to_copy/models $HOME/CrazySim/crazyflie-firmware/tools/crazyflie-simulation
 RUN echo "export PATH='$HOME/.local/bin:$PATH'" >> $HOME/.bashrc
 
 # Add useful aliases
-RUN echo "alias cd_relay_race='cd /root/CrazySim/ros2_ws/src/relay_race'" >> $HOME/.bashrc
+RUN echo "alias cd_icuas25_competition='cd /root/CrazySim/ros2_ws/src/icuas25_competition'" >> $HOME/.bashrc
 
 
 RUN apt install libboost-program-options-dev libusb-1.0-0-dev
