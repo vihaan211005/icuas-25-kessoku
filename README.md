@@ -77,7 +77,7 @@ The containers `crazysim_icuas_cont` consists of packages for Crazyflies simulat
 
 ### RUN EMPTY WORLD EXAMPLE
 
-Once inside the container, navigate to `/root/CrazySim/ros2_ws/src/icuas25_competition/startup`. Start the example: 
+Once inside the container, navigate to `/root/CrazySim/ros2_ws/src/icuas25_competition/startup` (you can use alias `cd_icuas25_competition` that will place you in icuas25_competition package). Start the example: 
 
 ```
 ./start.sh
