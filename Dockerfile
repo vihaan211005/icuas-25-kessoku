@@ -134,11 +134,10 @@ RUN  apt-get update \
 RUN apt-get install python-is-python3
 
 #Add mcap to bag things in ROS2
-RUN mkdir -p downloads && \
-    LATEST_RELEASE=$(curl -s https://api.github.com/repos/foxglove/mcap/releases/latest | jq -r '.assets[0].browser_download_url') && \
-    echo "Downloading latest release from: $LATEST_RELEASE" && \
-    curl -L -o /bin/mcap "$LATEST_RELEASE" && \
-    rm -r downloads && \
+RUN VERSION="releases/mcap-cli/v0.0.50" && \
+    RELEASE_URL=$(curl -s https://api.github.com/repos/foxglove/mcap/releases | jq -r --arg VERSION "$VERSION" '.[] | select(.tag_name == $VERSION) | .assets[0].browser_download_url') && \
+    echo "Downloading release $VERSION from: $RELEASE_URL" && \
+    curl -L -o /bin/mcap "$RELEASE_URL" && \
     cd /bin && chmod +x mcap
 
 
