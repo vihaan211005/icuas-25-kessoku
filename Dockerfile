@@ -140,7 +140,6 @@ RUN VERSION="releases/mcap-cli/v0.0.50" && \
     curl -L -o /bin/mcap "$RELEASE_URL" && \
     cd /bin && chmod +x mcap
 
-
 #installing CrazySim
 WORKDIR $HOME
 RUN  git clone https://github.com/gtfactslab/CrazySim.git --recursive \
@@ -181,13 +180,18 @@ RUN echo "alias cd_icuas25_competition='cd /root/CrazySim/ros2_ws/src/icuas25_co
 
 RUN apt install libboost-program-options-dev libusb-1.0-0-dev
 RUN pip3 install rowan transforms3d
-RUN apt install -y ros-${ROS2_DISTRO}-tf-transformations \
+RUN apt-get update &&  apt-get upgrade -y && apt-get install -y \
+                   ros-${ROS2_DISTRO}-tf-transformations \
                    ros-${ROS2_DISTRO}-nav2-map-server \
-                   ros-${ROS2_DISTRO}-nav2-lifecycle-manager\
-                   ros-${ROS2_DISTRO}-rosbridge-suite\
-                   ros-${ROS2_DISTRO}-rosbag2-storage-mcap\
-                   ros-${ROS2_DISTRO}-ros-gz-interfaces\
-                   ros-${ROS2_DISTRO}-ros-gz-bridge
+                   ros-${ROS2_DISTRO}-nav2-lifecycle-manager \
+                   ros-${ROS2_DISTRO}-rosbridge-suite \
+                   ros-${ROS2_DISTRO}-rosbag2-storage-mcap \ 
+                   ros-${ROS2_DISTRO}-ros-gz-interfaces \
+                   ros-${ROS2_DISTRO}-ros-gz-bridge \
+                   ros-${ROS2_DISTRO}-octomap \
+                   ros-${ROS2_DISTRO}-octomap-ros \
+                   ros-${ROS2_DISTRO}-octomap-server \
+                   ros-${ROS2_DISTRO}-octomap-msgs
 RUN apt install -y ros-${ROS2_DISTRO}-ros-gz${GZ_RELEASE}
 
 RUN echo "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$HOME/acados/lib" >> $HOME/.bashrc
