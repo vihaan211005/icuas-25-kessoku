@@ -35,8 +35,21 @@ def visualize_voxels(voxel_grid):
 
     # Extract colors based on voxel intensity
     colors = np.array([voxel_grid[tuple(point)] for point in occupied_voxels])  # Intensity values
-    colors_normalized = (3-colors)/3  # Normalize to [0, 1]
-    pcd.colors = o3d.utility.Vector3dVector(np.stack([colors_normalized] * 3, axis=1))
+
+    # Create an array to hold the colors
+    colors_rgb = np.zeros((len(colors), 3))  # Initialize to black (default color)
+
+    # Assign grayscale to values in the range 0-3
+    grayscale_mask = colors <= 3
+    colors_normalized = (3 - colors[grayscale_mask]) / 3  # Normalize grayscale
+    colors_rgb[grayscale_mask] = np.stack([colors_normalized] * 3, axis=1)
+
+    # Assign blue color to value 4
+    blue_mask = colors == 4
+    colors_rgb[blue_mask] = [0, 0, 1]  # RGB for blue
+
+    # Set colors in the point cloud
+    pcd.colors = o3d.utility.Vector3dVector(colors_rgb)
     
     # Visualize the points using Open3D
     o3d.visualization.draw_geometries([pcd], width=800, height=600)
@@ -55,28 +68,35 @@ def arr_to_pcd(binary_array):
     # Save the point cloud to a PCD file
     o3d.io.write_point_cloud("output.pcd", point_cloud)
 
+
+import pickle
+
+def save_array_to_pkl(array):
+    with open("output.pkl", 'wb') as file:
+        pickle.dump(array, file)
+
 # Main Function
 if __name__ == "__main__":
     # Define the dimensions of the 3D binary array
-    x_dim = 105
-    y_dim = 128
-    z_dim = 41
-    
-    # Load the 3D binary array (e.g., from "3d_binary_array.csv")
-    binary_array = load_csv_to_array("3d_binary_array.csv", x_dim, y_dim, z_dim)
-    # zoom(binary_array, (0.5, 0.5, 0.5), order=0)
+    x_dim = 107
+    y_dim = 130
+    z_dim = 43
 
-    for i in binary_array:
-        for j in i:
-            for k in j:
-                if(k==4): print(1)
-    
-    # binary_array[binary_array == 1] = 0
-    # binary_array[binary_array == 3] = 1
-
-    # Visualize using Open3D
+    binary_array = load_csv_to_array(f"first.csv", x_dim, y_dim, z_dim)
+    save_array_to_pkl(binary_array)
     visualize_voxels(binary_array)
 
+    # for i in range(z_dim):
+    #     visualize_2d(binary_array[:, :, i])
+    
+    for i in range(1,31):
+    
+        # Load the 3D binary array (e.g., from "3d_binary_array.csv")
+        binary_array = load_csv_to_array(f"array_{i}.csv", x_dim, y_dim, z_dim)
+        
+        # Visualize using Open3D
+        visualize_voxels(binary_array)
+
     # Visualize 2D
-    for i in range(z_dim):
-        visualize_2d(binary_array[:, :, i])
+    # for i in range(z_dim):
+    #     visualize_2d(binary_array[:, :, i])

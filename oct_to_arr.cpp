@@ -6,10 +6,10 @@
 using namespace std;
 using namespace octomap;
 
-void saveToCSV(std::vector<std::vector<std::vector<int>>> &binaryArray)
+void saveToCSV(std::vector<std::vector<std::vector<int>>> &binaryArray, string file_name)
 {
     // Open a CSV file for output
-    std::ofstream outfile("3d_binary_array.csv");
+    std::ofstream outfile(file_name + ".csv");
 
     // Write 3D array data to CSV
     for (int z = 0; z < binaryArray[0][0].size(); ++z)
@@ -130,53 +130,84 @@ void markUnvisitedCells(std::vector<std::vector<std::vector<int>>> &binaryArray,
 
 void markFaces(std::vector<std::vector<std::vector<int>>> &binaryArray)
 {
-    for (int i = 0; i < binaryArray.size(); ++i)
-        for (int j = 0; j < binaryArray[0].size(); ++j)
-            for (int k = 0; k < binaryArray[0][0].size(); ++k)
+    for (int i = 1; i < binaryArray.size() - 1; ++i)
+        for (int j = 1; j < binaryArray[0].size() - 1; ++j)
+            for (int k = 1; k < binaryArray[0][0].size() - 1; ++k)
                 if (binaryArray[i][j][k] == 1)
                 {
-                    // Check if the current cell is on the boundary
-                    if (i == 0 || i == binaryArray.size() - 1 || j == 0 || j == binaryArray[0].size() - 1 || k == 0 || k == binaryArray[0][0].size() - 1)
-                    {
-                        if (k == 0)
-                            binaryArray[i][j][k] = 3; // Mark as horizontal face on z=0 boundary
-                        else
-                            binaryArray[i][j][k] = 2; // Mark as face
-                    }
-
-                    // Check neighboring cells
+                    if (k == 1)
+                        binaryArray[i][j][k] = 3; // Mark as horizontal face on z=0 boundary
                     else
                     {
-                        bool isFace = false;
-                        int unvisitedNeighbors = 0;
+                        int plane[4] = {0,0,0,0};
+                        int total = 0;
                         for (int x = -1; x <= 1; ++x)
                             for (int y = -1; y <= 1; ++y)
                                 for (int z = -1; z <= 1; ++z)
                                 {
-                                    int curr_x = i + x;
-                                    int curr_y = j + y;
-                                    int curr_z = k + z;
-
-                                    if (curr_x < 0 || curr_x >= binaryArray.size() || curr_y < 0 || curr_y >= binaryArray[0].size() || curr_z < 0 || curr_z >= binaryArray[0][0].size())
-                                        isFace = true;
-                                    else if (binaryArray[curr_x][curr_y][curr_z] == 0)
+                                    if(binaryArray[i + x][j + y][k + z] != 0)total++;
+                                    if (!z && binaryArray[i + x][j + y][k + z] == 0)
                                     {
-                                        if (z == 1)
-                                            unvisitedNeighbors++;
-                                        isFace = true;
+                                        if(x<0) plane[0]++;
+                                        if(x>0) plane[1]++;
+                                        if(y<0) plane[2]++;
+                                        if(y>0) plane[3]++;
                                     }
                                 }
-
-                        if (isFace)
-                        {
-                            if (unvisitedNeighbors >= 9 && k > 0)
-                                binaryArray[i][j][k] = 3; // Mark as horizontal face
-                            else
-                                binaryArray[i][j][k] = 2; // Mark as face
+                        if(total==27)
+                            continue;
+                        if (plane[0] >= 1 ||  plane[1] >= 1 || plane[2] >= 1 || plane[3] >= 1){
+                            binaryArray[i][j][k] = 2; // Mark as vertical face
+                        }else{
+                            binaryArray[i][j][k] = 3; // Mark as horizontal face
                         }
                     }
                 }
 }
+
+std::tuple<int, int, int, int> getAdjacentPoint(std::vector<std::vector<std::vector<int>>> &binaryArray, int x, int y, int z)
+{
+    std::vector<std::tuple<int, int, int, int>> adjacentPoints = {
+        std::make_tuple(x - 1, y, z, 1),
+        std::make_tuple(x + 1, y, z, 2),
+        std::make_tuple(x, y - 1, z, 3),
+        std::make_tuple(x, y + 1, z, 4),
+        std::make_tuple(x + 1, y + 1, z, 5),
+        std::make_tuple(x + 1, y - 1, z, 6),
+        std::make_tuple(x - 1, y + 1, z, 7),
+        std::make_tuple(x - 1, y - 1, z, 8),
+    };
+
+    for (auto &point : adjacentPoints)
+    {
+        int curr_x = std::get<0>(point);
+        int curr_y = std::get<1>(point);
+        int curr_z = std::get<2>(point);
+
+
+        if (binaryArray[curr_x][curr_y][curr_z] == 0)
+            return point;
+    }
+
+    // Return the original point if no adjacent point is 0
+    return std::make_tuple(x, y, z, 0);
+}
+
+std::vector<std::vector<std::vector<int>>> addBoundary(std::vector<std::vector<std::vector<int>>> &array) {
+    int x_dim = array.size();
+    int y_dim = array[0].size();
+    int z_dim = array[0][0].size();
+
+    std::vector<std::vector<std::vector<int>>> newArray(x_dim + 2, std::vector<std::vector<int>>(y_dim + 2, std::vector<int>(z_dim + 2, 0)));
+
+    for (int i = 0; i < x_dim; ++i)
+        for (int j = 0; j < y_dim; ++j)
+            for (int k = 0; k < z_dim; ++k)
+                newArray[i + 1][j + 1][k + 1] = array[i][j][k];
+
+    return newArray;
+}
+
 
 void reduceResolution(std::vector<std::vector<std::vector<int>>> &binaryArray, int factor)
 {
@@ -211,7 +242,7 @@ void reduceResolution(std::vector<std::vector<std::vector<int>>> &binaryArray, i
     binaryArray = reducedArray;
 }
 
-std::vector<std::tuple<int, int, int>> checkLOS(std::vector<std::vector<std::vector<int>>> &binaryArray, int x, int y, int z, int radius)
+std::vector<std::tuple<int, int, int>> checkLOS(std::vector<std::vector<std::vector<int>>> &binaryArray, int x, int y, int z, int radius, bool take_faces = false)
 {
     std::vector<std::tuple<int, int, int>> pointsInSphere;
     std::vector<std::tuple<int, int, int>> inLOS;
@@ -231,7 +262,7 @@ std::vector<std::tuple<int, int, int>> checkLOS(std::vector<std::vector<std::vec
                 if (distance <= radius)
                     pointsInSphere.push_back(std::make_tuple(curr_x, curr_y, curr_z));
             }
-    std::cout << "Number of points in sphere: " << pointsInSphere.size() << std::endl;
+    // std::cout << "Number of points in sphere: " << pointsInSphere.size() << std::endl;
 
     for (auto &point : pointsInSphere)
     {
@@ -241,7 +272,9 @@ std::vector<std::tuple<int, int, int>> checkLOS(std::vector<std::vector<std::vec
         int dz = std::get<2>(point) - z;
         int steps = std::max(std::abs(dx), std::max(std::abs(dy), std::abs(dz)));
 
-        for (int i = 1; i < steps; ++i)
+        int end = steps;
+        if(take_faces) end--;
+        for (int i = 1; i <= end; ++i)
         {
             int curr_x = x + dx * i / steps;
             int curr_y = y + dy * i / steps;
@@ -280,7 +313,9 @@ std::tuple<int, int, int> getRandomPointFromLOS(std::vector<std::tuple<int, int,
         sumWeights += weightedPt.first;
     }
 
+    srand(time(0));
     double randomValue = (double)rand() / RAND_MAX * sumWeights;
+
     double cumulativeWeight = 0.0;
 
     for (auto &weightedPt : weightedPts)
@@ -312,26 +347,47 @@ int main()
     octreeToBinaryArray(octree, binaryArray, voxel_size);
     reduceResolution(binaryArray, 2);
     markUnvisitedCells(binaryArray, 0, 0, 0);
+    binaryArray = addBoundary(binaryArray);
     markFaces(binaryArray);
+    saveToCSV(binaryArray, "first");
 
-    // auto pts = checkLOS(binaryArray, 0, 0, 0, (int)(43));
-    // std::cout << "Number of points in LOS: " << pts.size() << std::endl;
-
-    std::tuple<int, int, int> startPt = std::make_tuple(0, 0, 0);
-    for (int i = 0; i < 5; ++i)
-    {
-        binaryArray[std::get<0>(startPt)][std::get<1>(startPt)][std::get<2>(startPt)] = 3;
-        auto pts = checkLOS(binaryArray, std::get<0>(startPt), std::get<1>(startPt), std::get<2>(startPt), (int)(43));
-        std::cout << "Number of points in LOS: " << pts.size() << std::endl;
-        startPt = getRandomPointFromLOS(pts, std::get<0>(startPt), std::get<1>(startPt), std::get<2>(startPt));
-        std::cout << "New starting point: (" << std::get<0>(startPt) << ", " << std::get<1>(startPt) << ", " << std::get<2>(startPt) << ")" << std::endl;
-        binaryArray[std::get<0>(startPt)][std::get<1>(startPt)][std::get<2>(startPt)] = 3;
-    }
 
     // Format and print dimensions in 2x3x4 format
     std::cout << "Dimensions: " << binaryArray.size() << "x" << binaryArray[0].size() << "x" << binaryArray[0][0].size() << "\n";
 
-    saveToCSV(binaryArray);
+
+    // auto pts = checkLOS(binaryArray, 0, 0, 0, (int)(43));
+    // std::cout << "Number of points in LOS: " << pts.size() << std::endl;
+    int threshold = 100;
+    int iter = 1;
+    while (1)
+    {
+        std::tuple<int, int, int> startPt = std::make_tuple(0, 0, 0);
+        for (int i = 0; i < 4; ++i)
+        {
+            binaryArray[std::get<0>(startPt)][std::get<1>(startPt)][std::get<2>(startPt)] = 4;
+            auto pts = checkLOS(binaryArray, std::get<0>(startPt), std::get<1>(startPt), std::get<2>(startPt), (int)(43));
+            // std::cout << "Number of points in LOS: " << pts.size() << std::endl;
+            startPt = getRandomPointFromLOS(pts, std::get<0>(startPt), std::get<1>(startPt), std::get<2>(startPt));
+            // std::cout << "New starting point: (" << std::get<0>(startPt) << ", " << std::get<1>(startPt) << ", " << std::get<2>(startPt) << ")" << std::endl;
+        }
+        binaryArray[std::get<0>(startPt)][std::get<1>(startPt)][std::get<2>(startPt)] = 4;
+        auto pts = checkLOS(binaryArray, std::get<0>(startPt), std::get<1>(startPt), std::get<2>(startPt), (int)(43), true);
+        int cnt = 0;
+        for (auto &point : pts)
+            if (binaryArray[std::get<0>(point)][std::get<1>(point)][std::get<2>(point)] == 2) // vertical face points only
+                cnt++;
+        std::cout << "Number of points in LOS that are faces: " << cnt << std::endl;
+
+        if(cnt<threshold) continue;
+
+        for (auto &point : pts)
+            if (binaryArray[std::get<0>(point)][std::get<1>(point)][std::get<2>(point)] == 2)
+                binaryArray[std::get<0>(point)][std::get<1>(point)][std::get<2>(point)] = 3;
+
+        saveToCSV(binaryArray, "array_" + std::to_string(iter++));
+    }
+
 
     return 0;
 }
