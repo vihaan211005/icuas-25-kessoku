@@ -6,10 +6,10 @@
 using namespace std;
 using namespace octomap;
 
-void saveToCSV(std::vector<std::vector<std::vector<int>>> &binaryArray, string file_name)
+void saveToCSV(vector<vector<vector<int>>> &binaryArray, string file_name)
 {
     // Open a CSV file for output
-    std::ofstream outfile(file_name + ".csv");
+    ofstream outfile(file_name + ".csv");
 
     // Write 3D array data to CSV
     for (int z = 0; z < binaryArray[0][0].size(); ++z)
@@ -23,11 +23,10 @@ void saveToCSV(std::vector<std::vector<std::vector<int>>> &binaryArray, string f
             }
             outfile << "\n";
         }
-    std::cout << "CSV Exported!" << std::endl;
+    cout << "CSV Exported!" << endl;
 }
 
-// Function to convert an octree to a 3D binary array, considering leaf node size
-void octreeToBinaryArray(const OcTree &octree, std::vector<std::vector<std::vector<int>>> &binaryArray, double voxel_size)
+void octreeToBinaryArray(const OcTree &octree, vector<vector<vector<int>>> &binaryArray, double voxel_size)
 {
     // Get the bounding box of the OctoMap
     double min_x, max_x, min_y, max_y, min_z, max_z;
@@ -40,7 +39,7 @@ void octreeToBinaryArray(const OcTree &octree, std::vector<std::vector<std::vect
     int size_z = static_cast<int>((max_z - min_z) / voxel_size);
 
     // Resize the binary array to the correct size
-    binaryArray.resize(size_x, std::vector<std::vector<int>>(size_y, std::vector<int>(size_z, 0)));
+    binaryArray.resize(size_x, vector<vector<int>>(size_y, vector<int>(size_z, 0)));
 
     // Iterate through the octree and fill the binary array
     for (OcTree::leaf_iterator it = octree.begin_leafs(), end = octree.end_leafs(); it != end; ++it)
@@ -73,12 +72,12 @@ void octreeToBinaryArray(const OcTree &octree, std::vector<std::vector<std::vect
             int end_idx_z = static_cast<int>((leaf_max_z - min_z) / voxel_size);
 
             // Ensure the indices are within bounds
-            start_idx_x = std::max(0, start_idx_x);
-            end_idx_x = std::min(size_x - 1, end_idx_x);
-            start_idx_y = std::max(0, start_idx_y);
-            end_idx_y = std::min(size_y - 1, end_idx_y);
-            start_idx_z = std::max(0, start_idx_z);
-            end_idx_z = std::min(size_z - 1, end_idx_z);
+            start_idx_x = max(0, start_idx_x);
+            end_idx_x = min(size_x - 1, end_idx_x);
+            start_idx_y = max(0, start_idx_y);
+            end_idx_y = min(size_y - 1, end_idx_y);
+            start_idx_z = max(0, start_idx_z);
+            end_idx_z = min(size_z - 1, end_idx_z);
 
             // Mark all grid points inside the leaf's bounding box as occupied
             for (int i = start_idx_x; i <= end_idx_x; ++i)
@@ -89,10 +88,10 @@ void octreeToBinaryArray(const OcTree &octree, std::vector<std::vector<std::vect
     }
 }
 
-void dfs(std::vector<std::vector<std::vector<int>>> &binaryArray, int x, int y, int z)
+void dfs(vector<vector<vector<int>>> &binaryArray, int x, int y, int z)
 {
-    std::queue<std::tuple<int, int, int>> queue;
-    queue.push(std::make_tuple(x, y, z));
+    queue<tuple<int, int, int>> queue;
+    queue.push(make_tuple(x, y, z));
 
     while (!queue.empty())
     {
@@ -104,16 +103,16 @@ void dfs(std::vector<std::vector<std::vector<int>>> &binaryArray, int x, int y, 
 
         binaryArray[curr_x][curr_y][curr_z] = 2;
 
-        queue.push(std::make_tuple(curr_x - 1, curr_y, curr_z));
-        queue.push(std::make_tuple(curr_x + 1, curr_y, curr_z));
-        queue.push(std::make_tuple(curr_x, curr_y - 1, curr_z));
-        queue.push(std::make_tuple(curr_x, curr_y + 1, curr_z));
-        queue.push(std::make_tuple(curr_x, curr_y, curr_z - 1));
-        queue.push(std::make_tuple(curr_x, curr_y, curr_z + 1));
+        queue.push(make_tuple(curr_x - 1, curr_y, curr_z));
+        queue.push(make_tuple(curr_x + 1, curr_y, curr_z));
+        queue.push(make_tuple(curr_x, curr_y - 1, curr_z));
+        queue.push(make_tuple(curr_x, curr_y + 1, curr_z));
+        queue.push(make_tuple(curr_x, curr_y, curr_z - 1));
+        queue.push(make_tuple(curr_x, curr_y, curr_z + 1));
     }
 }
 
-void markUnvisitedCells(std::vector<std::vector<std::vector<int>>> &binaryArray, int x, int y, int z)
+void markUnvisitedCells(vector<vector<vector<int>>> &binaryArray, int x, int y, int z)
 {
     dfs(binaryArray, x, y, z);
 
@@ -128,8 +127,9 @@ void markUnvisitedCells(std::vector<std::vector<std::vector<int>>> &binaryArray,
             }
 }
 
-void markFaces(std::vector<std::vector<std::vector<int>>> &binaryArray)
+void markFaces(vector<vector<vector<int>>> &binaryArray)
 {
+    int cnt = 0;
     for (int i = 1; i < binaryArray.size() - 1; ++i)
         for (int j = 1; j < binaryArray[0].size() - 1; ++j)
             for (int k = 1; k < binaryArray[0][0].size() - 1; ++k)
@@ -139,66 +139,76 @@ void markFaces(std::vector<std::vector<std::vector<int>>> &binaryArray)
                         binaryArray[i][j][k] = 3; // Mark as horizontal face on z=0 boundary
                     else
                     {
-                        int plane[4] = {0,0,0,0};
+                        int plane[4] = {0, 0, 0, 0};
                         int total = 0;
                         for (int x = -1; x <= 1; ++x)
                             for (int y = -1; y <= 1; ++y)
                                 for (int z = -1; z <= 1; ++z)
                                 {
-                                    if(binaryArray[i + x][j + y][k + z] != 0)total++;
+                                    if (binaryArray[i + x][j + y][k + z] != 0)
+                                        total++;
                                     if (!z && binaryArray[i + x][j + y][k + z] == 0)
                                     {
-                                        if(x<0) plane[0]++;
-                                        if(x>0) plane[1]++;
-                                        if(y<0) plane[2]++;
-                                        if(y>0) plane[3]++;
+                                        if (x < 0)
+                                            plane[0]++;
+                                        if (x > 0)
+                                            plane[1]++;
+                                        if (y < 0)
+                                            plane[2]++;
+                                        if (y > 0)
+                                            plane[3]++;
                                     }
                                 }
-                        if(total==27)
+                        if (total == 27)
                             continue;
-                        if (plane[0] >= 1 ||  plane[1] >= 1 || plane[2] >= 1 || plane[3] >= 1){
+                        if (plane[0] >= 1 || plane[1] >= 1 || plane[2] >= 1 || plane[3] >= 1)
+                        {
+                            cnt++;
                             binaryArray[i][j][k] = 2; // Mark as vertical face
-                        }else{
+                        }
+                        else
+                        {
                             binaryArray[i][j][k] = 3; // Mark as horizontal face
                         }
                     }
                 }
+    cout<<cnt<<endl;
 }
 
-std::tuple<int, int, int, int> getAdjacentPoint(std::vector<std::vector<std::vector<int>>> &binaryArray, int x, int y, int z)
+tuple<int, int, int, int, float, float> getAdjacentPoint(vector<vector<vector<int>>> &binaryArray, int x, int y, int z, int c_x, int c_y, int c_z)
 {
-    std::vector<std::tuple<int, int, int, int>> adjacentPoints = {
-        std::make_tuple(x - 1, y, z, 1),
-        std::make_tuple(x + 1, y, z, 2),
-        std::make_tuple(x, y - 1, z, 3),
-        std::make_tuple(x, y + 1, z, 4),
-        std::make_tuple(x + 1, y + 1, z, 5),
-        std::make_tuple(x + 1, y - 1, z, 6),
-        std::make_tuple(x - 1, y + 1, z, 7),
-        std::make_tuple(x - 1, y - 1, z, 8),
+    vector<tuple<int, int, int, int, float, float>> adjacentPoints = {
+        make_tuple(x - 1, y, z, 1, atan2(y - c_y, x - 1 - c_x), acos(z - c_z / sqrt(pow(x - 1 - c_x, 2) + pow(y - c_y, 2) + pow(z - c_z, 2)))),
+        make_tuple(x + 1, y, z, 2, atan2(y - c_y, x + 1 - c_x), acos(z - c_z / sqrt(pow(x + 1 - c_x, 2) + pow(y - c_y, 2) + pow(z - c_z, 2)))),
+        make_tuple(x, y - 1, z, 3, atan2(y - 1 - c_y, x - c_x), acos(z - c_z / sqrt(pow(x - c_x, 2) + pow(y - 1 - c_y, 2) + pow(z - c_z, 2)))),
+        make_tuple(x, y + 1, z, 4, atan2(y + 1 - c_y, x - c_x), acos(z - c_z / sqrt(pow(x - c_x, 2) + pow(y + 1 - c_y, 2) + pow(z - c_z, 2)))),
+        make_tuple(x + 1, y + 1, z, 5, atan2(y + 1 - c_y, x + 1 - c_x), acos(z - c_z / sqrt(pow(x + 1 - c_x, 2) + pow(y + 1 - c_y, 2) + pow(z - c_z, 2)))),
+        make_tuple(x + 1, y - 1, z, 6, atan2(y - 1 - c_y, x + 1 - c_x), acos(z - c_z / sqrt(pow(x + 1 - c_x, 2) + pow(y - 1 - c_y, 2) + pow(z - c_z, 2)))),
+        make_tuple(x - 1, y + 1, z, 7, atan2(y + 1 - c_y, x - 1 - c_x), acos(z - c_z / sqrt(pow(x - 1 - c_x, 2) + pow(y + 1 - c_y, 2) + pow(z - c_z, 2)))),
+        make_tuple(x - 1, y - 1, z, 8, atan2(y - 1 - c_y, x - 1 - c_x), acos(z - c_z / sqrt(pow(x - 1 - c_x, 2) + pow(y - 1 - c_y, 2) + pow(z - c_z, 2)))),
     };
 
     for (auto &point : adjacentPoints)
     {
-        int curr_x = std::get<0>(point);
-        int curr_y = std::get<1>(point);
-        int curr_z = std::get<2>(point);
-
+        int curr_x = get<0>(point);
+        int curr_y = get<1>(point);
+        int curr_z = get<2>(point);
 
         if (binaryArray[curr_x][curr_y][curr_z] == 0)
             return point;
     }
 
     // Return the original point if no adjacent point is 0
-    return std::make_tuple(x, y, z, 0);
+    return make_tuple(0, 0, 0, 0.0, 0, 0);
 }
 
-std::vector<std::vector<std::vector<int>>> addBoundary(std::vector<std::vector<std::vector<int>>> &array) {
+vector<vector<vector<int>>> addBoundary(vector<vector<vector<int>>> &array)
+{
     int x_dim = array.size();
     int y_dim = array[0].size();
     int z_dim = array[0][0].size();
 
-    std::vector<std::vector<std::vector<int>>> newArray(x_dim + 2, std::vector<std::vector<int>>(y_dim + 2, std::vector<int>(z_dim + 2, 0)));
+    vector<vector<vector<int>>> newArray(x_dim + 2, vector<vector<int>>(y_dim + 2, vector<int>(z_dim + 2, 0)));
 
     for (int i = 0; i < x_dim; ++i)
         for (int j = 0; j < y_dim; ++j)
@@ -208,14 +218,13 @@ std::vector<std::vector<std::vector<int>>> addBoundary(std::vector<std::vector<s
     return newArray;
 }
 
-
-void reduceResolution(std::vector<std::vector<std::vector<int>>> &binaryArray, int factor)
+void reduceResolution(vector<vector<vector<int>>> &binaryArray, int factor)
 {
     int newSizeX = binaryArray.size() / factor;
     int newSizeY = binaryArray[0].size() / factor;
     int newSizeZ = binaryArray[0][0].size() / factor;
 
-    std::vector<std::vector<std::vector<int>>> reducedArray(newSizeX, std::vector<std::vector<int>>(newSizeY, std::vector<int>(newSizeZ, 0)));
+    vector<vector<vector<int>>> reducedArray(newSizeX, vector<vector<int>>(newSizeY, vector<int>(newSizeZ, 0)));
 
     for (int i = 0; i < newSizeX; ++i)
         for (int j = 0; j < newSizeY; ++j)
@@ -242,10 +251,30 @@ void reduceResolution(std::vector<std::vector<std::vector<int>>> &binaryArray, i
     binaryArray = reducedArray;
 }
 
-std::vector<std::tuple<int, int, int>> checkLOS(std::vector<std::vector<std::vector<int>>> &binaryArray, int x, int y, int z, int radius, bool take_faces = false)
+bool check2points(vector<vector<vector<int>>> &binaryArray, int x1, int y1, int z1, int x2, int y2, int z2)
 {
-    std::vector<std::tuple<int, int, int>> pointsInSphere;
-    std::vector<std::tuple<int, int, int>> inLOS;
+    int dx = x2 - x1;
+    int dy = y2 - y1;
+    int dz = z2 - z1;
+    int steps = max(abs(dx), max(abs(dy), abs(dz)));
+
+    for (int i = 1; i <= steps; ++i)
+    {
+        int curr_x = x1 + dx * i / steps;
+        int curr_y = y1 + dy * i / steps;
+        int curr_z = z1 + dz * i / steps;
+
+        if (binaryArray[curr_x][curr_y][curr_z] != 0)
+            return false;
+    }
+
+    return true;
+}
+
+vector<tuple<int, int, int>> checkLOS(vector<vector<vector<int>>> &binaryArray, int x, int y, int z, int radius, bool take_faces = false)
+{
+    vector<tuple<int, int, int>> pointsInSphere;
+    vector<tuple<int, int, int>> inLOS;
 
     for (int i = -radius; i <= radius; ++i)
         for (int j = -radius; j <= radius; ++j)
@@ -260,20 +289,20 @@ std::vector<std::tuple<int, int, int>> checkLOS(std::vector<std::vector<std::vec
 
                 double distance = sqrt(pow(i, 2) + pow(j, 2) + pow(k, 2));
                 if (distance <= radius)
-                    pointsInSphere.push_back(std::make_tuple(curr_x, curr_y, curr_z));
+                    pointsInSphere.push_back(make_tuple(curr_x, curr_y, curr_z));
             }
-    // std::cout << "Number of points in sphere: " << pointsInSphere.size() << std::endl;
 
     for (auto &point : pointsInSphere)
     {
         bool isClearPath = true;
-        int dx = std::get<0>(point) - x;
-        int dy = std::get<1>(point) - y;
-        int dz = std::get<2>(point) - z;
-        int steps = std::max(std::abs(dx), std::max(std::abs(dy), std::abs(dz)));
+        int dx = get<0>(point) - x;
+        int dy = get<1>(point) - y;
+        int dz = get<2>(point) - z;
+        int steps = max(abs(dx), max(abs(dy), abs(dz)));
 
         int end = steps;
-        if(take_faces) end--;
+        if (take_faces)
+            end--;
         for (int i = 1; i <= end; ++i)
         {
             int curr_x = x + dx * i / steps;
@@ -294,17 +323,17 @@ std::vector<std::tuple<int, int, int>> checkLOS(std::vector<std::vector<std::vec
     return inLOS;
 }
 
-std::tuple<int, int, int> getRandomPointFromLOS(std::vector<std::tuple<int, int, int>> &pts, int x, int y, int z)
+tuple<int, int, int> getRandomPointFromLOS(vector<tuple<int, int, int>> &pts, int x, int y, int z)
 {
-    std::vector<std::pair<double, std::tuple<int, int, int>>> weightedPts;
+    vector<pair<double, tuple<int, int, int>>> weightedPts;
 
     for (auto &point : pts)
     {
-        int dx = std::get<0>(point) - x;
-        int dy = std::get<1>(point) - y;
-        int dz = std::get<2>(point) - z;
+        int dx = get<0>(point) - x;
+        int dy = get<1>(point) - y;
+        int dz = get<2>(point) - z;
         double distance = sqrt(pow(dx, 2) + pow(dy, 2) + pow(dz, 2));
-        weightedPts.push_back(std::make_pair(distance, point));
+        weightedPts.push_back(make_pair(distance, point));
     }
 
     double sumWeights = 0.0;
@@ -333,17 +362,13 @@ std::tuple<int, int, int> getRandomPointFromLOS(std::vector<std::tuple<int, int,
 
 int main()
 {
-    // Load an OctoMap from a file
     OcTree octree("city_1.binvox.bt");
 
-    // Create a 3D array to store binary data
-    std::vector<std::vector<std::vector<int>>> binaryArray;
+    vector<vector<vector<int>>> binaryArray;
 
-    // Define voxel size (e.g., 0.1 meters)
     double voxel_size = octree.getResolution();
     // double voxel_size = 1.0f;
 
-    // Convert the octree to a binary array
     octreeToBinaryArray(octree, binaryArray, voxel_size);
     reduceResolution(binaryArray, 2);
     markUnvisitedCells(binaryArray, 0, 0, 0);
@@ -351,43 +376,77 @@ int main()
     markFaces(binaryArray);
     saveToCSV(binaryArray, "first");
 
+    int x_dim = binaryArray.size();
+    int y_dim = binaryArray[0].size();
+    int z_dim = binaryArray[0][0].size();
+    cout << "Dimensions: " << x_dim << "x" << y_dim << "x" << z_dim << "\n";
 
-    // Format and print dimensions in 2x3x4 format
-    std::cout << "Dimensions: " << binaryArray.size() << "x" << binaryArray[0].size() << "x" << binaryArray[0][0].size() << "\n";
-
-
-    // auto pts = checkLOS(binaryArray, 0, 0, 0, (int)(43));
-    // std::cout << "Number of points in LOS: " << pts.size() << std::endl;
-    int threshold = 100;
+    int threshold = 1000;
     int iter = 1;
+    int radius = 43;
     while (1)
     {
-        std::tuple<int, int, int> startPt = std::make_tuple(0, 0, 0);
+        vector<vector<vector<bool>>> prevVisitArray(x_dim, vector<vector<bool>>(y_dim, vector<bool>(z_dim, false)));
+        tuple<int, int, int> startPt = make_tuple(0, 0, 0);
+        bool to_cont = false;
         for (int i = 0; i < 4; ++i)
         {
-            binaryArray[std::get<0>(startPt)][std::get<1>(startPt)][std::get<2>(startPt)] = 4;
-            auto pts = checkLOS(binaryArray, std::get<0>(startPt), std::get<1>(startPt), std::get<2>(startPt), (int)(43));
-            // std::cout << "Number of points in LOS: " << pts.size() << std::endl;
-            startPt = getRandomPointFromLOS(pts, std::get<0>(startPt), std::get<1>(startPt), std::get<2>(startPt));
-            // std::cout << "New starting point: (" << std::get<0>(startPt) << ", " << std::get<1>(startPt) << ", " << std::get<2>(startPt) << ")" << std::endl;
+            binaryArray[get<0>(startPt)][get<1>(startPt)][get<2>(startPt)] = 4;
+            auto pts = checkLOS(binaryArray, get<0>(startPt), get<1>(startPt), get<2>(startPt), radius);
+            vector<tuple<int, int, int>> new_pts;
+            for (auto &point : pts)
+                if (!prevVisitArray[get<0>(point)][get<1>(point)][get<2>(point)])
+                    new_pts.push_back(point);
+            for (auto &point : new_pts)
+                prevVisitArray[get<0>(point)][get<1>(point)][get<2>(point)] = true;
+
+            if (!new_pts.size())
+            {
+                cout << "No Points";
+                to_cont = true;
+                break;
+            }
+
+            // cout << "Number of points in LOS: " << pts.size() << endl;
+            startPt = getRandomPointFromLOS(new_pts, get<0>(startPt), get<1>(startPt), get<2>(startPt));
+            // cout << "New starting point: (" << get<0>(startPt) << ", " << get<1>(startPt) << ", " << get<2>(startPt) << ")" << endl;
         }
-        binaryArray[std::get<0>(startPt)][std::get<1>(startPt)][std::get<2>(startPt)] = 4;
-        auto pts = checkLOS(binaryArray, std::get<0>(startPt), std::get<1>(startPt), std::get<2>(startPt), (int)(43), true);
+        if (to_cont)
+            continue;
+        binaryArray[get<0>(startPt)][get<1>(startPt)][get<2>(startPt)] = 4;
+        auto pts = checkLOS(binaryArray, get<0>(startPt), get<1>(startPt), get<2>(startPt), radius, true);
         int cnt = 0;
         for (auto &point : pts)
-            if (binaryArray[std::get<0>(point)][std::get<1>(point)][std::get<2>(point)] == 2) // vertical face points only
+            if (binaryArray[get<0>(point)][get<1>(point)][get<2>(point)] == 2) // vertical face points only
                 cnt++;
-        std::cout << "Number of points in LOS that are faces: " << cnt << std::endl;
-
-        if(cnt<threshold) continue;
-
+        cout << "Number of points in LOS that are faces: " << cnt << endl;
+        if (cnt < threshold)
+            continue;
+        vector<tuple<int, int, int, int, float, float>> to_visit_pts;
         for (auto &point : pts)
-            if (binaryArray[std::get<0>(point)][std::get<1>(point)][std::get<2>(point)] == 2)
-                binaryArray[std::get<0>(point)][std::get<1>(point)][std::get<2>(point)] = 3;
+            if (binaryArray[get<0>(point)][get<1>(point)][get<2>(point)] == 2)
+            {
+                binaryArray[get<0>(point)][get<1>(point)][get<2>(point)] = 3;
+                to_visit_pts.push_back(getAdjacentPoint(binaryArray, get<0>(point), get<1>(point), get<2>(point), get<0>(startPt), get<1>(startPt), get<2>(startPt)));
+            }
+        
+        vector<tuple<int, int, int, int, float, float>> new_to_visit_pts;
+        for (auto &point : new_to_visit_pts)
+            if (check2points(binaryArray, get<0>(startPt), get<1>(startPt), get<2>(startPt), get<0>(point), get<1>(point), get<2>(point)))
+                new_to_visit_pts.push_back(point);
 
-        saveToCSV(binaryArray, "array_" + std::to_string(iter++));
+        sort(new_to_visit_pts.begin(), new_to_visit_pts.end(), [](const auto &a, const auto &b)
+             { return make_pair(get<4>(a), get<5>(a)) < make_pair(get<4>(b), get<5>(b)); });
+        
+        vector<int> to_break;
+        for (int i = 1; i < new_to_visit_pts.size(); ++i){
+            if (!check2points(binaryArray, get<0>(new_to_visit_pts[i-1]), get<1>(new_to_visit_pts[i-1]), get<2>(new_to_visit_pts[i-1]), get<0>(new_to_visit_pts[i]), get<1>(new_to_visit_pts[i]), get<2>(new_to_visit_pts[i])))
+                to_break.push_back(i);
+        }
+        cout << "Size of to_break: " << to_break.size() << endl;
+
+        saveToCSV(binaryArray, "array_" + to_string(iter++));
     }
-
 
     return 0;
 }
