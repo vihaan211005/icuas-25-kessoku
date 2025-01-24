@@ -78,13 +78,14 @@ def save_array_to_pkl(array):
 # Main Function
 if __name__ == "__main__":
     # Define the dimensions of the 3D binary array
-    x_dim = 107
-    y_dim = 130
-    z_dim = 43
+    x_dim = 211
+    y_dim = 256
+    z_dim = 83
 
     binary_array = load_csv_to_array(f"first.csv", x_dim, y_dim, z_dim)
     save_array_to_pkl(binary_array)
     visualize_voxels(binary_array)
+    input()
 
     # for i in range(z_dim):
     #     visualize_2d(binary_array[:, :, i])
