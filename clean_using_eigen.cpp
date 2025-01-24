@@ -1,3 +1,4 @@
+
 #include <octomap/octomap.h>
 #include <vector>
 #include <iostream>
@@ -9,113 +10,13 @@
 using namespace std;
 using namespace octomap;
 using Eigen::Vector3d;
-
-class Point3D
-{
-public:
-    double x, y, z;
-    Point3D(double x = 0, double y = 0, double z = 0) : x(x), y(y), z(z) {}
-
-    Point3D operator+(const Point3D &p) const
-    {
-        return Point3D(x + p.x, y + p.y, z + p.z);
-    }
-
-    Point3D operator+(const double &p) const
-    {
-        return Point3D(x + p, y + p, z + p);
-    }
-
-    Point3D operator-(const Point3D &p) const
-    {
-        return Point3D(x - p.x, y - p.y, z - p.z);
-    }
-
-    Point3D operator-(const double &p) const
-    {
-        return Point3D(x - p, y - p, z - p);
-    }
-
-    Point3D operator/(const double &s) const
-    {
-        return Point3D(x / s, y / s, z / s);
-    }
-
-    Point3D operator*(const double &s) const
-    {
-        return Point3D(x * s, y * s, z * s);
-    }
-
-    Index3D nearestIndex()
-    {
-        return Index3D(round(x), round(y), round(z));
-    }
-
-    friend ostream &operator<<(ostream &os, const Point3D &p)
-    {
-        os << "(" << p.x << ", " << p.y << ", " << p.z << ")";
-        return os;
-    }
-};
-
-class Index3D
-{
-public:
-    int x, y, z;
-    Index3D(int x = 0, int y = 0, int z = 0) : x(x), y(y), z(z) {}
-
-    Index3D operator-(const Index3D &other) const
-    {
-        return Index3D(x - other.x, y - other.y, z - other.z);
-    }
-
-    Index3D operator+(const Index3D &other) const
-    {
-        return Index3D(x + other.x, y + other.y, z + other.z);
-    }
-
-    Index3D operator*(const int &s) const
-    {
-        return Index3D(x * s, y * s, z * s);
-    }
-
-    Point3D operator*(const double &s) const
-    {
-        return Point3D(x * s, y * s, z * s);
-    }
-
-    Index3D operator/(const int &s) const
-    {
-        return Index3D(x / s, y / s, z / s);
-    }
-
-    int maxInt()
-    {
-        return max(x, max(y, z));
-    }
-
-    int maxAbsInt()
-    {
-        return max(abs(x), max(abs(y), abs(z)));
-    }
-
-    double dist()
-    {
-        return sqrt(pow(x, 2) + pow(y, 2) + pow(z, 2));
-    }
-
-    friend ostream &operator<<(ostream &os, const Index3D &i)
-    {
-        os << "(" << i.x << ", " << i.y << ", " << i.z << ")";
-        return os;
-    }
-};
+using Eigen::Vector3i;
 
 class Bounds
 {
 public:
     Vector3d min, max;
-    Bounds(Vector3d min = Vector3d(0,0,0), Vector3d max = Vector3d(0,0,0)) : min(min), max(max) {}
+    Bounds(Vector3d min = Vector3d(0, 0, 0), Vector3d max = Vector3d(0, 0, 0)) : min(min), max(max) {}
 
     friend ostream &operator<<(ostream &os, const Bounds &b)
     {
@@ -141,7 +42,7 @@ public:
     int yaw;
     double theta;
     double phai;
-    DronePos(Vector3i pos = Vector3i(0,0,0), int yaw = 0, double theta = 0, double phai = 0) : pos(pos), yaw(yaw), theta(theta), phai(phai) {}
+    DronePos(Vector3i pos = Vector3i(0, 0, 0), int yaw = 0, double theta = 0, double phai = 0) : pos(pos), yaw(yaw), theta(theta), phai(phai) {}
 };
 
 class Solver
@@ -183,10 +84,11 @@ private:
     {
         resolution = octree.getResolution();
 
-        octree.getMetricMin(mapBounds.min.x, mapBounds.min.y, mapBounds.min.z);
-        octree.getMetricMax(mapBounds.max.x, mapBounds.max.y, mapBounds.max.z);
+        octree.getMetricMin(mapBounds.min.x(), mapBounds.min.y(), mapBounds.min.z());
+        octree.getMetricMax(mapBounds.max.x(), mapBounds.max.y(), mapBounds.max.z());
 
-        dimArray = ((mapBounds.max - mapBounds.min) / resolution).nearestIndex();
+        dimArray = ((mapBounds.max - mapBounds.min) / resolution).unaryExpr([](double val)
+                                                                            { return static_cast<int>(std::round(val)); });
 
         binaryArray.resize(dimArray.x(), vector<vector<int>>(dimArray.y(), vector<int>(dimArray.z(), 0)));
 
@@ -200,8 +102,10 @@ private:
                 Vector3d leaf_min = point3d - Vector3d(half_size, half_size, half_size);
                 Vector3d leaf_max = point3d + Vector3d(half_size, half_size, half_size);
 
-                Vector3i start_idx = ((leaf_min - mapBoundsMin) / resolution).array().round().cast<int>();
-                Vector3i end_idx = ((leaf_max - mapBoundsMin) / resolution).array().round().cast<int>();
+                Vector3i start_idx = ((leaf_min - mapBounds.min) / resolution).unaryExpr([](double val)
+                                                                                         { return static_cast<int>(std::round(val)); });
+                Vector3i end_idx = ((leaf_max - mapBounds.min) / resolution).unaryExpr([](double val)
+                                                                                       { return static_cast<int>(std::round(val)); });
 
                 start_idx = start_idx.cwiseMax(Vector3i(0, 0, 0));
                 end_idx = end_idx.cwiseMin(dimArray - Vector3i(1, 1, 1));
@@ -242,7 +146,7 @@ private:
             Vector3i curr = queue.front();
             queue.pop();
 
-            if (curr.x() < 0 || curr.x() >= dimArray.x || curr.y() < 0 || curr.y() >= dimArray.y || curr.z() < 0 || curr.z() >= dimArray.z || binaryArray[curr.x()][curr.y()][curr.z()])
+            if (curr.x() < 0 || curr.x() >= dimArray.x() || curr.y() < 0 || curr.y() >= dimArray.y() || curr.z() < 0 || curr.z() >= dimArray.z() || binaryArray[curr.x()][curr.y()][curr.z()])
                 continue;
 
             binaryArray[curr.x()][curr.y()][curr.z()] = 2;
@@ -271,7 +175,7 @@ private:
     {
         Vector3i newDim = dimArray / factor;
 
-        mapBounds.max = mapBounds.max - ((dimArray - newDim * factor) * resolution);
+        mapBounds.max -= resolution * (((dimArray - newDim * factor).cast<double>()));
         resolution *= factor;
         dimArray = newDim;
 
@@ -302,9 +206,9 @@ private:
     // Add buffer
     void addBoundary()
     {
-        mapBounds.max = mapBounds.max + resolution;
-        mapBounds.min.x -= resolution;
-        mapBounds.min.y -= resolution;
+        mapBounds.max += Vector3d(resolution, resolution, resolution);
+        mapBounds.min.x() -= resolution;
+        mapBounds.min.y() -= resolution;
 
         dimArray.x() += 2;
         dimArray.y() += 2;
@@ -389,7 +293,7 @@ private:
                 {
                     Vector3i curr = centre + Vector3i(i, j, k);
 
-                    if (curr.x() < 0 || curr.x() >= dimArray.x || curr.y() < 0 || curr.y() >= dimArray.y || curr.z() < 0 || curr.z() >= dimArray.z)
+                    if (curr.x() < 0 || curr.x() >= dimArray.x() || curr.y() < 0 || curr.y() >= dimArray.y() || curr.z() < 0 || curr.z() >= dimArray.z())
                         continue;
 
                     double distance = sqrt(pow(i, 2) + pow(j, 2) + pow(k, 2));
@@ -401,7 +305,7 @@ private:
         {
             bool isClearPath = true;
             Vector3i d = point - centre;
-            int steps = max({abs(dp.x()), abs(dp.y()), abs(dp.z())});
+            int steps = max({abs(d.x()), abs(d.y()), abs(d.z())});
 
             for (int i = 1; i < steps; ++i)
             {
@@ -470,109 +374,18 @@ private:
             DronePos(point + Vector3i(-1, 1, 0), 7, atan2(point.y() + 1 - centre.y(), point.x() - 1 - centre.x()), acos((point.z() - centre.z()) / sqrt(pow(point.x() - 1 - centre.x(), 2) + pow(point.y() + 1 - centre.y(), 2) + pow(point.z() - centre.z(), 2)))),
             DronePos(point + Vector3i(-1, -1, 0), 8, atan2(point.y() - 1 - centre.y(), point.x() - 1 - centre.x()), acos((point.z() - centre.z()) / sqrt(pow(point.x() - 1 - centre.x(), 2) + pow(point.y() - 1 - centre.y(), 2) + pow(point.z() - centre.z(), 2))))};
 
-        for (auto &point : adjacentPoints)
+        for (auto &dronepos : adjacentPoints)
         {
 
-            if (binaryArray[point.pos.x][point.pos.y][point.pos.z] == 0)
-                return point;
+            if (binaryArray[dronepos.pos.x()][dronepos.pos.y()][dronepos.pos.z()] == 0)
+                return dronepos;
         }
 
         return DronePos();
     }
 };
 
-// int main()
+int main()
 {
-    OcTree octree("city_1.binvox.bt");
-
-    vector<vector<vector<int>>> binaryArray;
-
-    double voxel_size = octree.getResolution();
-    // double voxel_size = 1.0f;
-
-    octreeToBinaryArray(octree, binaryArray, voxel_size);
-    reduceResolution(binaryArray, 2);
-    markUnvisitedCells(binaryArray, 0, 0, 0);
-    binaryArray = addBoundary(binaryArray);
-    markFaces(binaryArray);
-    saveToCSV(binaryArray, "first");
-
-    int x_dim = binaryArray.size();
-    int y_dim = binaryArray[0].size();
-    int z_dim = binaryArray[0][0].size();
-    cout << "Dimensions: " << x_dim << "x" << y_dim << "x" << z_dim << "\n";
-
-    int threshold = 1000;
-    int iter = 1;
-    int radius = 43;
-    while (1)
-    {
-        vector<vector<vector<bool>>> prevVisitArray(x_dim, vector<vector<bool>>(y_dim, vector<bool>(z_dim, false)));
-        tuple<int, int, int> startPt = make_tuple(0, 0, 0);
-        bool to_cont = false;
-        for (int i = 0; i < 4; ++i)
-        {
-            binaryArray[get<0>(startPt)][get<1>(startPt)][get<2>(startPt)] = 4;
-            auto pts = checkLOS(binaryArray, get<0>(startPt), get<1>(startPt), get<2>(startPt), radius);
-            vector<tuple<int, int, int>> new_pts;
-            for (auto &point : pts)
-                if (!prevVisitArray[get<0>(point)][get<1>(point)][get<2>(point)])
-                    new_pts.push_back(point);
-            for (auto &point : new_pts)
-                prevVisitArray[get<0>(point)][get<1>(point)][get<2>(point)] = true;
-
-            if (!new_pts.size())
-            {
-                cout << "No Points";
-                to_cont = true;
-                break;
-            }
-
-            // cout << "Number of points in LOS: " << pts.size() << endl;
-            startPt = getRandomPointFromLOS(new_pts, get<0>(startPt), get<1>(startPt), get<2>(startPt));
-            // cout << "New starting point: (" << get<0>(startPt) << ", " << get<1>(startPt) << ", " << get<2>(startPt) << ")" << endl;
-        }
-        if (to_cont)
-            continue;
-        binaryArray[get<0>(startPt)][get<1>(startPt)][get<2>(startPt)] = 4;
-        auto pts = checkLOS(binaryArray, get<0>(startPt), get<1>(startPt), get<2>(startPt), radius, true);
-        int cnt = 0;
-        for (auto &point : pts)
-            if (binaryArray[get<0>(point)][get<1>(point)][get<2>(point)] == 2) // vertical face points only
-                cnt++;
-        cout << "Number of points in LOS that are faces: " << cnt << endl;
-        if (cnt < threshold)
-            continue;
-
-        vector<tuple<int, int, int, int, float, float>> to_visit_pts;
-        for (auto &point : pts)
-            if (binaryArray[get<0>(point)][get<1>(point)][get<2>(point)] == 2)
-            {
-                binaryArray[get<0>(point)][get<1>(point)][get<2>(point)] = 3;
-                to_visit_pts.push_back(getAdjacentPoint(binaryArray, get<0>(point), get<1>(point), get<2>(point), get<0>(startPt), get<1>(startPt), get<2>(startPt)));
-            }
-
-        vector<tuple<int, int, int, int, float, float>> new_to_visit_pts;
-        for (auto &point : to_visit_pts)
-            if (check2points(binaryArray, get<0>(startPt), get<1>(startPt), get<2>(startPt), get<0>(point), get<1>(point), get<2>(point)))
-                new_to_visit_pts.push_back(point);
-
-        cout << "Size of to_visit_pts: " << to_visit_pts.size() << endl;
-        cout << "Size of new_to_visit_pts: " << new_to_visit_pts.size() << endl;
-
-        sort(new_to_visit_pts.begin(), new_to_visit_pts.end(), [](const auto &a, const auto &b)
-             { return make_pair(get<4>(a), get<5>(a)) < make_pair(get<4>(b), get<5>(b)); });
-
-        vector<int> to_break;
-        for (int i = 1; i < new_to_visit_pts.size(); ++i)
-        {
-            if (!check2points(binaryArray, get<0>(new_to_visit_pts[i - 1]), get<1>(new_to_visit_pts[i - 1]), get<2>(new_to_visit_pts[i - 1]), get<0>(new_to_visit_pts[i]), get<1>(new_to_visit_pts[i]), get<2>(new_to_visit_pts[i])))
-                to_break.push_back(i);
-        }
-        cout << "Size of to_break: " << to_break.size() << endl;
-
-        saveToCSV(binaryArray, "array_" + to_string(iter++));
-    }
-
     return 0;
 }
