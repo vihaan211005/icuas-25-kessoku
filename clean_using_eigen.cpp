@@ -1,4 +1,3 @@
-
 #include <octomap/octomap.h>
 #include <vector>
 #include <iostream>
@@ -25,16 +24,6 @@ public:
     }
 };
 
-class Solution
-{
-public:
-    bool flag = false;
-    vector<Vector3d> path;
-    vector<Vector3d> final;
-
-    Solution() : flag(false) {}
-};
-
 class DronePos
 {
 public:
@@ -45,10 +34,64 @@ public:
     DronePos(Vector3i pos = Vector3i(0, 0, 0), int yaw = 0, double theta = 0, double phai = 0) : pos(pos), yaw(yaw), theta(theta), phai(phai) {}
 };
 
+class Solution
+{
+public:
+    bool flag = false;
+    vector<Vector3d> startPts;
+    vector<vector<DronePos>> toVisit;
+    vector<vector<int>> toBreak;
+
+    Solution() : flag(false) {}
+};
+
 class Solver
 {
 public:
     Solver(Vector3d base, OcTree octree, int radius) : baseStation(baseStation), octree(octree), radius(radius) {}
+
+    void mainLogic()
+    {
+        octreeToBinaryArray();
+        reduceResolution(2);
+        markInterior();
+        addBoundary();
+        markFaces();
+
+        saveToCSV("first");
+        cout << "Dimensions : " << dimArray << endl;
+
+        vector<Vector3i> startPts;
+        startPts.push_back(Vector3i(0, 0, 0));
+        int cnt = 0;
+        for (int i = 0; i < 4; i++)
+        {
+            binaryArray[startPts[i].x()][startPts[i].y()][startPts[i].z()] = 4;
+            vector<Vector3i> all_points = pointsInLOS(startPts[i]);
+            vector<Vector3i> empty_points = pointsInLOS(startPts[i]);
+            vector<vector<DronePos>> poses;
+            for (auto &point : all_points)
+            {
+                vector<DronePos> poses_i;
+
+                if (binaryArray[point.x()][point.y()][point.z()] == 2)
+                {
+                    binaryArray[point.x()][point.y()][point.z()] = 3;
+                    cnt++;
+                    poses_i.push_back(getAdjacentPoint(point, point));
+                }
+                else if (binaryArray[point.x()][point.y()][point.z()] == 0)
+                {
+                    empty_points.push_back(point);
+                }
+                poses.push_back(poses_i);
+            }
+            startPts.push_back(getRandomPointFromLOS(empty_points, startPts[i]));
+        }
+        binaryArray[startPts[4].x()][startPts[4].y()][startPts[4].z()] = 4;
+        saveToCSV("array_1");
+        cout << "Dimensions : " << dimArray << endl;
+    }
 
 private:
     Vector3d baseStation;
@@ -65,18 +108,18 @@ private:
     {
         ofstream outfile(file_name + ".csv");
 
-        for (int z = 0; z < binaryArray[0][0].size(); ++z)
-            for (int y = 0; y < binaryArray[0].size(); ++y)
+        for (int z = 0; z < dimArray.z(); ++z)
+            for (int y = 0; y < dimArray.y(); ++y)
             {
-                for (int x = 0; x < binaryArray.size(); ++x)
+                for (int x = 0; x < dimArray.x(); ++x)
                 {
                     outfile << binaryArray[x][y][z];
-                    if (x < binaryArray.size() - 1)
+                    if (x < dimArray.x() - 1)
                         outfile << ",";
                 }
                 outfile << "\n";
             }
-        // cout << "CSV Exported!" << endl;
+        cout << "CSV Exported!" << endl;
     }
 
     // Converts OctTree to 3DArray
@@ -219,7 +262,9 @@ private:
         for (int i = 1; i < dimArray.x() - 1; ++i)
             for (int j = 1; j < dimArray.y() - 1; ++j)
                 for (int k = 0; k < dimArray.z() - 1; ++k)
-                    newArray[i][j][k] = binaryArray[i][j][k];
+                    newArray[i][j][k] = binaryArray[i - 1][j - 1][k];
+
+        binaryArray = newArray;
     }
 
     // Mark Horizontal faces as 3 and Verical as 2. Call after adding x,y buffer and above z
@@ -387,5 +432,6 @@ private:
 
 int main()
 {
-    return 0;
+    Solver solver = Solver(Vector3d(0, 0, 0), OcTree("city_1.binvox.bt"), 43);
+    solver.mainLogic();
 }
