@@ -216,10 +216,9 @@ COPY to_copy/nanorc $HOME/.nanorc
 COPY to_copy/tmux $HOME/.tmux.conf
 COPY to_copy/ranger $HOME/.config/ranger/rc.conf
 
-WORKDIR $HOME/CrazySim/ros2_ws/src/icuas25_competition
-COPY ./src .
-COPY ./include .
-COPY CMakeLists.txt .
+COPY src $HOME/CrazySim/ros2_ws/src/icuas25_competition/src
+COPY include $HOME/CrazySim/ros2_ws/src/icuas25_competition/include
+COPY CMakeLists.txt $HOME/CrazySim/ros2_ws/src/icuas25_competition/
 
 USER root
 WORKDIR $HOME
