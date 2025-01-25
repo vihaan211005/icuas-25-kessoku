@@ -73,11 +73,17 @@ public:
         saveToCSV("first");
         cout << "Dimensions : " << dimArray << endl;
 
-        for (int i = 0; i < 100; i++)
+        while (1)
         {
-            mainLogic();
+            for (int i = 0; i < 50; i++)
+                mainLogic();
+            cout << "Best Eval after 50 iter = " << solution.eval << endl;
+            solution.eval = 0;
+            for (int i = 0; i < solution.facesVisited.size(); i++)
+            {
+                binaryArray[solution.facesVisited[i].x()][solution.facesVisited[i].y()][solution.facesVisited[i].z()] = 3;
+            }
         }
-        cout << "Best Eval after 100 iter = " << solution.eval;
     }
 
     void mainLogic()
@@ -94,14 +100,19 @@ public:
             vector<Vector3i> all_points = pointsInLOS(startPts[i]);
             vector<Vector3i> empty_points;
 
+            int all = 0;
+            int in_sight = 0;
+
             for (auto &point : all_points)
             {
 
                 if (binaryArray[point.x()][point.y()][point.z()] == 2)
                 {
+                    all++;
                     DronePos dronepos = getAdjacentPoint(point, startPts[i]);
                     if (check2points(dronepos.pos, startPts[i]))
                     {
+                        in_sight++;
                         local_eval++;
                         poses[i].push_back(dronepos);
                         facesVisited.push_back(point);
@@ -114,8 +125,13 @@ public:
 
             sort(poses[i].begin(), poses[i].end());
             for (int j = 0; j < poses[i].size() - 1; j++)
-                if (!check2points(poses[i][j].pos, poses[i][j].pos))
+                if (!check2points(poses[i][j].pos, poses[i][j+1].pos))
                     toBreak[i].push_back(j);
+
+            cout<<"All "<<all<<endl;
+            cout<<"LOS "<<in_sight<<endl;
+            cout<<"brk "<<toBreak[i].size()<<endl;
+        
         }
         vector<Vector3d> centres(num_drones);
         for (int i = 0; i < num_drones; i++)
@@ -315,6 +331,7 @@ private:
     // Mark Horizontal faces as 3 and Verical as 2. Call after adding x,y buffer and above z
     void markFaces()
     {
+        int total_vertical = 0;
         for (int i = 1; i < binaryArray.size() - 1; ++i)
             for (int j = 1; j < binaryArray[0].size() - 1; ++j)
                 for (int k = 0; k < binaryArray[0][0].size() - 1; ++k)
@@ -347,11 +364,15 @@ private:
                             if (total == 27)
                                 continue;
                             if (plane[0] || plane[1] || plane[2] || plane[3])
+                            {
                                 binaryArray[i][j][k] = 2; // Mark as vertical face
+                                total_vertical++;
+                            }
                             else
                                 binaryArray[i][j][k] = 3; // Mark as horizontal face
                         }
                     }
+        cout << "Total = " << total_vertical << endl;
     }
 
     // Check LOS btwn 2 points
