@@ -95,24 +95,18 @@ public:
         vector<Vector3i> facesVisited;
 
         int local_eval = 0;
-        for (int i = 0; i < 4; i++)
+        for (int i = 0; i < num_drones - 1; i++)
         {
             vector<Vector3i> all_points = pointsInLOS(startPts[i]);
             vector<Vector3i> empty_points;
 
-            int all = 0;
-            int in_sight = 0;
-
             for (auto &point : all_points)
             {
-
                 if (binaryArray[point.x()][point.y()][point.z()] == 2)
                 {
-                    all++;
                     DronePos dronepos = getAdjacentPoint(point, startPts[i]);
                     if (check2points(dronepos.pos, startPts[i]))
                     {
-                        in_sight++;
                         local_eval++;
                         poses[i].push_back(dronepos);
                         facesVisited.push_back(point);
@@ -124,14 +118,10 @@ public:
             startPts[i + 1] = getRandomPointFromLOS(empty_points, startPts[i]);
 
             sort(poses[i].begin(), poses[i].end());
-            for (int j = 0; j < poses[i].size() - 1; j++)
-                if (!check2points(poses[i][j].pos, poses[i][j+1].pos))
-                    toBreak[i].push_back(j);
 
-            cout<<"All "<<all<<endl;
-            cout<<"LOS "<<in_sight<<endl;
-            cout<<"brk "<<toBreak[i].size()<<endl;
-        
+            for (int j = 0; j < int(poses[i].size()) - 1; j++)
+                if (!check2points(poses[i][j].pos, poses[i][j + 1].pos))
+                    toBreak[i].push_back(j);
         }
         vector<Vector3d> centres(num_drones);
         for (int i = 0; i < num_drones; i++)
