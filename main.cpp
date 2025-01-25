@@ -4,6 +4,7 @@
 #include <queue>
 #include <cmath>
 #include <Eigen/Dense>
+#include <chrono>
 
 #define Array3D vector<vector<vector<int>>>
 
@@ -33,12 +34,18 @@ public:
     double theta;
     double phai;
     DronePos(Vector3i pos = Vector3i(0, 0, 0), int yaw = 0, double theta = 0, double phai = 0) : pos(pos), yaw(yaw), theta(theta), phai(phai) {}
+
+    bool operator<(const DronePos &other) const
+    {
+        if (theta != other.theta)
+            return theta < other.theta;
+        return phai < other.phai;
+    }
 };
 
 class Solution
 {
 public:
-    bool flag = false;
     vector<Vector3d> startPts;
     vector<vector<pair<Vector3d, int>>> toVisit;
     vector<vector<int>> toBreak;
@@ -49,9 +56,11 @@ public:
 class Solver
 {
 public:
-    Solver(Vector3d base, OcTree octree, int radius) : baseStation(baseStation), octree(octree), radius(radius) {}
+    Solution solution;
 
-    void mainLogic()
+    Solver(Vector3d base, OcTree octree, int radius, int num_drones) : baseStation(baseStation), octree(octree), radius(radius), num_drones(num_drones) {}
+
+    void initialSetup()
     {
         octreeToBinaryArray();
         reduceResolution(2);
@@ -62,44 +71,68 @@ public:
         saveToCSV("first");
         cout << "Dimensions : " << dimArray << endl;
 
-        vector<Vector3i> startPts;
-        startPts.push_back(Vector3i(0, 0, 0));
-        int cnt = 0;
+        while (1)
+        {
+            mainLogic();
+        }
+    }
+
+    void mainLogic()
+    {
+        vector<Vector3i> startPts(num_drones);
+        startPts[0] = Vector3i(0, 0, 0); // base
+        vector<vector<DronePos>> poses(num_drones - 1);
+        vector<vector<int>> toBreak(num_drones - 1);
+
+        int local_eval = 0;
         for (int i = 0; i < 4; i++)
         {
-            binaryArray[startPts[i].x()][startPts[i].y()][startPts[i].z()] = 4;
             vector<Vector3i> all_points = pointsInLOS(startPts[i]);
             vector<Vector3i> empty_points;
-            vector<vector<DronePos>> poses;
 
             for (auto &point : all_points)
             {
-                vector<DronePos> poses_i;
 
                 if (binaryArray[point.x()][point.y()][point.z()] == 2)
                 {
-                    binaryArray[point.x()][point.y()][point.z()] = 3;
-                    cnt++;
-                    poses_i.push_back(getAdjacentPoint(point, point));
+                    DronePos dronepos = getAdjacentPoint(point, startPts[i]);
+                    if (check2points(dronepos.pos, startPts[i]))
+                    {
+                        local_eval++;
+                        poses[i].push_back(dronepos);
+                    }
                 }
                 else if (binaryArray[point.x()][point.y()][point.z()] == 0)
-                {
                     empty_points.push_back(point);
-                }
-                poses.push_back(poses_i);
             }
+            startPts[i + 1] = getRandomPointFromLOS(empty_points, startPts[i]);
 
-            startPts.push_back(getRandomPointFromLOS(empty_points, startPts[i]));
+            sort(poses[i].begin(), poses[i].end());
+            for (int j = 0; j < poses[i].size() - 1; j++)
+                if (!check2points(poses[i][j].pos, poses[i][j].pos))
+                    toBreak[i].push_back(j);
         }
-        binaryArray[startPts[4].x()][startPts[4].y()][startPts[4].z()] = 4;
-        saveToCSV("array_1");
-        cout << "Dimensions : " << dimArray << endl;
+        vector<Vector3D> centres(num_drones);
+        for (int i = 0; i < num_drones; i++)
+        {
+            centres[i] = indexToPoint(startPts[i]);
+        }
+
+        vector<vector<pair<Vector3d, int>>> toVisit(num_drones - 1);
+        for (int i = 0; i < num_drones - 1; i++)
+            for (auto dronepos : poses[i])
+                toVisit[i].push_back(make_pair(dronepos.pos, dronepos.yaw));
+        
+        
+
+        cout << "Eval = " << local_eval << endl;
     }
 
 private:
     Vector3d baseStation;
     OcTree octree;
     int radius;
+    int num_drones;
 
     Bounds mapBounds;
     Array3D binaryArray;
@@ -317,9 +350,9 @@ private:
         Vector3i dp = p1 - p2;
         int steps = max({abs(dp.x()), abs(dp.y()), abs(dp.z())});
 
-        for (int i = 1; i <= steps; ++i)
+        for (int i = 1; i < steps; ++i)
         {
-            Vector3i curr = p1 + dp * i / steps;
+            Vector3i curr = p2 + dp * i / steps;
 
             if (binaryArray[curr.x()][curr.y()][curr.z()])
                 return false;
@@ -390,7 +423,7 @@ private:
             sumWeights += weightedPt.first;
         }
 
-        srand(time(0));
+        srand(chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now().time_since_epoch()).count());
         double randomValue = (double)rand() / RAND_MAX * sumWeights;
 
         double cumulativeWeight = 0.0;
@@ -415,6 +448,8 @@ private:
         for (int i = -1; i <= 1; i++)
             for (int j = -1; j <= 1; j++)
             {
+                if (!i & !j)
+                    continue;
                 Vector3i cur = point + Vector3i(i, j, 0);
                 adjacentPoints.push_back(DronePos(cur, (i + 1) * 3 + (j + 1), atan2(cur.y(), cur.x()), acos((cur.z()) / sqrt(pow(cur.x(), 2) + pow(cur.y(), 2) + pow(cur.z(), 2)))));
             }
@@ -425,7 +460,7 @@ private:
                 return dronepos;
         }
 
-        cout<<"Big Problem";
+        cout << "Big Problem";
         return DronePos();
     }
 };
@@ -433,5 +468,5 @@ private:
 int main()
 {
     Solver solver = Solver(Vector3d(0, 0, 0), OcTree("city_1.binvox.bt"), 43);
-    solver.mainLogic();
+    solver.initialSetup();
 }
