@@ -56,7 +56,8 @@ private:
     Vector3d baseStation;
     OcTree octree;
     int radius;
-
+    int num_drones;
+    
     Bounds mapBounds;
     Array3D binaryArray;
     double resolution;
