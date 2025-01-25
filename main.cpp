@@ -49,8 +49,10 @@ public:
     vector<Vector3d> startPts;
     vector<vector<pair<Vector3d, int>>> toVisit;
     vector<vector<int>> toBreak;
+    vector<Vector3i> facesVisited;
+    int eval;
 
-    Solution() : flag(false) {}
+    Solution() : eval(0) {}
 };
 
 class Solver
@@ -71,10 +73,11 @@ public:
         saveToCSV("first");
         cout << "Dimensions : " << dimArray << endl;
 
-        while (1)
+        for (int i = 0; i < 100; i++)
         {
             mainLogic();
         }
+        cout << "Best Eval after 100 iter = " << solution.eval;
     }
 
     void mainLogic()
@@ -83,6 +86,7 @@ public:
         startPts[0] = Vector3i(0, 0, 0); // base
         vector<vector<DronePos>> poses(num_drones - 1);
         vector<vector<int>> toBreak(num_drones - 1);
+        vector<Vector3i> facesVisited;
 
         int local_eval = 0;
         for (int i = 0; i < 4; i++)
@@ -100,6 +104,7 @@ public:
                     {
                         local_eval++;
                         poses[i].push_back(dronepos);
+                        facesVisited.push_back(point);
                     }
                 }
                 else if (binaryArray[point.x()][point.y()][point.z()] == 0)
@@ -112,7 +117,7 @@ public:
                 if (!check2points(poses[i][j].pos, poses[i][j].pos))
                     toBreak[i].push_back(j);
         }
-        vector<Vector3D> centres(num_drones);
+        vector<Vector3d> centres(num_drones);
         for (int i = 0; i < num_drones; i++)
         {
             centres[i] = indexToPoint(startPts[i]);
@@ -121,11 +126,16 @@ public:
         vector<vector<pair<Vector3d, int>>> toVisit(num_drones - 1);
         for (int i = 0; i < num_drones - 1; i++)
             for (auto dronepos : poses[i])
-                toVisit[i].push_back(make_pair(dronepos.pos, dronepos.yaw));
-        
-        
+                toVisit[i].push_back(make_pair(indexToPoint(dronepos.pos), dronepos.yaw));
 
-        cout << "Eval = " << local_eval << endl;
+        if (solution.eval < local_eval)
+        {
+            solution.eval = local_eval;
+            solution.startPts = centres;
+            solution.toVisit = toVisit;
+            solution.toBreak = toBreak;
+            solution.facesVisited = facesVisited;
+        }
     }
 
 private:
@@ -467,6 +477,6 @@ private:
 
 int main()
 {
-    Solver solver = Solver(Vector3d(0, 0, 0), OcTree("city_1.binvox.bt"), 43);
+    Solver solver = Solver(Vector3d(0, 0, 0), OcTree("city_1.binvox.bt"), 43, 5);
     solver.initialSetup();
 }
