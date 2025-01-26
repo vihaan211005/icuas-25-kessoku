@@ -11,6 +11,16 @@ find_package(ament_cmake_python REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclpy REQUIRED)
 
+find_package(crazyflie_interfaces REQUIRED)
+find_package(builtin_interfaces REQUIRED)
+find_package(ros2_aruco_interfaces REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(octomap_msgs REQUIRED)
+find_package(octomap REQUIRED)
+find_package(icuas25_msgs REQUIRED)
+find_package(Boost REQUIRED)
+
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
   # the following line skips the linter which checks for copyrights
@@ -39,6 +49,16 @@ install(DIRECTORY
   launch
   worlds
   DESTINATION share/${PROJECT_NAME}/
+)
+
+add_executable(crazyflie_client src/crazyflie_client.cpp)
+ament_target_dependencies(crazyflie_client rclcpp crazyflie_interfaces geometry_msgs builtin_interfaces ros2_aruco_interfaces octomap_msgs icuas25_msgs 
+octomap Boost)
+
+# Install targets
+install(TARGETS
+  crazyflie_client
+  DESTINATION lib/${PROJECT_NAME}
 )
 
 ament_package()

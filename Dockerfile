@@ -201,14 +201,17 @@ RUN echo "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$HOME/acados/lib" >> $HOME/.ba
 # setup ros2 environment variables
 RUN echo "export ROS_LOCALHOST_ONLY=1" >> $HOME/.bashrc
 RUN echo "export ROS_DOMAIN_ID=$(shuf -i 1-101 -n 1)" >> $HOME/.bashrc
-
-
 WORKDIR $HOME/CrazySim/ros2_ws
 
 # Final build of ROS2 ws 
 RUN bash -c "source /opt/ros/${ROS2_DISTRO}/setup.bash;source $HOME/CrazySim/ros2_ws/install/setup.bash;colcon build --symlink-install --merge-install --cmake-args=-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
 RUN echo "ros2_ws" >> $HOME/.bashrc && \
-    echo "source_ros2" >> $HOME/.bashrc
+echo "source_ros2" >> $HOME/.bashrc
+
+COPY src $HOME/CrazySim/ros2_ws/src/icuas25_competition/src
+COPY include $HOME/CrazySim/ros2_ws/src/icuas25_competition/include
+COPY CMakeLists.txt $HOME/CrazySim/ros2_ws/src/icuas25_competition/
+RUN bash -c "source /opt/ros/${ROS2_DISTRO}/setup.bash;source $HOME/CrazySim/ros2_ws/install/setup.bash;colcon build --symlink-install --merge-install --cmake-args=-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
 
 WORKDIR $HOME
 COPY to_copy/aliases $HOME/.bash_aliases
@@ -216,9 +219,7 @@ COPY to_copy/nanorc $HOME/.nanorc
 COPY to_copy/tmux $HOME/.tmux.conf
 COPY to_copy/ranger $HOME/.config/ranger/rc.conf
 
-COPY src $HOME/CrazySim/ros2_ws/src/icuas25_competition/src
-COPY include $HOME/CrazySim/ros2_ws/src/icuas25_competition/include
-COPY CMakeLists.txt $HOME/CrazySim/ros2_ws/src/icuas25_competition/
+
 
 USER root
 WORKDIR $HOME

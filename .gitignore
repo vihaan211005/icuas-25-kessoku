@@ -1,3 +1,4 @@
 startup/cache
 startup/.tmuxinator.yml
-ssh_auth_sock
+./ssh_auth_sock
+.vscode
