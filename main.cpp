@@ -5,6 +5,7 @@
 #include <cmath>
 #include <Eigen/Dense>
 #include <chrono>
+#include <boost/thread.hpp>
 
 #define Array3D vector<vector<vector<int>>>
 
@@ -37,9 +38,9 @@ public:
 
     bool operator<(const DronePos &other) const
     {
-        if (theta != other.theta)
-            return theta < other.theta;
-        return phai < other.phai;
+        if (phai != other.phai)
+            return phai < other.phai;
+        return theta < other.theta;
     }
 };
 
@@ -50,6 +51,7 @@ public:
     vector<vector<pair<Vector3d, int>>> toVisit;
     vector<vector<int>> toBreak;
     vector<Vector3i> facesVisited;
+    vector<Vector3i> prevPoints;
     int eval;
 
     Solution() : eval(0) {}
@@ -59,6 +61,7 @@ class Solver
 {
 public:
     Solution solution;
+    boost::mutex param_mutex;
 
     Solver(Vector3d base, OcTree octree, int radius, int num_drones) : baseStation(baseStation), octree(octree), radius(radius), num_drones(num_drones) {}
 
@@ -73,21 +76,29 @@ public:
         saveToCSV("first");
         cout << "Dimensions : " << dimArray << endl;
 
+        int i = 0;
         while (1)
         {
-            for (int i = 0; i < 50; i++)
+            i++;
+            for (int i = 0; i < 100; i++)
                 mainLogic();
-            cout << "Best Eval after 50 iter = " << solution.eval << endl;
+            cout << "Best Eval after 100 iter = " << solution.eval << endl;
             solution.eval = 0;
             for (int i = 0; i < solution.facesVisited.size(); i++)
             {
                 binaryArray[solution.facesVisited[i].x()][solution.facesVisited[i].y()][solution.facesVisited[i].z()] = 3;
             }
+            saveToCSV("array_" + to_string(i));
         }
     }
 
     void mainLogic()
     {
+        vector<Vector3i> prevPoints;
+        {
+            boost::lock_guard<boost::mutex> lock(param_mutex);
+            prevPoints = solution.prevPoints;
+        }
         vector<Vector3i> startPts(num_drones);
         startPts[0] = Vector3i(0, 0, 0); // base
         vector<vector<DronePos>> poses(num_drones - 1);
@@ -113,9 +124,22 @@ public:
                     }
                 }
                 else if (binaryArray[point.x()][point.y()][point.z()] == 0)
-                    empty_points.push_back(point);
+                {
+                    bool nearbyEmpty = true;
+                    for (int i = -1; i <= 1; i++)
+                        for (int j = -1; j <= 1; j++)
+                            for (int k = -1; k <= 1; k++)
+                            {
+                                Vector3i curr = point + Vector3i(i, j, k);
+                                if (curr.x() >= 0 && curr.x() < dimArray.x() && curr.y() >= 0 && curr.y() < dimArray.y() && curr.z() >= 0 && curr.z() < dimArray.z())
+                                    if (binaryArray[curr.x()][curr.y()][curr.z()])
+                                        nearbyEmpty = false;
+                            }
+                    if (nearbyEmpty)
+                        empty_points.push_back(point);
+                }
             }
-            startPts[i + 1] = getRandomPointFromLOS(empty_points, startPts[i]);
+            startPts[i + 1] = getRandomPointFromLOS(empty_points, startPts[i], prevPoints);
 
             sort(poses[i].begin(), poses[i].end());
 
@@ -127,20 +151,24 @@ public:
         for (int i = 0; i < num_drones; i++)
         {
             centres[i] = indexToPoint(startPts[i]);
+            prevPoints.push_back(startPts[i]);
         }
 
         vector<vector<pair<Vector3d, int>>> toVisit(num_drones - 1);
         for (int i = 0; i < num_drones - 1; i++)
             for (auto dronepos : poses[i])
                 toVisit[i].push_back(make_pair(indexToPoint(dronepos.pos), dronepos.yaw));
-
-        if (solution.eval < local_eval)
         {
-            solution.eval = local_eval;
-            solution.startPts = centres;
-            solution.toVisit = toVisit;
-            solution.toBreak = toBreak;
-            solution.facesVisited = facesVisited;
+            boost::mutex::scoped_lock lock(param_mutex);
+            if (solution.eval < local_eval)
+            {
+                solution.eval = local_eval;
+                solution.startPts = centres;
+                solution.toVisit = toVisit;
+                solution.toBreak = toBreak;
+                solution.facesVisited = facesVisited;
+                solution.prevPoints = prevPoints;
+            }
         }
     }
 
@@ -365,6 +393,20 @@ private:
         cout << "Total = " << total_vertical << endl;
     }
 
+    // // Check LOS via octree
+    bool check2points_octree(Vector3i p1, Vector3i p2)
+    {
+        if (p1 == p2)
+            return true;
+        Vector3d startidx = indexToPoint(p1);
+        Vector3d endidx = indexToPoint(p2);
+        point3d start(startidx.x(), startidx.y(), startidx.z());
+        point3d end(endidx.x(), endidx.y(), endidx.z());
+        point3d hit;
+        bool hits = octree.castRay(start, end - start, hit, true, (end - start).norm() - 0.01);
+        return !hits;
+    }
+
     // Check LOS btwn 2 points
     bool check2points(Vector3i p1, Vector3i p2)
     {
@@ -427,7 +469,7 @@ private:
     }
 
     // Return empty point in LOS
-    Vector3i getRandomPointFromLOS(vector<Vector3i> &pts, Vector3i centre)
+    Vector3i getRandomPointFromLOS(vector<Vector3i> &pts, Vector3i centre, vector<Vector3i> prevPoints, double sigma =0.01)
     {
         vector<pair<double, Vector3i>> weightedPts;
 
@@ -435,7 +477,18 @@ private:
         {
             Vector3i d = point - centre;
             double distance = sqrt(pow(d.x(), 2) + pow(d.y(), 2) + pow(d.z(), 2));
-            weightedPts.push_back(make_pair(distance, point));
+
+            double gaussianWeight = 1.0;
+            for (auto &prev : prevPoints)
+            {
+                Vector3i diff = point - prev;
+                double distToPrev = sqrt(pow(diff.x(), 2) + pow(diff.y(), 2) + pow(diff.z(), 2));
+                double gaussian = exp(-pow(distToPrev, 2) / (2 * pow(sigma, 2)));
+                gaussianWeight *= 1.0 - gaussian;
+            }
+
+            double combinedWeight = distance;
+            weightedPts.push_back(make_pair(combinedWeight, point));
         }
 
         double sumWeights = 0.0;
