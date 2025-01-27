@@ -270,6 +270,21 @@ def calculate_vertical_normal(x, y, z, binary_array, threshold=2):
     else:
         return np.array([0, -1, 0])  # Normal is in the negative y-direction
 
+def save_array_to_csv(array, filename):
+    # Flatten the 3D array and create a list of (x, y, z, value) for each voxel
+    rows = []
+    for x in range(array.shape[0]):
+        for y in range(array.shape[1]):
+            for z in range(array.shape[2]):
+                # Append the coordinates (x, y, z) and the value in the array
+                rows.append([x, y, z, array[x, y, z]])
+
+    # Write the data to a CSV file
+    with open(filename, mode='w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(['x', 'y', 'z', 'value'])  # Write header
+        writer.writerows(rows)
+
 if __name__ == "__main__":
     # Define the dimensions of the 3D binary array
     x_dim = 107
@@ -290,6 +305,7 @@ if __name__ == "__main__":
             binary_array[x, y, z] = 5
 
     updated_binary_array = apply_majority_based_changes(binary_array, horizontal_vertices, vertical_vertices)
+    save_array_to_csv(updated_binary_array, 'updated_array.csv')
 
     points = []
     colors = []
