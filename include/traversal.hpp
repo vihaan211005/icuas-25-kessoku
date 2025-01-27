@@ -77,23 +77,6 @@ public:
         markInterior();
         addBoundary();
         markFaces();
-
-        saveToCSV("first");
-        cout << "Dimensions : " << dimArray << endl;
-
-        int i = 0;
-        while (1)
-        {
-            i++;
-            for (int i = 0; i < 100; i++)
-                mainLogic(); // timer callback (run continously)
-
-            cout << "Best Eval after 100 iter = " << solution.eval << endl;
-
-            solution.eval = 0;
-
-            saveToCSV("array_" + to_string(i)); 
-        }
     }
 
     void mainLogic()

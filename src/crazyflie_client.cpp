@@ -14,6 +14,7 @@
 #include "std_msgs/msg/string.hpp"
 #include "icuas25_msgs/msg/target_info.hpp"
 #include <boost/functional/hash.hpp>
+#include <boost/thread.hpp>
 #include <memory>
 #include <thread>
 #include <cmath>
@@ -24,6 +25,7 @@
 
 
 //TODO: currently initializing the timer only when done with mission, can we do it from the start with empty stuff being published?
+//      stacking error, next_h > curr_h; next_h < curr_h
         
 using namespace std::chrono_literals;
                                               
@@ -42,7 +44,7 @@ public:
         aruco_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
         rclcpp::SubscriptionOptions options;
         options.callback_group = aruco_cb_group_;
-        this->timer_ = this->create_wall_timer(500ms, std::bind(&CrazyflieCommandClient::timer_callback, this), aruco_cb_group_);
+        this->aruco_timer_ = this->create_wall_timer(500ms, std::bind(&CrazyflieCommandClient::timer_callback, this), aruco_cb_group_);
         
         res_publisher_ = this->create_publisher<icuas25_msgs::msg::TargetInfo>("target_found", 10);
 
@@ -63,8 +65,19 @@ public:
                                             options);
         }
 
-        this->get_octomap();
-        this->solver = new Solver(Vector3d(0, 0, 0), *tree, 43, 5);
+        get_octomap();
+        RCLCPP_INFO(this->get_logger(), "Initializing Solver object");
+        solver = new Solver(Vector3d(0, 0, 0), *tree, 43, 5);
+
+        mutex_ptr = &(solver->param_mutex);
+        solution = &(solver->solution);
+
+        RCLCPP_INFO(this->get_logger(), "Starting search");
+        solver->initialSetup();
+        
+        runner_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+        compute_timer_ = this->create_wall_timer(500ms, std::bind(&CrazyflieCommandClient::compute_callback, this), runner_cb_group_);
+        run_mission_timer_ = this->create_wall_timer(500ms, std::bind(&CrazyflieCommandClient::run_mission, this), runner_cb_group_);
     }
     
     int get_octomap(const std::string &octomap_topic_ = "/octomap_binary"){
@@ -252,9 +265,25 @@ public:
         return 0;
     }
 
-    int final_submission(); // stacking error, next_h > curr_h; next_h < curr_h
+    int run_mission(){
+        {
+            boost::lock_guard<boost::mutex> lock(*(this->mutex_ptr));
+            if(solution->flag && solution->eval > 0){
+                solution->flag = false;
+                solution->eval = 0;
+
+                RCLCPP_INFO(this->get_logger(), "Got a solution and used it!");
+            }
+        }
+        return 0;
+    }
 
 private:
+    void compute_callback(){
+       RCLCPP_INFO(this->get_logger(), "Computing solution...");
+       solver->mainLogic();
+    }
+
     void pose_callback(const geometry_msgs::msg::PoseStamped & msg, const int drone_namespace_){
         int i = drone_namespace_ - 1; //cf_1 -> 0
         odom_linear[i] = geometry_msgs::msg::Point(msg.pose.position);
@@ -319,14 +348,19 @@ private:
 
     octomap::OcTree * tree;
     Solver* solver;
+    Solution* solution;
     int num_cf;
+    boost::mutex *mutex_ptr;
 
     std::vector<geometry_msgs::msg::Point> odom_linear;
     std::vector<geometry_msgs::msg::Quaternion> odom_quat;
 
     std::vector<std::thread> thread_block;
     rclcpp::CallbackGroup::SharedPtr aruco_cb_group_;
-    rclcpp::TimerBase::SharedPtr timer_;
+    rclcpp::CallbackGroup::SharedPtr runner_cb_group_;
+    rclcpp::TimerBase::SharedPtr aruco_timer_;
+    rclcpp::TimerBase::SharedPtr compute_timer_;
+    rclcpp::TimerBase::SharedPtr run_mission_timer_;
 
     std::vector<rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr> pose_subscriptions_;
     std::vector<rclcpp::Subscription<ros2_aruco_interfaces::msg::ArucoMarkers>::SharedPtr> aruco_subscriptions_;
