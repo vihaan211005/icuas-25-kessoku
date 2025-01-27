@@ -9,18 +9,23 @@
 #include <octomap/octomap.h>
 #include "octomap_msgs/conversions.h"
 #include "octomap_msgs/srv/get_octomap.hpp"
+
 #include "geometry_msgs/msg/point.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "std_msgs/msg/string.hpp"
 #include "icuas25_msgs/msg/target_info.hpp"
+
 #include <boost/functional/hash.hpp>
 #include <boost/thread.hpp>
+#include <Eigen/Dense>
+
 #include <memory>
 #include <thread>
 #include <cmath>
 #include <string>
 #include <stdexcept>
 #include <vector>
+
 #include "traversal.hpp"
 
 
@@ -120,17 +125,13 @@ public:
 
         wait_for_service(client, "/cf_" + std::to_string(drone_namespace_) + "/takeoff");
 
-        auto result = client->async_send_request(request);
+        using ServiceResponseFuture = rclcpp::Client<crazyflie_interfaces::srv::Takeoff>::SharedFuture;
+        auto takeoffCallback = [&](ServiceResponseFuture future) {
+            auto result = future.get();
+            RCLCPP_INFO(this->get_logger(), "Takeoff request sent to %d", drone_namespace_);
+        };
+        auto result = client->async_send_request(request, takeoffCallback);
 
-        if (rclcpp::spin_until_future_complete(this->get_node_base_interface(), result) !=
-            rclcpp::FutureReturnCode::SUCCESS)
-        {
-            RCLCPP_ERROR(this->get_logger(), "Service Call Failed!");
-            client->remove_pending_request(result);
-            return 1;
-        }
-
-        RCLCPP_INFO(this->get_logger(), "Takeoff request sent to %d", drone_namespace_);
         return 0;
     }
 
@@ -148,16 +149,13 @@ public:
 
         wait_for_service(client, "/cf_" + std::to_string(drone_namespace_) + "/land");
 
-        auto result = client->async_send_request(request);
+        using ServiceResponseFuture = rclcpp::Client<crazyflie_interfaces::srv::Land>::SharedFuture;
+        auto landCallback = [&](ServiceResponseFuture future) {
+            auto result = future.get();
+            RCLCPP_INFO(this->get_logger(), "Land request sent to %d", drone_namespace_);
+        };
+        auto result = client->async_send_request(request, landCallback);
 
-        if (rclcpp::spin_until_future_complete(this->get_node_base_interface(), result) !=
-            rclcpp::FutureReturnCode::SUCCESS)
-        {
-            RCLCPP_ERROR(this->get_logger(), "Service Call Failed!");
-            client->remove_pending_request(result);
-            return 1;
-        }
-        RCLCPP_INFO(this->get_logger(), "Land request sent to %d", drone_namespace_);
         return 0;
     }
 
@@ -174,71 +172,25 @@ public:
         request->goal.y = y;
         request->goal.z = z;
         request->yaw = yaw; 
-        request->duration.sec = 20; 
+        request->duration.sec = 2 * dist(vector<double>{x, y, z}, vector<double>{odom_linear[drone_namespace_ - 1].x, odom_linear[drone_namespace_ - 1].y, odom_linear[drone_namespace_ - 1].z}); 
         request->duration.nanosec = 0;
 
         wait_for_service(client, "/cf_" + std::to_string(drone_namespace_) + "/go_to");
 
-        auto result = client->async_send_request(request);
-
-        if (rclcpp::spin_until_future_complete(this->get_node_base_interface(), result) != rclcpp::FutureReturnCode::SUCCESS)
-        {
-            RCLCPP_ERROR(this->get_logger(), "Service Call Failed!");
-            client->remove_pending_request(result);
-            return 1;
-        }
-
         RCLCPP_INFO(this->get_logger(), "GoTo request sent to %d with goal: [%.2f, %.2f, %.2f]",
                     drone_namespace_, x, y, z);
+
+        using ServiceResponseFuture = rclcpp::Client<crazyflie_interfaces::srv::GoTo>::SharedFuture;
+        auto goToCallback = [&](ServiceResponseFuture future) {
+            auto result = future.get();
+        };
+        auto result = client->async_send_request(request, goToCallback);
+
 
         int i = drone_namespace_ - 1;
         while(dist(std::vector<double>({x, y, z}), std::vector<double>({odom_linear[i].x, odom_linear[i].y, odom_linear[i].z})) < EPS){
             RCLCPP_DEBUG(this->get_logger(), "%d going to goal: [%.2f, %.2f, %.2f], odom: [%.2f, %.2f, %.2f]",
             drone_namespace_, x, y, z, odom_linear[i].x, odom_linear[i].y, odom_linear[i].z);
-        }
-        return 0;
-    }
-
-    int process_mission(const std::vector<std::vector<double>>& anchor_points, const std::vector<std::vector<double>>& circular_points){
-        if(anchor_points.size() != 5){
-            throw std::invalid_argument("The number of anchor points must be 5");
-        }
-        if(circular_points.size() == 0){
-            throw std::invalid_argument("The number of circular points must be greater than 0");
-        }
-
-        double min_h = 3;
-        for(int i = 0; i < 5; i++){
-            double curr_h = min_h;
-            std::vector<double> curr(anchor_points[i]);
-
-            for(int j = 1; j <= 5 - j; j++){
-                curr[2] = curr_h;
-        
-                std::thread t([&](){
-                    if(!go_to(j, curr[0], curr[1], curr[2], 0.0)){ // 1, 2, 3 
-                        RCLCPP_ERROR(this->get_logger(), "cf_%d going to goal: [%.2f, %.2f, %.2f] failed!", j, curr[0], curr[0], curr[0]);
-                    }
-                });
-                thread_block.push_back(std::move(t));
-                for(auto& T : thread_block){
-                    T.join();
-                }
-                // check height thingy
-                /*
-                if(!go_to("cf_" + std::to_string(j), curr[0], curr[1], curr[2])){ // 1, 2, 3 
-                    return false; 
-                }
-                */
-
-                curr_h += 0.25;
-            }
-        }
-
-        for(uint i = 0; i < circular_points.size(); i++){
-            if(!go_to(1, circular_points[i][0], circular_points[i][1], circular_points[i][2], 0.0)){
-                return 1; 
-            }    
         }
         return 0;
     }
@@ -268,11 +220,51 @@ public:
     int run_mission(){
         {
             boost::lock_guard<boost::mutex> lock(*(this->mutex_ptr));
-            if(solution->flag && solution->eval > 0){
-                solution->flag = false;
-                solution->eval = 0;
+            if(solution->flag == false && solution->eval > 0){
+                solution->flag = true;
 
-                RCLCPP_INFO(this->get_logger(), "Got a solution and used it!");
+                RCLCPP_INFO(this->get_logger(), "Got a solution!");
+
+                // vector<Vector3d> startPts; // dont use the startPt[0]; set this as the spawn position
+                // vector<vector<pair<Vector3d, int>>> toVisit;
+                // vector<vector<int>> toBreak; // visit idx and go back
+
+                //takeoff all 
+                // for(int i = 1; i <= 5; i++){
+                //     this->takeoff(i);
+                //     rclcpp::sleep_for(std::chrono::seconds(5));
+                // }
+                // rclcpp::sleep_for(std::chrono::seconds(10));
+
+                // go to start point
+                double diff_z = 0.2;
+                double curr_x = solution->startPts[0].x();
+                double curr_y = solution->startPts[0].y();
+                double curr_z = 4;
+                for(int i = 1; i <= 5; i++){
+                    this->go_to(i, curr_x, curr_y, curr_z, 0);
+                    rclcpp::sleep_for(std::chrono::seconds(5));
+                    curr_z += diff_z;
+                }
+
+                rclcpp::sleep_for(std::chrono::seconds(1000));
+                // go onward to their respective vantage points
+                // for(int i = 1; i < startPts.size(); i++){
+                //     diff_h = 0.2;
+                //     if(startPts[i].z() <= prev_z){
+                //         for(int drone_ = i + 1; drone_ <= 5; drone_++){
+                //             this->go_to(drone_, solution->startPts[i].x(), solution->startPts[i].y(), solution->startPts[i].z())
+                //             startPts[i].z() += diff_h;
+                //         }
+                //     }
+                //     else{
+                //         for(int drone_ = 5; drone_ >= i + 1; drone_--){
+                //             this->go_to(drone_, solution->startPts[i].x(), solution->startPts[i].y(), solution->startPts[i].z())
+                //             startPts[i].z() -= diff_h;
+                //         }
+                //     }
+                // }
+
             }
         }
         return 0;
