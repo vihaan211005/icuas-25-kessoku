@@ -213,6 +213,7 @@ COPY scripts $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts
 COPY src $HOME/CrazySim/ros2_ws/src/icuas25_competition/src
 COPY startup $HOME/CrazySim/ros2_ws/src/icuas25_competition/startup
 COPY include $HOME/CrazySim/ros2_ws/src/icuas25_competition/include
+COPY launch $HOME/CrazySim/ros2_ws/src/icuas25_competition/launch
 COPY CMakeLists.txt $HOME/CrazySim/ros2_ws/src/icuas25_competition/
 
 RUN bash -c "chmod +x $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/edit.sh && $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/edit.sh"

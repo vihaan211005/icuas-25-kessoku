@@ -75,7 +75,6 @@ public:
         solver = new Solver(Vector3d(0, 0, 0), *tree, 43, 5);
 
         mutex_ptr = &(solver->param_mutex);
-        solution = &(solver->solution);
 
         RCLCPP_INFO(this->get_logger(), "Starting search");
         solver->initialSetup();
@@ -220,50 +219,46 @@ public:
     int run_mission(){
         {
             boost::lock_guard<boost::mutex> lock(*(this->mutex_ptr));
-            if(solution->flag == false && solution->eval > 0){
-                solution->flag = true;
+            if(solver->solution.flag == false && solver->solution.eval > 0){
+                solution = new Solution(solver->solution);
 
                 RCLCPP_INFO(this->get_logger(), "Got a solution!");
 
-                // vector<Vector3d> startPts; // dont use the startPt[0]; set this as the spawn position
-                // vector<vector<pair<Vector3d, int>>> toVisit;
-                // vector<vector<int>> toBreak; // visit idx and go back
-
-                //takeoff all 
-                // for(int i = 1; i <= 5; i++){
-                //     this->takeoff(i);
-                //     rclcpp::sleep_for(std::chrono::seconds(5));
-                // }
-                // rclcpp::sleep_for(std::chrono::seconds(10));
+                double diff_z = 0.2;
 
                 // go to start point
-                double diff_z = 0.2;
                 double curr_x = solution->startPts[0].x();
                 double curr_y = solution->startPts[0].y();
                 double curr_z = 4;
+                double prev_z = 4;
                 for(int i = 1; i <= 5; i++){
-                    this->go_to(i, curr_x, curr_y, curr_z, 0);
                     rclcpp::sleep_for(std::chrono::seconds(5));
+                    this->go_to(i, curr_x, curr_y, curr_z, 0);
                     curr_z += diff_z;
                 }
 
-                rclcpp::sleep_for(std::chrono::seconds(1000));
+                rclcpp::sleep_for(std::chrono::seconds(15));
                 // go onward to their respective vantage points
-                // for(int i = 1; i < startPts.size(); i++){
-                //     diff_h = 0.2;
-                //     if(startPts[i].z() <= prev_z){
-                //         for(int drone_ = i + 1; drone_ <= 5; drone_++){
-                //             this->go_to(drone_, solution->startPts[i].x(), solution->startPts[i].y(), solution->startPts[i].z())
-                //             startPts[i].z() += diff_h;
-                //         }
-                //     }
-                //     else{
-                //         for(int drone_ = 5; drone_ >= i + 1; drone_--){
-                //             this->go_to(drone_, solution->startPts[i].x(), solution->startPts[i].y(), solution->startPts[i].z())
-                //             startPts[i].z() -= diff_h;
-                //         }
-                //     }
-                // }
+                for(uint i = 1; i < solution->startPts.size(); i++){
+                    double curr_x = solution->startPts[i].x();
+                    double curr_y = solution->startPts[i].y();
+                    double curr_z = solution->startPts[i].z();
+                    if(solution->startPts[i].z() <= prev_z){
+                        for(uint drone_ = i + 1; drone_ <= 5; drone_++){
+                            rclcpp::sleep_for(std::chrono::seconds(5));
+                            this->go_to(drone_, curr_x, curr_y, curr_z, 0);
+                            curr_z += diff_z;
+                        }
+                    }
+                    else{
+                        for(uint drone_ = 5; drone_ >= i + 1; drone_--){
+                            rclcpp::sleep_for(std::chrono::seconds(5));
+                            this->go_to(drone_, curr_x, curr_y, curr_z, 0);
+                            curr_z -= diff_z;
+                        }
+                    }
+                    prev_z = solution->startPts[i].z();
+                }
 
             }
         }
