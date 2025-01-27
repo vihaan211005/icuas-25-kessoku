@@ -211,8 +211,10 @@ echo "source_ros2" >> $HOME/.bashrc
 
 COPY scripts $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts
 COPY src $HOME/CrazySim/ros2_ws/src/icuas25_competition/src
+COPY startup $HOME/CrazySim/ros2_ws/src/icuas25_competition/startup
 COPY include $HOME/CrazySim/ros2_ws/src/icuas25_competition/include
 COPY CMakeLists.txt $HOME/CrazySim/ros2_ws/src/icuas25_competition/
+
 RUN bash -c "chmod +x $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/edit.sh && $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/edit.sh"
 RUN bash -c "source /opt/ros/${ROS2_DISTRO}/setup.bash;source $HOME/CrazySim/ros2_ws/install/setup.bash;colcon build --symlink-install --merge-install --cmake-args=-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
 

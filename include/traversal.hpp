@@ -471,6 +471,7 @@ private:
 
         for (auto &point : pts)
         {
+            if(point.z() < 1) continue;
             Vector3i d = point - centre;
             double distance = sqrt(pow(d.x(), 2) + pow(d.y(), 2) + pow(d.z(), 2));
 
