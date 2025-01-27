@@ -20,6 +20,7 @@
 #include <string>
 #include <stdexcept>
 #include <vector>
+#include "traversal.hpp"
 
 
 //TODO: currently initializing the timer only when done with mission, can we do it from the start with empty stuff being published?
@@ -61,8 +62,9 @@ public:
                                             }, 
                                             options);
         }
-        // this->get_octomap();
-        this->intermediate_submission();
+
+        this->get_octomap();
+        this->solver = new Solver(Vector3d(0, 0, 0), *tree, 43, 5);
     }
     
     int get_octomap(const std::string &octomap_topic_ = "/octomap_binary"){
@@ -229,19 +231,9 @@ public:
     }
 
     int intermediate_submission(){
-
         /* 
-            <pose>1 1 1 1.57 1.57 0</pose> -> aruco normal in -ve y
+            <pose>1 1 1 1.57 1.57 0</pose>
             <pose>-15 -1 1 1.57 0 0</pose>
-            <pose>19 -20 1 1.57 1.57 0</pose>
-            <pose>-28 -17 1 1.57 0 3.14</pose>
-
-            <pose>-10 16 1.5 1.57 0 1.57</pose>
-
-            0 -> 1.57 // normal towards x direction
-            dont care about pitch of aruco
-            add yaw + 1.57
-
         */
 
         if(this->takeoff(1)) return 1;
@@ -252,12 +244,6 @@ public:
 
         if(this->go_to(1, -15.0, -2.0, 1.0, 1.57)) return 1; 
         rclcpp::sleep_for(std::chrono::seconds(20)); 
-
-        // if(this->go_to(1, 19.0, -20.0, 1.0, 1.57)) return 1; 
-        // rclcpp::sleep_for(std::chrono::seconds(10)); 
-
-        // if(this->go_to(1, 19.0, -20.0, 1.0, -1.57)) return 1; 
-        // rclcpp::sleep_for(std::chrono::seconds(10)); 
 
         if(this->land(1)) return 1;
         
@@ -332,6 +318,7 @@ private:
     }
 
     octomap::OcTree * tree;
+    Solver* solver;
     int num_cf;
 
     std::vector<geometry_msgs::msg::Point> odom_linear;
