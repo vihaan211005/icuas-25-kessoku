@@ -34,7 +34,7 @@
         
 using namespace std::chrono_literals;
                                               
-double EPS = 1E-2;
+double EPS = 1E-1;
 
 class CrazyflieCommandClient : public rclcpp::Node
 {
@@ -46,13 +46,7 @@ public:
         pose_subscriptions_(num_cf),
         aruco_subscriptions_(num_cf)
     {
-        aruco_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
-        rclcpp::SubscriptionOptions options;
-        options.callback_group = aruco_cb_group_;
-        this->aruco_timer_ = this->create_wall_timer(500ms, std::bind(&CrazyflieCommandClient::timer_callback, this), aruco_cb_group_);
-        
-        res_publisher_ = this->create_publisher<icuas25_msgs::msg::TargetInfo>("target_found", 10);
-
+        aruco_cb_options.callback_group = aruco_cb_group_;
         for(int i = 0; i < num_cf; i++){
             pose_subscriptions_[i] = this->create_subscription<geometry_msgs::msg::PoseStamped>(
                                             "/cf_" + std::to_string(i+1) + "/pose", 
@@ -66,22 +60,24 @@ public:
                                             10,
                                             [this, i](const ros2_aruco_interfaces::msg::ArucoMarkers::SharedPtr msg) {
                                                 this->aruco_callback(*msg, i + 1);
-                                            }, 
-                                            options);
+                                            }, aruco_cb_options);
         }
 
+        RCLCPP_INFO(this->get_logger(), "Getting Octomap...");
         get_octomap();
-        RCLCPP_INFO(this->get_logger(), "Initializing Solver object");
+
+        RCLCPP_INFO(this->get_logger(), "Initializing Solver object...");
         solver = new Solver(Vector3d(0, 0, 0), *tree, 43, 5);
+        solver->initialSetup();
 
         mutex_ptr = &(solver->param_mutex);
-
-        RCLCPP_INFO(this->get_logger(), "Starting search");
-        solver->initialSetup();
         
-        runner_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
-        compute_timer_ = this->create_wall_timer(500ms, std::bind(&CrazyflieCommandClient::compute_callback, this), runner_cb_group_);
-        run_mission_timer_ = this->create_wall_timer(500ms, std::bind(&CrazyflieCommandClient::run_mission, this), runner_cb_group_);
+        RCLCPP_INFO(this->get_logger(), "Starting search...");
+
+        res_publisher_ = this->create_publisher<icuas25_msgs::msg::TargetInfo>("target_found", 10);
+        aruco_timer_ = this->create_wall_timer(500ms, std::bind(&CrazyflieCommandClient::timer_callback, this), aruco_cb_group_);
+        compute_timer_ = this->create_wall_timer(500ms, std::bind(&CrazyflieCommandClient::compute_callback, this), solution_cb_group_);
+        run_mission_timer_ = this->create_wall_timer(500ms, std::bind(&CrazyflieCommandClient::run_mission, this), solution_cb_group_);
     }
     
     int get_octomap(const std::string &octomap_topic_ = "/octomap_binary"){
@@ -114,7 +110,7 @@ public:
     {
         RCLCPP_INFO(this->get_logger(), "Initialized CrazyflieCommandClient::takeoff for namespace: %d", drone_namespace_);
 
-        auto client = this->create_client<crazyflie_interfaces::srv::Takeoff>("/cf_" + std::to_string(drone_namespace_) + "/takeoff");
+        auto client = this->create_client<crazyflie_interfaces::srv::Takeoff>("/cf_" + std::to_string(drone_namespace_) + "/takeoff", rmw_qos_profile_services_default, service_cb_group_);
         auto request = std::make_shared<crazyflie_interfaces::srv::Takeoff::Request>();
 
         request->group_mask = 0;
@@ -124,12 +120,7 @@ public:
 
         wait_for_service(client, "/cf_" + std::to_string(drone_namespace_) + "/takeoff");
 
-        using ServiceResponseFuture = rclcpp::Client<crazyflie_interfaces::srv::Takeoff>::SharedFuture;
-        auto takeoffCallback = [&](ServiceResponseFuture future) {
-            auto result = future.get();
-            RCLCPP_INFO(this->get_logger(), "Takeoff request sent to %d", drone_namespace_);
-        };
-        auto result = client->async_send_request(request, takeoffCallback);
+        auto result = client->async_send_request(request).get();
 
         return 0;
     }
@@ -138,7 +129,7 @@ public:
     {
         RCLCPP_INFO(this->get_logger(), "Called CrazyflieCommandClient::land for namespace: %d", drone_namespace_);
 
-        auto client = this->create_client<crazyflie_interfaces::srv::Land>("/cf_" + std::to_string(drone_namespace_) + "/land");
+        auto client = this->create_client<crazyflie_interfaces::srv::Land>("/cf_" + std::to_string(drone_namespace_) + "/land", rmw_qos_profile_services_default, service_cb_group_);
         auto request = std::make_shared<crazyflie_interfaces::srv::Land::Request>();
 
         request->group_mask = 0;
@@ -148,12 +139,7 @@ public:
 
         wait_for_service(client, "/cf_" + std::to_string(drone_namespace_) + "/land");
 
-        using ServiceResponseFuture = rclcpp::Client<crazyflie_interfaces::srv::Land>::SharedFuture;
-        auto landCallback = [&](ServiceResponseFuture future) {
-            auto result = future.get();
-            RCLCPP_INFO(this->get_logger(), "Land request sent to %d", drone_namespace_);
-        };
-        auto result = client->async_send_request(request, landCallback);
+        auto result = client->async_send_request(request).get();
 
         return 0;
     }
@@ -162,7 +148,7 @@ public:
     {
         RCLCPP_INFO(this->get_logger(), "Initialized CrazyflieCommandClient::go_to for namespace: %d", drone_namespace_);
 
-        auto client = this->create_client<crazyflie_interfaces::srv::GoTo>("/cf_" + std::to_string(drone_namespace_) + "/go_to");
+        auto client = this->create_client<crazyflie_interfaces::srv::GoTo>("/cf_" + std::to_string(drone_namespace_) + "/go_to", rmw_qos_profile_services_default, service_cb_group_);
         auto request = std::make_shared<crazyflie_interfaces::srv::GoTo::Request>();
 
         request->group_mask = 0;
@@ -179,11 +165,7 @@ public:
         RCLCPP_INFO(this->get_logger(), "GoTo request sent to %d with goal: [%.2f, %.2f, %.2f]",
                     drone_namespace_, x, y, z);
 
-        using ServiceResponseFuture = rclcpp::Client<crazyflie_interfaces::srv::GoTo>::SharedFuture;
-        auto goToCallback = [&](ServiceResponseFuture future) {
-            auto result = future.get();
-        };
-        auto result = client->async_send_request(request, goToCallback);
+        auto result = client->async_send_request(request).get();
 
 
         int i = drone_namespace_ - 1;
@@ -237,7 +219,8 @@ public:
                     curr_z += diff_z;
                 }
 
-                rclcpp::sleep_for(std::chrono::seconds(15));
+                rclcpp::sleep_for(std::chrono::seconds(15000));
+
                 // go onward to their respective vantage points
                 for(uint i = 1; i < solution->startPts.size(); i++){
                     double curr_x = solution->startPts[i].x();
@@ -259,7 +242,6 @@ public:
                     }
                     prev_z = solution->startPts[i].z();
                 }
-
             }
         }
         return 0;
@@ -338,13 +320,16 @@ private:
     Solution* solution;
     int num_cf;
     boost::mutex *mutex_ptr;
+    std::vector<std::thread> thread_block;
 
     std::vector<geometry_msgs::msg::Point> odom_linear;
     std::vector<geometry_msgs::msg::Quaternion> odom_quat;
 
-    std::vector<std::thread> thread_block;
-    rclcpp::CallbackGroup::SharedPtr aruco_cb_group_;
-    rclcpp::CallbackGroup::SharedPtr runner_cb_group_;
+    rclcpp::CallbackGroup::SharedPtr service_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+    rclcpp::CallbackGroup::SharedPtr solution_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+    rclcpp::CallbackGroup::SharedPtr aruco_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+    rclcpp::SubscriptionOptions aruco_cb_options;
+
     rclcpp::TimerBase::SharedPtr aruco_timer_;
     rclcpp::TimerBase::SharedPtr compute_timer_;
     rclcpp::TimerBase::SharedPtr run_mission_timer_;
@@ -359,9 +344,14 @@ private:
 };
 
 int main(int argc, char **argv)
-{
+{   
     rclcpp::init(argc, argv);
-    rclcpp::spin(std::make_shared<CrazyflieCommandClient>());
+
+    auto client_node = std::make_shared<CrazyflieCommandClient>();
+    rclcpp::executors::MultiThreadedExecutor executor;
+    executor.add_node(client_node);
+    executor.spin();
+
     rclcpp::shutdown();
     return 0;
 }

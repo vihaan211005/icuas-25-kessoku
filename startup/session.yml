@@ -18,4 +18,4 @@ windows:
   - submission:
       layout: tiled 
       panes:
-        - waitForCfGazebo;ros2 run icuas25_competition crazyflie_client
+        - waitForCfGazebo;ros2 run icuas25_competition crazyflie_client 
