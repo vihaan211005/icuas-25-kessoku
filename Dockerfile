@@ -214,6 +214,7 @@ COPY startup $HOME/CrazySim/ros2_ws/src/icuas25_competition/startup
 COPY CMakeLists.txt $HOME/CrazySim/ros2_ws/src/icuas25_competition/
 
 RUN bash -c "source /opt/ros/${ROS2_DISTRO}/setup.bash;source $HOME/CrazySim/ros2_ws/install/setup.bash;colcon build --symlink-install --merge-install --cmake-args=-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
+RUN bash -c "source $HOME/CrazySim/ros2_ws/install/setup.bash"
 
 WORKDIR $HOME
 COPY to_copy/aliases $HOME/.bash_aliases

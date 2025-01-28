@@ -19,5 +19,5 @@ windows:
       layout: tiled 
       panes:
         - waitForCfGazebo;sleep 10; ros2 run icuas25_competition crazyflie_client 
-        - waitForCfGazebo;sleep 10; ros2 topic echo /target_found
+        - while true; do ros2 topic echo /target_found 2>/dev/null | grep .; sleep 1; done
         - waitForCfGazebo;sleep 10; ros2 topic echo /cf_1/aruco_markers

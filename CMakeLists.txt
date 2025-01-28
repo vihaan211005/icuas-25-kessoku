@@ -35,6 +35,16 @@ if(BUILD_TESTING)
   ament_lint_auto_find_test_dependencies()
 endif()
 
+add_executable(crazyflie_client src/crazyflie_client.cpp)
+ament_target_dependencies(crazyflie_client rclcpp crazyflie_interfaces geometry_msgs builtin_interfaces ros2_aruco_interfaces icuas25_msgs)
+target_compile_options(crazyflie_client PRIVATE -Ofast -Wall -Wextra -Wpedantic)
+
+# Install targets
+install(TARGETS
+  crazyflie_client
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 # Install Python modules
 ament_python_install_package(${PROJECT_NAME})
 
@@ -51,16 +61,6 @@ install(DIRECTORY
   launch
   worlds  
   DESTINATION share/${PROJECT_NAME}/
-)
-
-add_executable(crazyflie_client src/crazyflie_client.cpp)
-ament_target_dependencies(crazyflie_client rclcpp crazyflie_interfaces geometry_msgs builtin_interfaces ros2_aruco_interfaces icuas25_msgs)
-target_compile_options(crazyflie_client PRIVATE -Ofast -Wall -Wextra -Wpedantic)
-
-# Install targets
-install(TARGETS
-  crazyflie_client
-  DESTINATION lib/${PROJECT_NAME}
 )
 
 ament_package()
