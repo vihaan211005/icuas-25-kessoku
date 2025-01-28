@@ -6,18 +6,10 @@
 #include "ros2_aruco_interfaces/msg/aruco_markers.hpp"
 #include "builtin_interfaces/msg/duration.hpp"
 
-#include <octomap/octomap.h>
-#include "octomap_msgs/conversions.h"
-#include "octomap_msgs/srv/get_octomap.hpp"
-
 #include "geometry_msgs/msg/point.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "std_msgs/msg/string.hpp"
 #include "icuas25_msgs/msg/target_info.hpp"
-
-#include <boost/functional/hash.hpp>
-#include <boost/thread.hpp>
-#include <Eigen/Dense>
 
 #include <memory>
 #include <thread>
@@ -26,12 +18,6 @@
 #include <stdexcept>
 #include <vector>
 
-#include "traversal.hpp"
-
-
-//TODO: currently initializing the timer only when done with mission, can we do it from the start with empty stuff being published?
-//      stacking error, next_h > curr_h; next_h < curr_h
-        
 using namespace std::chrono_literals;
                                               
 double EPS = 1E-1;
@@ -63,49 +49,11 @@ public:
                                             }, aruco_cb_options);
         }
 
-        RCLCPP_INFO(this->get_logger(), "Getting Octomap...");
-        get_octomap();
-
-        RCLCPP_INFO(this->get_logger(), "Initializing Solver object...");
-        solver = new Solver(Vector3d(0, 0, 0), *tree, 43, 5);
-        solver->initialSetup();
-
-        mutex_ptr = &(solver->param_mutex);
-        
-        RCLCPP_INFO(this->get_logger(), "Starting search...");
-
         res_publisher_ = this->create_publisher<icuas25_msgs::msg::TargetInfo>("target_found", 10);
         aruco_timer_ = this->create_wall_timer(500ms, std::bind(&CrazyflieCommandClient::timer_callback, this), aruco_cb_group_);
-        compute_timer_ = this->create_wall_timer(500ms, std::bind(&CrazyflieCommandClient::compute_callback, this), solution_cb_group_);
-        run_mission_timer_ = this->create_wall_timer(500ms, std::bind(&CrazyflieCommandClient::run_mission, this), solution_cb_group_);
+        solution_timer_ = this->create_wall_timer(500ms, std::bind(&CrazyflieCommandClient::intermediate_submission, this), solution_cb_group_);
     }
     
-    int get_octomap(const std::string &octomap_topic_ = "/octomap_binary"){
-        auto octomap_client = this->create_client<octomap_msgs::srv::GetOctomap>(octomap_topic_);
-        auto octomap_request = std::make_shared<octomap_msgs::srv::GetOctomap::Request>();
-
-        wait_for_service(octomap_client, octomap_topic_);
-        auto result = octomap_client->async_send_request(octomap_request);
-
-        if (rclcpp::spin_until_future_complete(this->get_node_base_interface(), result) !=
-            rclcpp::FutureReturnCode::SUCCESS)
-        {
-            RCLCPP_ERROR(this->get_logger(), "Service Call Failed!");
-            octomap_client->remove_pending_request(result);
-            return 1;
-        }
-        RCLCPP_INFO(this->get_logger(), "Requested Octomap as binary");
-
-        octomap::AbstractOcTree* abstree = octomap_msgs::msgToMap(result.get()->map);
-        if (abstree) {
-            tree = dynamic_cast<octomap::OcTree*>(abstree);
-        } else {
-            RCLCPP_ERROR(this->get_logger(), "octomap server did not return a proper tree!");
-            return 1;
-        }
-        return 0;
-    }
-
     int takeoff(const int &drone_namespace_)
     {
         RCLCPP_INFO(this->get_logger(), "Initialized CrazyflieCommandClient::takeoff for namespace: %d", drone_namespace_);
@@ -157,7 +105,7 @@ public:
         request->goal.y = y;
         request->goal.z = z;
         request->yaw = yaw; 
-        request->duration.sec = 2 * dist(vector<double>{x, y, z}, vector<double>{odom_linear[drone_namespace_ - 1].x, odom_linear[drone_namespace_ - 1].y, odom_linear[drone_namespace_ - 1].z}); 
+        request->duration.sec = std::min(20.0, 5 * dist(std::vector<double>{x, y, z}, std::vector<double>{odom_linear[drone_namespace_ - 1].x, odom_linear[drone_namespace_ - 1].y, odom_linear[drone_namespace_ - 1].z})); 
         request->duration.nanosec = 0;
 
         wait_for_service(client, "/cf_" + std::to_string(drone_namespace_) + "/go_to");
@@ -176,84 +124,39 @@ public:
         return 0;
     }
 
-    int intermediate_submission(){
-        /* 
-            <pose>1 1 1 1.57 1.57 0</pose>
-            <pose>-15 -1 1 1.57 0 0</pose>
-        */
+    void intermediate_submission(){
+        if(!completed){
+            /* 
+                <pose>1 1 1 1.57 1.57 0</pose>
+                <pose>-15 -1 1 1.57 0 0</pose>
+            */
 
-        if(this->takeoff(1)) return 1;
-        rclcpp::sleep_for(std::chrono::seconds(10)); 
+            this->takeoff(1);
+            rclcpp::sleep_for(std::chrono::seconds(10)); 
+            RCLCPP_INFO(this->get_logger(), "Takeoff Completed!");
 
-        if(this->go_to(1, 1.0, 0.0, 1.0, 1.57)) return 1; 
-        rclcpp::sleep_for(std::chrono::seconds(20)); 
+            this->go_to(1, 1.0, 0.0, 1.0, 1.57);
+            rclcpp::sleep_for(std::chrono::seconds(21));
+            this->check_for_aruco = true;
+            rclcpp::sleep_for(std::chrono::seconds(5));
 
-        if(this->go_to(1, -15.0, -2.0, 1.0, 1.57)) return 1; 
-        rclcpp::sleep_for(std::chrono::seconds(20)); 
+            this->go_to(1, -15.0, -2.0, 1.0, 1.57);
+            rclcpp::sleep_for(std::chrono::seconds(21)); 
+            this->check_for_aruco = true;
+            rclcpp::sleep_for(std::chrono::seconds(5));
 
-        if(this->land(1)) return 1;
-        
-        RCLCPP_INFO(this->get_logger(), "Mission Completed!");
+            this->go_to(1, -0.5, -4.0, 1.0, 0.0);
+            rclcpp::sleep_for(std::chrono::seconds(20)); 
 
-        return 0;
-    }
+            this->land(1);
+            
+            RCLCPP_INFO(this->get_logger(), "Mission Completed!");
 
-    int run_mission(){
-        {
-            boost::lock_guard<boost::mutex> lock(*(this->mutex_ptr));
-            if(solver->solution.flag == false && solver->solution.eval > 0){
-                solution = new Solution(solver->solution);
-
-                RCLCPP_INFO(this->get_logger(), "Got a solution!");
-
-                double diff_z = 0.2;
-
-                // go to start point
-                double curr_x = solution->startPts[0].x();
-                double curr_y = solution->startPts[0].y();
-                double curr_z = 4;
-                double prev_z = 4;
-                for(int i = 1; i <= 5; i++){
-                    rclcpp::sleep_for(std::chrono::seconds(5));
-                    this->go_to(i, curr_x, curr_y, curr_z, 0);
-                    curr_z += diff_z;
-                }
-
-                rclcpp::sleep_for(std::chrono::seconds(60));
-
-                // go onward to their respective vantage points
-                for(uint i = 1; i < solution->startPts.size(); i++){
-                    double curr_x = solution->startPts[i].x();
-                    double curr_y = solution->startPts[i].y();
-                    double curr_z = solution->startPts[i].z();
-                    if(solution->startPts[i].z() <= prev_z){
-                        for(uint drone_ = i + 1; drone_ <= 5; drone_++){
-                            rclcpp::sleep_for(std::chrono::seconds(5));
-                            this->go_to(drone_, curr_x, curr_y, curr_z, 0);
-                            curr_z += diff_z;
-                        }
-                    }
-                    else{
-                        for(uint drone_ = 5; drone_ >= i + 1; drone_--){
-                            rclcpp::sleep_for(std::chrono::seconds(5));
-                            this->go_to(drone_, curr_x, curr_y, curr_z, 0);
-                            curr_z -= diff_z;
-                        }
-                    }
-                    prev_z = solution->startPts[i].z();
-                    rclcpp::sleep_for(std::chrono::seconds(60));
-                }
-            }
+            this->completed = true;
         }
-        return 0;
     }
 
 private:
-    void compute_callback(){
-       RCLCPP_INFO(this->get_logger(), "Computing solution...");
-       solver->mainLogic();
-    }
-
     void pose_callback(const geometry_msgs::msg::PoseStamped & msg, const int drone_namespace_){
         int i = drone_namespace_ - 1; //cf_1 -> 0
         odom_linear[i] = geometry_msgs::msg::Point(msg.pose.position);
@@ -263,15 +166,17 @@ private:
     void aruco_callback(const ros2_aruco_interfaces::msg::ArucoMarkers & msg, const int drone_namespace_){
         int k = drone_namespace_ - 1;
 
-        if (!msg.marker_ids.empty()) { 
+        if (!msg.marker_ids.empty() && check_for_aruco) { 
             for(uint i = 0; i < msg.marker_ids.size(); i++){
-                if(dist(prev_aruco_position, {msg.poses[k].position.x, msg.poses[k].position.y, msg.poses[k].position.z}) > EPS){
+                if(dist(prev_aruco_position, {msg.poses[k].position.x, msg.poses[k].position.y, msg.poses[k].position.z}) > 5*EPS){
                     RCLCPP_INFO(this->get_logger(), "AruCo spotted at {%.2f, %.2f, %.2f}", msg.poses[k].position.x, msg.poses[k].position.y, msg.poses[k].position.z);
                     
                     curr_aruco_position = {msg.poses[k].position.x, msg.poses[k].position.y, msg.poses[k].position.z};
                     curr_aruco_id = msg.marker_ids[k];
 
                     prev_aruco_position = {msg.poses[k].position.x, msg.poses[k].position.y, msg.poses[k].position.z};
+
+                    this->check_for_aruco = false;
                 }
             }
         }
@@ -279,7 +184,7 @@ private:
 
     void timer_callback(){
         if(curr_aruco_position[0] != -1e8){
-            RCLCPP_INFO(this->get_logger(), "Publishing to /target_found!");
+            // RCLCPP_INFO(this->get_logger(), "Publishing to /target_found!");
 
             auto res = icuas25_msgs::msg::TargetInfo();
             res.id = curr_aruco_id;
@@ -316,24 +221,20 @@ private:
         return std::sqrt(res);
     }
 
-    octomap::OcTree * tree;
-    Solver* solver;
-    Solution* solution;
     int num_cf;
-    boost::mutex *mutex_ptr;
-    std::vector<std::thread> thread_block;
+    bool completed = false;
+    bool check_for_aruco = false;
 
     std::vector<geometry_msgs::msg::Point> odom_linear;
     std::vector<geometry_msgs::msg::Quaternion> odom_quat;
 
-    rclcpp::CallbackGroup::SharedPtr service_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
     rclcpp::CallbackGroup::SharedPtr solution_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+    rclcpp::CallbackGroup::SharedPtr service_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
     rclcpp::CallbackGroup::SharedPtr aruco_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
     rclcpp::SubscriptionOptions aruco_cb_options;
 
+    rclcpp::TimerBase::SharedPtr solution_timer_;
     rclcpp::TimerBase::SharedPtr aruco_timer_;
-    rclcpp::TimerBase::SharedPtr compute_timer_;
-    rclcpp::TimerBase::SharedPtr run_mission_timer_;
 
     std::vector<rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr> pose_subscriptions_;
     std::vector<rclcpp::Subscription<ros2_aruco_interfaces::msg::ArucoMarkers>::SharedPtr> aruco_subscriptions_;

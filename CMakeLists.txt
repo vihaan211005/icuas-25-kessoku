@@ -16,11 +16,7 @@ find_package(builtin_interfaces REQUIRED)
 find_package(ros2_aruco_interfaces REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
-find_package(octomap_msgs REQUIRED)
-find_package(octomap REQUIRED)
 find_package(icuas25_msgs REQUIRED)
-find_package(Boost REQUIRED)
-find_package(Eigen3 3.3 REQUIRED)
 
 include_directories(
   include
@@ -57,9 +53,8 @@ install(DIRECTORY
   DESTINATION share/${PROJECT_NAME}/
 )
 
-add_executable(crazyflie_client src/crazyflie_client.cpp include/traversal.hpp)
-ament_target_dependencies(crazyflie_client rclcpp crazyflie_interfaces geometry_msgs builtin_interfaces ros2_aruco_interfaces octomap_msgs icuas25_msgs 
-octomap Boost Eigen3)
+add_executable(crazyflie_client src/crazyflie_client.cpp)
+ament_target_dependencies(crazyflie_client rclcpp crazyflie_interfaces geometry_msgs builtin_interfaces ros2_aruco_interfaces icuas25_msgs)
 target_compile_options(crazyflie_client PRIVATE -Ofast -Wall -Wextra -Wpedantic)
 
 # Install targets

@@ -18,4 +18,6 @@ windows:
   - submission:
       layout: tiled 
       panes:
-        - waitForCfGazebo;ros2 run icuas25_competition crazyflie_client 
+        - waitForCfGazebo;sleep 10; ros2 run icuas25_competition crazyflie_client 
+        - waitForCfGazebo;sleep 10; ros2 topic echo /target_found
+        - waitForCfGazebo;sleep 10; ros2 topic echo /cf_1/aruco_markers
