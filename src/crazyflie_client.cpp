@@ -188,9 +188,9 @@ private:
 
             auto res = icuas25_msgs::msg::TargetInfo();
             res.id = curr_aruco_id;
-            res.location.x = curr_aruco_position[0];
-            res.location.y = curr_aruco_position[1];
-            res.location.z = curr_aruco_position[2];
+            res.location.x = odom_linear[0].x + curr_aruco_position[0];
+            res.location.y = odom_linear[0].z - curr_aruco_position[1];
+            res.location.z = odom_linear[0].y + curr_aruco_position[2];
 
             res_publisher_->publish(res);
 
