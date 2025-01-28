@@ -219,7 +219,7 @@ public:
                     curr_z += diff_z;
                 }
 
-                rclcpp::sleep_for(std::chrono::seconds(15000));
+                rclcpp::sleep_for(std::chrono::seconds(60));
 
                 // go onward to their respective vantage points
                 for(uint i = 1; i < solution->startPts.size(); i++){
@@ -241,6 +241,7 @@ public:
                         }
                     }
                     prev_z = solution->startPts[i].z();
+                    rclcpp::sleep_for(std::chrono::seconds(60));
                 }
             }
         }
