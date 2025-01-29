@@ -17,6 +17,7 @@ find_package(ros2_aruco_interfaces REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(icuas25_msgs REQUIRED)
+find_package(Eigen3 3.3 REQUIRED)
 
 include_directories(
   include
@@ -36,7 +37,7 @@ if(BUILD_TESTING)
 endif()
 
 add_executable(crazyflie_client src/crazyflie_client.cpp)
-ament_target_dependencies(crazyflie_client rclcpp crazyflie_interfaces geometry_msgs builtin_interfaces ros2_aruco_interfaces icuas25_msgs)
+ament_target_dependencies(crazyflie_client rclcpp crazyflie_interfaces geometry_msgs builtin_interfaces ros2_aruco_interfaces icuas25_msgs Eigen3)
 target_compile_options(crazyflie_client PRIVATE -Ofast -Wall -Wextra -Wpedantic)
 
 # Install targets
