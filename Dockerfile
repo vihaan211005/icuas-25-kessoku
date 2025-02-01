@@ -213,6 +213,9 @@ COPY CMakeLists.txt $HOME/CrazySim/ros2_ws/src/icuas25_competition/
 COPY package.xml $HOME/CrazySim/ros2_ws/src/icuas25_competition/
 COPY Dockerfile $HOME/CrazySim/ros2_ws/src/icuas25_competition/
 
+# Reduce IMU refresh rate, and increase the gazebo timestep (to run of potato pcs)
+RUN bash -c "chmod +x $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/edit.sh && $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/edit.sh"
+
 # Final build of ROS2 ws 
 RUN bash -c "source /opt/ros/${ROS2_DISTRO}/setup.bash;source $HOME/CrazySim/ros2_ws/install/setup.bash;colcon build --symlink-install --merge-install --cmake-args=-DCMAKE_EXPORT_COMPILE_COMMANDS=ON --executor sequential"
 RUN echo "ros2_ws" >> $HOME/.bashrc && \
