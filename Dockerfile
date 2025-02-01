@@ -49,7 +49,6 @@ RUN apt-get update \
         libgtest-dev \
         python3-dbg \
         python3-empy \
-        python3-numpy \
         python3-setuptools \
         python3-pip \
         python3-venv \
@@ -147,6 +146,8 @@ RUN  git clone https://github.com/gtfactslab/CrazySim.git --recursive \
     &&  pip install -e .
 
 RUN pip install Jinja2
+RUN pip install open3d
+RUN pip install numpy==1.24
 RUN cd $HOME/CrazySim/crazyflie-firmware \
     &&  mkdir -p sitl_make/build && cd sitl_make/build \
     &&  cmake .. \
