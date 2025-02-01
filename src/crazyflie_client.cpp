@@ -295,29 +295,97 @@ public:
             double curr_y = solution->startPts[i].y();
             double curr_z = solution->startPts[i].z();
             if(solution->startPts[i].z() <= prev_z){
-                for(uint drone_ = i + 1; drone_ <= 5; drone_++){
+                for(uint drone_ = i; drone_ <= 5; drone_++){
                     rclcpp::sleep_for(std::chrono::seconds(5));
                     this->go_to(drone_, curr_x, curr_y, curr_z, 0);
                     curr_z += diff_z;
                 }
             }
             else{
-                for(uint drone_ = 5; drone_ >= i + 1; drone_--){
+                for(uint drone_ = 5; drone_ >= i; drone_--){
                     rclcpp::sleep_for(std::chrono::seconds(5));
                     this->go_to(drone_, curr_x, curr_y, curr_z, 0);
                     curr_z -= diff_z;
                 }
             }
-            prev_z = solution->startPts[i].z();
-            rclcpp::sleep_for(std::chrono::seconds(60));
+            prev_z = curr_z;
+            // rclcpp::sleep_for(std::chrono::seconds(60));
         }
+
+        for(uint i = 0; i < toVisit[3].size(); i++){
+            auto curr = toVisit[3][i].first;
+            int yaw = toVisit[3][i].second;
+
+            /*yaw mapping*/ 
+            // TODO:cross-check this bitch
+            switch(yaw){
+                case 0: 
+                    yaw = M_PI / 4;
+                    break;
+                case 1:
+                    yaw = M_PI / 2;
+                    break;
+                case 2:
+                    yaw = 3*M_PI / 4;
+                    break;
+                case 3:
+                    yaw = - M_PI / 2;
+                    break;
+                case 4:
+                    yaw = - M_PI / 2;
+                    break;
+                case 5:
+                    yaw = - M_PI / 2;
+                    break;
+                case 6:
+                    yaw = - M_PI / 4;
+                    break;
+                case 7:
+                    yaw = - M_PI / 2;
+                    break;
+                case 8:
+                    yaw = - 3*M_PI / 4;
+                    break;
+                default: throw runtime_error("yaw is not from [0-8]")
+            }
+            this->go_to(5, curr[0], curr[1], curr[2], 0)
+        }
+
+
+        // TODO: check this bitch out too, hurts my head
+        /*
+        prev_z = solution->startPts[solution->startPts.size() - 1];
+        for(uint i = solution->startPts.size() - 2; i >= 0; i--){
+            double curr_x = solution->startPts[i].x();
+            double curr_y = solution->startPts[i].y();
+            double curr_z = solution->startPts[i].z();
+
+            if(solution->startPts[i].z() <= prev_z){
+                for(uint drone_ = i; drone_ <= 5; drone_++){ 
+                    rclcpp::sleep_for(std::chrono::seconds(5));
+                    this->go_to(drone_, curr_x, curr_y, curr_z, 0);
+                    curr_z += diff_z;
+                }
+            }
+            else{
+                for(uint drone_ = 5; drone_ >= i; drone_--){ 
+                    rclcpp::sleep_for(std::chrono::seconds(5));
+                    this->go_to(drone_, curr_x, curr_y, curr_z, 0);
+                    curr_z -= diff_z;
+                }
+            }
+            prev_z = curr_z;
+            // rclcpp::sleep_for(std::chrono::seconds(60));
+        }
+        */
+        rclcpp::sleep_for(std::chrono::seconds(1000));
+
         return 0;
     }
 
     ~CrazyflieCommandClient(){
         delete validityChecker;
         delete solver;
-        delete 
     }
 
 private:

@@ -21,10 +21,12 @@ find_package(octomap REQUIRED)
 find_package(icuas25_msgs REQUIRED)
 find_package(Boost REQUIRED)
 find_package(Eigen3 3.3 REQUIRED)
+find_package(ompl REQUIRED)
 
 include_directories(
   include
   ${EIGEN3_INCLUDE_DIR}
+  ${OMPL_INCLUDE_DIRS}
 )
 
 if(BUILD_TESTING)
@@ -57,7 +59,7 @@ install(DIRECTORY
   DESTINATION share/${PROJECT_NAME}/
 )
 
-add_executable(crazyflie_client src/crazyflie_client.cpp include/traversal.hpp)
+add_executable(crazyflie_client src/crazyflie_client.cpp include/traversal.hpp include/planner.hpp)
 ament_target_dependencies(crazyflie_client rclcpp crazyflie_interfaces geometry_msgs builtin_interfaces ros2_aruco_interfaces octomap_msgs icuas25_msgs 
 octomap Boost Eigen3)
 target_compile_options(crazyflie_client PRIVATE -Ofast -Wall -Wextra -Wpedantic)
