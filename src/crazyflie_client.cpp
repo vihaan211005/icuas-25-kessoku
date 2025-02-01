@@ -77,7 +77,7 @@ public:
         res_publisher_ = this->create_publisher<icuas25_msgs::msg::TargetInfo>("target_found", 10);
         aruco_timer_ = this->create_wall_timer(500ms, std::bind(&CrazyflieCommandClient::timer_callback, this), aruco_cb_group_);
         compute_timer_ = this->create_wall_timer(500ms, std::bind(&CrazyflieCommandClient::compute_callback, this), solution_cb_group_);
-        run_mission_timer_ = this->create_wall_timer(500ms, std::bind(&CrazyflieCommandClient::run_mission, this), solution_cb_group_);
+        run_mission_timer_ = this->create_wall_timer(500ms, std::bind(&CrazyflieCommandClient::run_mission, this), run_mission_cb_group_);
     }
     
     int get_octomap(const std::string &octomap_topic_ = "/octomap_binary"){
@@ -199,51 +199,56 @@ public:
     }
 
     int run_mission(){
+        bool run = false;
         {
             boost::lock_guard<boost::mutex> lock(*(this->mutex_ptr));
             if(solver->solution.flag == false && solver->solution.eval > 0){
                 solution = new Solution(solver->solution);
+                solver->solution.flag = true;
+                run = true;
+            }
+        }
 
-                RCLCPP_INFO(this->get_logger(), "Got a solution!");
+        if(!run) return 0;
 
-                double diff_z = 0.2;
+        RCLCPP_INFO(this->get_logger(), "Got a solution!");
 
-                // go to start point
-                double curr_x = solution->startPts[0].x();
-                double curr_y = solution->startPts[0].y();
-                double curr_z = 4;
-                double prev_z = 4;
-                for(int i = 1; i <= 5; i++){
+        double diff_z = 0.2;
+
+        // go to start point
+        double curr_x = solution->startPts[0].x();
+        double curr_y = solution->startPts[0].y();
+        double curr_z = 4;
+        double prev_z = 4;
+        for(int i = 1; i <= 5; i++){
+            rclcpp::sleep_for(std::chrono::seconds(5));
+            this->go_to(i, curr_x, curr_y, curr_z, 0);
+            curr_z += diff_z;
+        }
+
+        rclcpp::sleep_for(std::chrono::seconds(60));
+
+        // go onward to their respective vantage points
+        for(uint i = 1; i < solution->startPts.size(); i++){
+            double curr_x = solution->startPts[i].x();
+            double curr_y = solution->startPts[i].y();
+            double curr_z = solution->startPts[i].z();
+            if(solution->startPts[i].z() <= prev_z){
+                for(uint drone_ = i + 1; drone_ <= 5; drone_++){
                     rclcpp::sleep_for(std::chrono::seconds(5));
-                    this->go_to(i, curr_x, curr_y, curr_z, 0);
+                    this->go_to(drone_, curr_x, curr_y, curr_z, 0);
                     curr_z += diff_z;
                 }
-
-                rclcpp::sleep_for(std::chrono::seconds(60));
-
-                // go onward to their respective vantage points
-                for(uint i = 1; i < solution->startPts.size(); i++){
-                    double curr_x = solution->startPts[i].x();
-                    double curr_y = solution->startPts[i].y();
-                    double curr_z = solution->startPts[i].z();
-                    if(solution->startPts[i].z() <= prev_z){
-                        for(uint drone_ = i + 1; drone_ <= 5; drone_++){
-                            rclcpp::sleep_for(std::chrono::seconds(5));
-                            this->go_to(drone_, curr_x, curr_y, curr_z, 0);
-                            curr_z += diff_z;
-                        }
-                    }
-                    else{
-                        for(uint drone_ = 5; drone_ >= i + 1; drone_--){
-                            rclcpp::sleep_for(std::chrono::seconds(5));
-                            this->go_to(drone_, curr_x, curr_y, curr_z, 0);
-                            curr_z -= diff_z;
-                        }
-                    }
-                    prev_z = solution->startPts[i].z();
-                    rclcpp::sleep_for(std::chrono::seconds(60));
+            }
+            else{
+                for(uint drone_ = 5; drone_ >= i + 1; drone_--){
+                    rclcpp::sleep_for(std::chrono::seconds(5));
+                    this->go_to(drone_, curr_x, curr_y, curr_z, 0);
+                    curr_z -= diff_z;
                 }
             }
+            prev_z = solution->startPts[i].z();
+            rclcpp::sleep_for(std::chrono::seconds(60));
         }
         return 0;
     }
@@ -329,6 +334,7 @@ private:
     rclcpp::CallbackGroup::SharedPtr service_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
     rclcpp::CallbackGroup::SharedPtr solution_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
     rclcpp::CallbackGroup::SharedPtr aruco_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+    rclcpp::CallbackGroup::SharedPtr run_mission_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
     rclcpp::SubscriptionOptions aruco_cb_options;
 
     rclcpp::TimerBase::SharedPtr aruco_timer_;

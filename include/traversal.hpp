@@ -55,7 +55,7 @@ public:
     vector<Vector3i> facesVisited;
     vector<Vector3i> prevPoints;
 
-    int eval; // > 0
+    int eval;  // > 0
     bool flag; // false
 
     Solution() : eval(0), flag(false) {}
@@ -149,6 +149,12 @@ public:
             boost::mutex::scoped_lock lock(param_mutex);
             if (solution.flag)
             {
+                for (auto &point : startPts)
+                    binaryArray[point.x()][point.y()][point.z()] = 4;
+                saveToCSV("first");
+                for (auto &point : startPts)
+                    binaryArray[point.x()][point.y()][point.z()] = 0;
+
                 for (uint i = 0; i < solution.facesVisited.size(); i++)
                 {
                     binaryArray[solution.facesVisited[i].x()][solution.facesVisited[i].y()][solution.facesVisited[i].z()] = 3;
@@ -471,7 +477,8 @@ private:
 
         for (auto &point : pts)
         {
-            if(point.z() < 1) continue;
+            if (point.z() < 1)
+                continue;
             Vector3i d = point - centre;
             double distance = sqrt(pow(d.x(), 2) + pow(d.y(), 2) + pow(d.z(), 2));
 
