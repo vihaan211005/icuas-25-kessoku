@@ -193,7 +193,8 @@ RUN apt-get update &&  apt-get upgrade -y && apt-get install -y \
                    ros-${ROS2_DISTRO}-octomap-ros \
                    ros-${ROS2_DISTRO}-octomap-server \
                    ros-${ROS2_DISTRO}-octomap-msgs \
-                   libeigen3-dev
+                   libeigen3-dev \
+                   libompl-dev ompl-demos
 RUN apt install -y ros-${ROS2_DISTRO}-ros-gz${GZ_RELEASE}
 
 RUN echo "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$HOME/acados/lib" >> $HOME/.bashrc

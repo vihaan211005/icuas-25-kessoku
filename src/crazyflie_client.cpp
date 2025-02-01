@@ -27,6 +27,7 @@
 #include <vector>
 
 #include "traversal.hpp"
+#include "planner.hpp"
 
 
 //TODO: currently initializing the timer only when done with mission, can we do it from the start with empty stuff being published?
@@ -66,12 +67,14 @@ public:
         RCLCPP_INFO(this->get_logger(), "Getting Octomap...");
         get_octomap();
 
+        RCLCPP_INFO(this->get_logger(), "Initializing Path Planner object...");
+        plannerSetup();
+
         RCLCPP_INFO(this->get_logger(), "Initializing Solver object...");
         solver = new Solver(Vector3d(0, 0, 0), *tree, 43, 5);
         solver->initialSetup();
-
         mutex_ptr = &(solver->param_mutex);
-        
+
         RCLCPP_INFO(this->get_logger(), "Starting search...");
 
         res_publisher_ = this->create_publisher<icuas25_msgs::msg::TargetInfo>("target_found", 10);
@@ -198,6 +201,64 @@ public:
         return 0;
     }
 
+    int plannerSetup(){
+        validityChecker = new OctoMapValidityChecker(si, tree);
+
+        space = ob::StateSpacePtr(new ob::SE3StateSpace());
+
+        ob::ScopedState<ob::SE3StateSpace> start(space);
+        ob::ScopedState<ob::SE3StateSpace> goal(space);
+
+        ob::RealVectorBounds bounds(3);
+        bounds.setLow(0,0);  //bounds for x-axis
+        bounds.setHigh(0,1e3);        
+        bounds.setLow(1,0); //bounds for y-axis
+        bounds.setHigh(1,1e3);
+        bounds.setLow(2, 0.4); //bounds for z-axis
+        bounds.setHigh(2,40);
+        space->as<ob::SE3StateSpace>()->setBounds(bounds);
+
+        si = ob::SpaceInformationPtr(new ob::SpaceInformation(space));
+        si->setStateValidityChecker(*validityChecker);
+        si->setup();    
+    }
+
+    int runPlanner(const vector<double>& start, const vector<double>& goal, vector<vector<double>>& pathArray){
+        start->as<ob::RealVectorStateSpace::StateType>()->values[0] = start[0];
+        start->as<ob::RealVectorStateSpace::StateType>()->values[1] = start[1];
+        start->as<ob::RealVectorStateSpace::StateType>()->values[2] = start[2];
+
+        goal->as<ob::RealVectorStateSpace::StateType>()->values[0] = goal[0];
+        goal->as<ob::RealVectorStateSpace::StateType>()->values[1] = goal[1];
+        goal->as<ob::RealVectorStateSpace::StateType>()->values[2] = goal[2];
+
+        og::SimpleSetup ss(si);
+        ss.setStartAndGoalStates(start, goal);
+
+        auto planner = std::make_shared<og::RRT>(si);
+        ss.setPlanner(planner);
+
+        if (solved) {
+            std::cout << "Found a solution!" << std::endl;
+            ss.simplifySolution();
+            og::PathGeometric path = ss.getSolutionPath();
+            path.printAsMatrix(std::cout);
+        } 
+        else {
+            std::cerr << "No solution found." << std::endl;
+            return 1;
+        }
+    
+        for (std::size_t i = 0; i < path.getStateCount(); ++i) {
+            const ob::State* state = path.getState(i);
+            const auto* rstate = state->as<ob::RealVectorStateSpace::StateType>();
+            
+            std::vector<double> point = {rstate->values[0], rstate->values[1], rstate->values[2]};
+            pathArray.push_back(point);
+        }
+        return 0;
+    }
+    
     int run_mission(){
         {
             boost::lock_guard<boost::mutex> lock(*(this->mutex_ptr));
@@ -246,6 +307,12 @@ public:
             }
         }
         return 0;
+    }
+
+    ~CrazyflieCommandClient(){
+        delete validityChecker;
+        delete solver;
+        delete 
     }
 
 private:
@@ -322,6 +389,12 @@ private:
     int num_cf;
     boost::mutex *mutex_ptr;
     std::vector<std::thread> thread_block;
+
+    OctoMapValidityChecker* validityChecker;
+    ob::StateSpacePtr space;
+    ob::ScopedState<ob::SE3StateSpace> start;
+    ob::ScopedState<ob::SE3StateSpace> goal;
+    ob::SpaceInformationPtr si;
 
     std::vector<geometry_msgs::msg::Point> odom_linear;
     std::vector<geometry_msgs::msg::Quaternion> odom_quat;
