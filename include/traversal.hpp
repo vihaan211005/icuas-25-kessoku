@@ -138,7 +138,6 @@ public:
         for (int i = 0; i < num_drones; i++)
         {
             centres[i] = indexToPoint(startPts[i]);
-            prevPoints.push_back(startPts[i]);
         }
 
         vector<vector<pair<Vector3d, int>>> toVisit(num_drones - 1);
@@ -149,10 +148,10 @@ public:
             boost::mutex::scoped_lock lock(param_mutex);
             if (solution.flag)
             {
-                for (auto &point : startPts)
+                for (auto &point : solution.prevPoints)
                     binaryArray[point.x()][point.y()][point.z()] = 4;
                 saveToCSV("first");
-                for (auto &point : startPts)
+                for (auto &point : solution.prevPoints)
                     binaryArray[point.x()][point.y()][point.z()] = 0;
 
                 for (uint i = 0; i < solution.facesVisited.size(); i++)
@@ -170,7 +169,7 @@ public:
                 solution.toVisit = toVisit;
                 solution.toBreak = toBreak;
                 solution.facesVisited = facesVisited;
-                solution.prevPoints = prevPoints;
+                solution.prevPoints = startPts;
             }
         }
     }
