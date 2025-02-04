@@ -76,21 +76,21 @@ public:
     {
         std::vector<Eigen::Vector3i> startPts(num_drones);
         startPts[0] = Eigen::Vector3i(0, 0, 0); // base
-        std::vector<std::vector<DronePos>> poses(num_drones - 1);
-        std::vector<std::vector<int>> toBreak(num_drones - 1);
+        std::vector<std::vector<DronePos>> poses(num_drones);
+        std::vector<std::vector<int>> toBreak(num_drones);
         std::vector<Eigen::Vector3i> newFacesVisited;
 
         BoolArray3D isVisited(dimArray.x(), std::vector<std::vector<bool>>(dimArray.y(), std::vector<bool>(dimArray.z(), false)));
 
         int local_eval = 0;
-        for (int i = 0; i < num_drones - 1; i++)
+        for (int i = 0; i < num_drones; i++)
         {
             std::vector<Eigen::Vector3i> all_points = pointsInLOS(startPts[i]);
             std::vector<Eigen::Vector3i> empty_points;
 
             for (auto &point : all_points)
             {
-                if (binaryArray[point.x()][point.y()][point.z()] == 2)
+                if (binaryArray[point.x()][point.y()][point.z()] == 2 && !isVisited[point.x()][point.y()][point.z()])
                 {
                     DronePos dronepos = getAdjacentPoint(point, startPts[i]);
                     if (check2points(dronepos.pos, startPts[i]))
@@ -126,7 +126,7 @@ public:
                 return;
         }
 
-        for (int i = 0; i < num_drones - 1; i++)
+        for (int i = 0; i < num_drones; i++)
         {
             sort(poses[i].begin(), poses[i].end());
 
@@ -551,12 +551,16 @@ int main()
 {
     Solver solver = Solver(Eigen::Vector3d(0, 0, 0), octomap::OcTree("city_1.binvox.bt"), 43, 5);
     solver.initialSetup();
-    for (int i = 0; i < 100; i++)
+    int i = 0;
+    int total = 0;
+    while (++i)
     {
         solver.mainLogic();
-        if (i == 50)
+        if (!(i % 100)){
             solver.solution.flag = true;
-        std::cout << i << " " << solver.solution.eval << std::endl;
+            total += solver.solution.eval;
+            std::cout << "Total: " << total << std::endl;
+        }
     }
     return 0;
 }
