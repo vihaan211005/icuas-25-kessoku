@@ -26,9 +26,8 @@
 #include <stdexcept>
 #include <vector>
 
-#include "traversal.hpp"
+//#include "traversal.hpp"
 #include "planner.hpp"
-
 
 //TODO: currently initializing the timer only when done with mission, can we do it from the start with empty stuff being published?
 //      stacking error, next_h > curr_h; next_h < curr_h
@@ -67,13 +66,13 @@ public:
         RCLCPP_INFO(this->get_logger(), "Getting Octomap...");
         get_octomap();
 
-        RCLCPP_INFO(this->get_logger(), "Initializing Path Planner object...");
-        plannerSetup();
-
         RCLCPP_INFO(this->get_logger(), "Initializing Solver object...");
-        solver = new Solver(Vector3d(0, 0, 0), *tree, 43, 5);
+        solver = std::make_shared<Solver>(Vector3d(0, 0, 0), *tree, 43, 5);
         solver->initialSetup();
         mutex_ptr = &(solver->param_mutex);
+
+        RCLCPP_INFO(this->get_logger(), "Initializing Path Planner object...");
+        planner = std::make_shared<Planner>(Planner(tree, solver->mapBounds, this->get_logger()));
 
         RCLCPP_INFO(this->get_logger(), "Starting search...");
 
@@ -101,7 +100,7 @@ public:
 
         octomap::AbstractOcTree* abstree = octomap_msgs::msgToMap(result.get()->map);
         if (abstree) {
-            tree = dynamic_cast<octomap::OcTree*>(abstree);
+            tree = dynamic_cast<octomap::OcTree*>(abstree); //TODO:assigning ptr to shared_ptr 
         } else {
             RCLCPP_ERROR(this->get_logger(), "octomap server did not return a proper tree!");
             return 1;
@@ -165,18 +164,19 @@ public:
 
         wait_for_service(client, "/cf_" + std::to_string(drone_namespace_) + "/go_to");
 
-        RCLCPP_INFO(this->get_logger(), "GoTo request sent to %d with goal: [%.2f, %.2f, %.2f]",
-                    drone_namespace_, x, y, z);
+        int i = drone_namespace_ - 1;
+        RCLCPP_INFO(this->get_logger(), "GoTo request sent to %d with goal: [%.2f, %.2f, %.2f], distance: %.2f",
+                    drone_namespace_, x, y, z, dist(std::vector<double>({x, y, z}), std::vector<double>({odom_linear[i].x, odom_linear[i].y, odom_linear[i].z})));
 
         auto result = client->async_send_request(request).get();
 
-
-        int i = drone_namespace_ - 1;
+        /*
         while(dist(std::vector<double>({x, y, z}), std::vector<double>({odom_linear[i].x, odom_linear[i].y, odom_linear[i].z})) < EPS){
             RCLCPP_DEBUG(this->get_logger(), "%d going to goal: [%.2f, %.2f, %.2f], odom: [%.2f, %.2f, %.2f]",
             drone_namespace_, x, y, z, odom_linear[i].x, odom_linear[i].y, odom_linear[i].z);
         }
-        return 0;
+        */
+        return 2 * dist(vector<double>{x, y, z}, vector<double>{odom_linear[drone_namespace_ - 1].x, odom_linear[drone_namespace_ - 1].y, odom_linear[drone_namespace_ - 1].z});
     }
 
     int intermediate_submission(){
@@ -201,70 +201,12 @@ public:
         return 0;
     }
 
-    int plannerSetup(){
-        validityChecker = new OctoMapValidityChecker(si, tree);
-
-        space = ob::StateSpacePtr(new ob::SE3StateSpace());
-
-        ob::ScopedState<ob::SE3StateSpace> start(space);
-        ob::ScopedState<ob::SE3StateSpace> goal(space);
-
-        ob::RealVectorBounds bounds(3);
-        bounds.setLow(0,0);  //bounds for x-axis
-        bounds.setHigh(0,1e3);        
-        bounds.setLow(1,0); //bounds for y-axis
-        bounds.setHigh(1,1e3);
-        bounds.setLow(2, 0.4); //bounds for z-axis
-        bounds.setHigh(2,40);
-        space->as<ob::SE3StateSpace>()->setBounds(bounds);
-
-        si = ob::SpaceInformationPtr(new ob::SpaceInformation(space));
-        si->setStateValidityChecker(*validityChecker);
-        si->setup();    
-    }
-
-    int runPlanner(const vector<double>& start, const vector<double>& goal, vector<vector<double>>& pathArray){
-        start->as<ob::RealVectorStateSpace::StateType>()->values[0] = start[0];
-        start->as<ob::RealVectorStateSpace::StateType>()->values[1] = start[1];
-        start->as<ob::RealVectorStateSpace::StateType>()->values[2] = start[2];
-
-        goal->as<ob::RealVectorStateSpace::StateType>()->values[0] = goal[0];
-        goal->as<ob::RealVectorStateSpace::StateType>()->values[1] = goal[1];
-        goal->as<ob::RealVectorStateSpace::StateType>()->values[2] = goal[2];
-
-        og::SimpleSetup ss(si);
-        ss.setStartAndGoalStates(start, goal);
-
-        auto planner = std::make_shared<og::RRT>(si);
-        ss.setPlanner(planner);
-
-        if (solved) {
-            std::cout << "Found a solution!" << std::endl;
-            ss.simplifySolution();
-            og::PathGeometric path = ss.getSolutionPath();
-            path.printAsMatrix(std::cout);
-        } 
-        else {
-            std::cerr << "No solution found." << std::endl;
-            return 1;
-        }
-    
-        for (std::size_t i = 0; i < path.getStateCount(); ++i) {
-            const ob::State* state = path.getState(i);
-            const auto* rstate = state->as<ob::RealVectorStateSpace::StateType>();
-            
-            std::vector<double> point = {rstate->values[0], rstate->values[1], rstate->values[2]};
-            pathArray.push_back(point);
-        }
-        return 0;
-    }
-    
     int run_mission(){
         bool run = false;
         {
             boost::lock_guard<boost::mutex> lock(*(this->mutex_ptr));
             if(solver->solution.flag == false && solver->solution.eval > 0){
-                solution = new Solution(solver->solution);
+                solution = std::make_shared<Solution>(solver->solution);
                 solver->solution.flag = true;
                 run = true;
             }
@@ -281,43 +223,67 @@ public:
         double curr_y = solution->startPts[0].y();
         double curr_z = 4;
         double prev_z = 4;
+
+        rclcpp::sleep_for(std::chrono::seconds(5));
+
+        stack< pair<int,vector<double>> > st;
+        long long time_to_wait = 0;
+        long long curr_time_to_wait;
+
         for(int i = 1; i <= 5; i++){
-            rclcpp::sleep_for(std::chrono::seconds(5));
-            this->go_to(i, curr_x, curr_y, curr_z, 0);
+            st.push({0, {i, curr_x, curr_y, curr_z}});
+            //cout << "[" << i << "]" << ":" << "(" << curr_x << "," << curr_y << "," << curr_z << ")" << endl;
+            curr_time_to_wait = this->go_to(i, curr_x, curr_y, curr_z, 0);
+            time_to_wait = max(curr_time_to_wait, time_to_wait);
+
             curr_z += diff_z;
         }
-
-        rclcpp::sleep_for(std::chrono::seconds(60));
+        rclcpp::sleep_for(std::chrono::seconds(time_to_wait));
+        
 
         // go onward to their respective vantage points
         for(uint i = 1; i < solution->startPts.size(); i++){
+            time_to_wait = 0;
+
             double curr_x = solution->startPts[i].x();
             double curr_y = solution->startPts[i].y();
             double curr_z = solution->startPts[i].z();
             if(solution->startPts[i].z() <= prev_z){
                 for(uint drone_ = i; drone_ <= 5; drone_++){
-                    rclcpp::sleep_for(std::chrono::seconds(5));
-                    this->go_to(drone_, curr_x, curr_y, curr_z, 0);
+                    // rclcpp::sleep_for(std::chrono::seconds(5));
+                    st.push({i, {drone_, curr_x, curr_y, curr_z}});
+                    // cout << "[" << drone_ << "]" << ":" << "(" << curr_x << "," << curr_y << "," << curr_z << ")" << endl;
+                    curr_time_to_wait = this->go_to(drone_, curr_x, curr_y, curr_z, 0);
+                    time_to_wait = max(curr_time_to_wait, time_to_wait);
+
                     curr_z += diff_z;
                 }
             }
             else{
                 for(uint drone_ = 5; drone_ >= i; drone_--){
-                    rclcpp::sleep_for(std::chrono::seconds(5));
-                    this->go_to(drone_, curr_x, curr_y, curr_z, 0);
+                    // rclcpp::sleep_for(std::chrono::seconds(5));
+                    st.push({i, {drone_, curr_x, curr_y, curr_z}});
+                    // cout << "[" << drone_ << "]" << ":" << "(" << curr_x << "," << curr_y << "," << curr_z << ")" << endl;
+                    curr_time_to_wait = this->go_to(drone_, curr_x, curr_y, curr_z, 0);
+                    time_to_wait = max(curr_time_to_wait, time_to_wait);
+
                     curr_z -= diff_z;
                 }
             }
             prev_z = curr_z;
-            // rclcpp::sleep_for(std::chrono::seconds(60));
+            rclcpp::sleep_for(std::chrono::seconds(time_to_wait));
         }
 
-        for(uint i = 0; i < toVisit[3].size(); i++){
-            auto curr = toVisit[3][i].first;
-            int yaw = toVisit[3][i].second;
+        octomap::point3d center(odom_linear[3].x, odom_linear[3].y, odom_linear[3].z);
+        planner->setCenter(center);
+
+        std::vector<Eigen::Vector3d> pathArray;
+        for(uint i = 0; i < solution->toVisit[3].size(); i++){
+            auto curr = solution->toVisit[3][i].first;
+            int yaw = solution->toVisit[3][i].second;
 
             /*yaw mapping*/ 
-            // TODO:cross-check this bitch
+            // TODO:cross-check this mapping
             switch(yaw){
                 case 0: 
                     yaw = M_PI / 4;
@@ -346,51 +312,38 @@ public:
                 case 8:
                     yaw = - 3*M_PI / 4;
                     break;
-                default: throw runtime_error("yaw is not from [0-8]")
+                default: throw runtime_error("yaw is not from [0-8]");
             }
-            this->go_to(5, curr[0], curr[1], curr[2], 0)
+            //planner->runPlanner({odom_linear[4].x, odom_linear[4].y, odom_linear[4].z}, {curr[0], curr[1], curr[2]}, pathArray);
+            //this->go_to(5, curr[0], curr[1], curr[2], yaw);
+        }
+        //TODO: upload curr_traj using services: cf_x/start_trajectory, cf_x/upload_trajectory
+
+        int idx = 0;
+        while(!st.empty()){
+            time_to_wait = 0;
+            if(!st.empty()) idx = st.top().first;
+            while(!st.empty() && st.top().first == idx){
+                auto curr = st.top(); st.pop();
+                // cout << "groupling: " << curr.first << "idx: " << idx << endl;
+                // cout << "[" << curr.first << "]" << ":" << "(" << curr.second[0] << "," << curr.second[1] << "," << curr.second[2] << ")" << endl;
+                curr_time_to_wait = this->go_to(curr.second[0], curr.second[1], curr.second[2], curr.second[3], 0);
+                time_to_wait = max(curr_time_to_wait, time_to_wait);
+            }
+            rclcpp::sleep_for(std::chrono::seconds(time_to_wait));
         }
 
-
-        // TODO: check this bitch out too, hurts my head
-        /*
-        prev_z = solution->startPts[solution->startPts.size() - 1];
-        for(uint i = solution->startPts.size() - 2; i >= 0; i--){
-            double curr_x = solution->startPts[i].x();
-            double curr_y = solution->startPts[i].y();
-            double curr_z = solution->startPts[i].z();
-
-            if(solution->startPts[i].z() <= prev_z){
-                for(uint drone_ = i; drone_ <= 5; drone_++){ 
-                    rclcpp::sleep_for(std::chrono::seconds(5));
-                    this->go_to(drone_, curr_x, curr_y, curr_z, 0);
-                    curr_z += diff_z;
-                }
-            }
-            else{
-                for(uint drone_ = 5; drone_ >= i; drone_--){ 
-                    rclcpp::sleep_for(std::chrono::seconds(5));
-                    this->go_to(drone_, curr_x, curr_y, curr_z, 0);
-                    curr_z -= diff_z;
-                }
-            }
-            prev_z = curr_z;
-            // rclcpp::sleep_for(std::chrono::seconds(60));
-        }
-        */
-        rclcpp::sleep_for(std::chrono::seconds(1000));
 
         return 0;
     }
 
     ~CrazyflieCommandClient(){
-        delete validityChecker;
-        delete solver;
+        delete tree;
     }
 
 private:
     void compute_callback(){
-       RCLCPP_INFO(this->get_logger(), "Computing solution...");
+    //    RCLCPP_INFO(this->get_logger(), "Computing solution...");
        solver->mainLogic();
     }
 
@@ -456,18 +409,13 @@ private:
         return std::sqrt(res);
     }
 
-    octomap::OcTree * tree;
-    Solver* solver;
-    Solution* solution;
+    octomap::OcTree* tree;
+    std::shared_ptr<Solver> solver;
+    std::shared_ptr<Solution> solution;
+    std::shared_ptr<Planner> planner;
+
     int num_cf;
     boost::mutex *mutex_ptr;
-    std::vector<std::thread> thread_block;
-
-    OctoMapValidityChecker* validityChecker;
-    ob::StateSpacePtr space;
-    ob::ScopedState<ob::SE3StateSpace> start;
-    ob::ScopedState<ob::SE3StateSpace> goal;
-    ob::SpaceInformationPtr si;
 
     std::vector<geometry_msgs::msg::Point> odom_linear;
     std::vector<geometry_msgs::msg::Quaternion> odom_quat;

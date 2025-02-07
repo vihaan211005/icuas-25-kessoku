@@ -2,6 +2,7 @@
 #include <vector>
 #include <iostream>
 #include <queue>
+#include <stack>
 #include <cmath>
 #include <Eigen/Dense>
 #include <chrono>
@@ -66,6 +67,7 @@ class Solver
 public:
     Solution solution;
     boost::mutex param_mutex;
+    Bounds mapBounds;
 
     Solver();
     Solver(Vector3d base, OcTree octree, int radius, int num_drones) : baseStation(base), octree(octree), radius(radius), num_drones(num_drones) {}
@@ -180,7 +182,6 @@ private:
     int radius;
     int num_drones;
 
-    Bounds mapBounds;
     Array3D binaryArray;
     double resolution;
     Vector3i dimArray;

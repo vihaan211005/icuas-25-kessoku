@@ -28,6 +28,7 @@ include_directories(
   ${EIGEN3_INCLUDE_DIR}
   ${OMPL_INCLUDE_DIRS}
 )
+link_directories(${OMPL_LIBRARIES})
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -60,8 +61,9 @@ install(DIRECTORY
 )
 
 add_executable(crazyflie_client src/crazyflie_client.cpp include/traversal.hpp include/planner.hpp)
-ament_target_dependencies(crazyflie_client rclcpp crazyflie_interfaces geometry_msgs builtin_interfaces ros2_aruco_interfaces octomap_msgs icuas25_msgs 
-octomap Boost Eigen3)
+target_link_libraries(crazyflie_client ompl)
+ament_target_dependencies(crazyflie_client rclcpp crazyflie_interfaces geometry_msgs builtin_interfaces ros2_aruco_interfaces octomap_msgs icuas25_msgs octomap Boost Eigen3 ompl)
+
 target_compile_options(crazyflie_client PRIVATE -Ofast -Wall -Wextra -Wpedantic)
 
 # Install targets
