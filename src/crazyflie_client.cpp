@@ -229,11 +229,14 @@ public:
         stack< pair<int,vector<double>> > st;
         long long time_to_wait = 0;
         long long curr_time_to_wait;
+        octomap::point3d center;
+        Eigen::Vector3d start;
+        Eigen::Vector3d goal;
 
         for(int i = 1; i <= 5; i++){
             st.push({0, {i, curr_x, curr_y, curr_z}});
             //cout << "[" << i << "]" << ":" << "(" << curr_x << "," << curr_y << "," << curr_z << ")" << endl;
-            curr_time_to_wait = this->go_to(i, curr_x, curr_y, curr_z, 0);
+            // curr_time_to_wait = this->go_to(i, curr_x, curr_y, curr_z, 0);
             time_to_wait = max(curr_time_to_wait, time_to_wait);
 
             curr_z += diff_z;
@@ -253,10 +256,17 @@ public:
                     // rclcpp::sleep_for(std::chrono::seconds(5));
                     st.push({i, {drone_, curr_x, curr_y, curr_z}});
                     // cout << "[" << drone_ << "]" << ":" << "(" << curr_x << "," << curr_y << "," << curr_z << ")" << endl;
-                    curr_time_to_wait = this->go_to(drone_, curr_x, curr_y, curr_z, 0);
+                    // curr_time_to_wait = this->go_to(drone_, curr_x, curr_y, curr_z, 0);
                     time_to_wait = max(curr_time_to_wait, time_to_wait);
 
                     curr_z += diff_z;
+
+                    if(i == solution->startPts.size() - 1 && drone_ == 4){
+                        center = octomap::point3d(curr_x, curr_y, curr_z);
+                    }
+                    if(i == solution->startPts.size() - 1 && drone_ == 5){
+                        start = Eigen::Vector3d(curr_x, curr_y, curr_z);
+                    }
                 }
             }
             else{
@@ -264,25 +274,31 @@ public:
                     // rclcpp::sleep_for(std::chrono::seconds(5));
                     st.push({i, {drone_, curr_x, curr_y, curr_z}});
                     // cout << "[" << drone_ << "]" << ":" << "(" << curr_x << "," << curr_y << "," << curr_z << ")" << endl;
-                    curr_time_to_wait = this->go_to(drone_, curr_x, curr_y, curr_z, 0);
+                    // curr_time_to_wait = this->go_to(drone_, curr_x, curr_y, curr_z, 0);
                     time_to_wait = max(curr_time_to_wait, time_to_wait);
 
                     curr_z -= diff_z;
+
+                    if(i == solution->startPts.size() - 1 && drone_ == 4){
+                        center = octomap::point3d(curr_x, curr_y, curr_z);
+                    }
+                    if(i == solution->startPts.size() - 1 && drone_ == 5){
+                        start = Eigen::Vector3d(curr_x, curr_y, curr_z);
+                    }
                 }
             }
             prev_z = curr_z;
             rclcpp::sleep_for(std::chrono::seconds(time_to_wait));
         }
 
-        octomap::point3d center(odom_linear[3].x, odom_linear[3].y, odom_linear[3].z);
         planner->setCenter(center);
-
         std::vector<Eigen::Vector3d> pathArray;
+
         for(uint i = 0; i < solution->toVisit[3].size(); i++){
-            auto curr = solution->toVisit[3][i].first;
+            goal = solution->toVisit[3][i].first;
             int yaw = solution->toVisit[3][i].second;
 
-            /*yaw mapping*/ 
+            // yaw mapping
             // TODO:cross-check this mapping
             switch(yaw){
                 case 0: 
@@ -314,9 +330,11 @@ public:
                     break;
                 default: throw runtime_error("yaw is not from [0-8]");
             }
-            //planner->runPlanner({odom_linear[4].x, odom_linear[4].y, odom_linear[4].z}, {curr[0], curr[1], curr[2]}, pathArray);
+            // cout << start << " " << goal << endl;
+            planner->runPlanner(start, goal, pathArray);
             //this->go_to(5, curr[0], curr[1], curr[2], yaw);
         }
+        cout << "Traversed all points!" << endl;
         //TODO: upload curr_traj using services: cf_x/start_trajectory, cf_x/upload_trajectory
 
         int idx = 0;
@@ -327,12 +345,11 @@ public:
                 auto curr = st.top(); st.pop();
                 // cout << "groupling: " << curr.first << "idx: " << idx << endl;
                 // cout << "[" << curr.first << "]" << ":" << "(" << curr.second[0] << "," << curr.second[1] << "," << curr.second[2] << ")" << endl;
-                curr_time_to_wait = this->go_to(curr.second[0], curr.second[1], curr.second[2], curr.second[3], 0);
+                // curr_time_to_wait = this->go_to(curr.second[0], curr.second[1], curr.second[2], curr.second[3], 0);
                 time_to_wait = max(curr_time_to_wait, time_to_wait);
             }
             rclcpp::sleep_for(std::chrono::seconds(time_to_wait));
         }
-
 
         return 0;
     }

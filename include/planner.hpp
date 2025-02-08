@@ -34,7 +34,7 @@ public:
         pdef->setOptimizationObjective(Planner::getPathLengthObjWithCostToGo(si));
     }
 
-    int runPlanner(const std::vector<double>& start, const std::vector<double>& goal, std::vector<Eigen::Vector3d>& pathArray) {
+    int runPlanner(const Eigen::Vector3d& start, const Eigen::Vector3d& goal, std::vector<Eigen::Vector3d>& pathArray) {
 
 
         ob::ScopedState<ob::RealVectorStateSpace> startState(space);
