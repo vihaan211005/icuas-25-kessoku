@@ -25,6 +25,7 @@
 #include <string>
 #include <stdexcept>
 #include <vector>
+#include <stack>
 
 //#include "traversal.hpp"
 #include "planner.hpp"
@@ -67,7 +68,7 @@ public:
         get_octomap();
 
         RCLCPP_INFO(this->get_logger(), "Initializing Solver object...");
-        solver = std::make_shared<Solver>(Vector3d(0, 0, 0), *tree, 43, 5);
+        solver = std::make_shared<Solver>(Eigen::Vector3d(0, 0, 0), *tree, 43, 5);
         solver->initialSetup();
         mutex_ptr = &(solver->param_mutex);
 
@@ -159,7 +160,7 @@ public:
         request->goal.y = y;
         request->goal.z = z;
         request->yaw = yaw; 
-        request->duration.sec = 2 * dist(vector<double>{x, y, z}, vector<double>{odom_linear[drone_namespace_ - 1].x, odom_linear[drone_namespace_ - 1].y, odom_linear[drone_namespace_ - 1].z}); 
+        request->duration.sec = 2 * dist(std::vector<double>{x, y, z}, std::vector<double>{odom_linear[drone_namespace_ - 1].x, odom_linear[drone_namespace_ - 1].y, odom_linear[drone_namespace_ - 1].z}); 
         request->duration.nanosec = 0;
 
         wait_for_service(client, "/cf_" + std::to_string(drone_namespace_) + "/go_to");
@@ -176,7 +177,7 @@ public:
             drone_namespace_, x, y, z, odom_linear[i].x, odom_linear[i].y, odom_linear[i].z);
         }
         */
-        return 2 * dist(vector<double>{x, y, z}, vector<double>{odom_linear[drone_namespace_ - 1].x, odom_linear[drone_namespace_ - 1].y, odom_linear[drone_namespace_ - 1].z});
+        return 2 * dist(std::vector<double>{x, y, z}, std::vector<double>{odom_linear[drone_namespace_ - 1].x, odom_linear[drone_namespace_ - 1].y, odom_linear[drone_namespace_ - 1].z});
     }
 
     int intermediate_submission(){
@@ -226,18 +227,21 @@ public:
 
         rclcpp::sleep_for(std::chrono::seconds(5));
 
-        stack< pair<int,vector<double>> > st;
+        std::stack<std::pair<int,std::vector<double>> > st;
         long long time_to_wait = 0;
         long long curr_time_to_wait;
         octomap::point3d center;
         Eigen::Vector3d start;
         Eigen::Vector3d goal;
 
+        // double start_yaw;
+        // double goal_yaw;
+
         for(int i = 1; i <= 5; i++){
             st.push({0, {i, curr_x, curr_y, curr_z}});
-            //cout << "[" << i << "]" << ":" << "(" << curr_x << "," << curr_y << "," << curr_z << ")" << endl;
+            //std::cout << "[" << i << "]" << ":" << "(" << curr_x << "," << curr_y << "," << curr_z << ")" << std::endl;
             // curr_time_to_wait = this->go_to(i, curr_x, curr_y, curr_z, 0);
-            time_to_wait = max(curr_time_to_wait, time_to_wait);
+            time_to_wait = std::max(curr_time_to_wait, time_to_wait);
 
             curr_z += diff_z;
         }
@@ -255,9 +259,9 @@ public:
                 for(uint drone_ = i; drone_ <= 5; drone_++){
                     // rclcpp::sleep_for(std::chrono::seconds(5));
                     st.push({i, {drone_, curr_x, curr_y, curr_z}});
-                    // cout << "[" << drone_ << "]" << ":" << "(" << curr_x << "," << curr_y << "," << curr_z << ")" << endl;
+                    // std::cout << "[" << drone_ << "]" << ":" << "(" << curr_x << "," << curr_y << "," << curr_z << ")" << std::endl;
                     // curr_time_to_wait = this->go_to(drone_, curr_x, curr_y, curr_z, 0);
-                    time_to_wait = max(curr_time_to_wait, time_to_wait);
+                    time_to_wait = std::max(curr_time_to_wait, time_to_wait);
 
                     curr_z += diff_z;
 
@@ -273,9 +277,9 @@ public:
                 for(uint drone_ = 5; drone_ >= i; drone_--){
                     // rclcpp::sleep_for(std::chrono::seconds(5));
                     st.push({i, {drone_, curr_x, curr_y, curr_z}});
-                    // cout << "[" << drone_ << "]" << ":" << "(" << curr_x << "," << curr_y << "," << curr_z << ")" << endl;
+                    // std::cout << "[" << drone_ << "]" << ":" << "(" << curr_x << "," << curr_y << "," << curr_z << ")" << std::endl;
                     // curr_time_to_wait = this->go_to(drone_, curr_x, curr_y, curr_z, 0);
-                    time_to_wait = max(curr_time_to_wait, time_to_wait);
+                    time_to_wait = std::max(curr_time_to_wait, time_to_wait);
 
                     curr_z -= diff_z;
 
@@ -294,9 +298,9 @@ public:
         planner->setCenter(center);
         std::vector<Eigen::Vector3d> pathArray;
 
-        for(uint i = 0; i < solution->toVisit[3].size(); i++){
-            goal = solution->toVisit[3][i].first;
-            int yaw = solution->toVisit[3][i].second;
+        for(uint i = 0; i < solution->toVisit[4].size(); i++){
+            goal = solution->toVisit[4][i].first;
+            int yaw = solution->toVisit[4][i].second;
 
             // yaw mapping
             // TODO:cross-check this mapping
@@ -328,13 +332,23 @@ public:
                 case 8:
                     yaw = - 3*M_PI / 4;
                     break;
-                default: throw runtime_error("yaw is not from [0-8]");
+                default: throw std::runtime_error("yaw is not from [0-8]");
             }
-            // cout << start << " " << goal << endl;
-            planner->runPlanner(start, goal, pathArray);
+            std::cout << "(" << start << "," << yaw  << ")" << " (" << goal << "," << yaw << ")" << std::endl;
+            std::cout << "center: " << center << std::endl;
+
+            // Eigen::Vector3d start_(28.8238, 18.2686, 1.61791);
+            // Eigen::Vector3d goal_(37.7551, 22.3283, 28.0119); 
+            // Eigen:: Vector3d center_;
+
+            // planner->runPlanner(start_, goal_, pathArray);
+            planner->printOctreeBounds();
+            rclcpp::sleep_for(std::chrono::seconds(2));
+            if(start != goal) planner->runPlanner(start, goal, pathArray);
+            start = solution->toVisit[4][i].first;
             //this->go_to(5, curr[0], curr[1], curr[2], yaw);
         }
-        cout << "Traversed all points!" << endl;
+        std::cout << "Traversed all points!" << std::endl;
         //TODO: upload curr_traj using services: cf_x/start_trajectory, cf_x/upload_trajectory
 
         int idx = 0;
@@ -343,10 +357,10 @@ public:
             if(!st.empty()) idx = st.top().first;
             while(!st.empty() && st.top().first == idx){
                 auto curr = st.top(); st.pop();
-                // cout << "groupling: " << curr.first << "idx: " << idx << endl;
-                // cout << "[" << curr.first << "]" << ":" << "(" << curr.second[0] << "," << curr.second[1] << "," << curr.second[2] << ")" << endl;
+                // std::cout << "groupling: " << curr.first << "idx: " << idx << std::endl;
+                // std::cout << "[" << curr.first << "]" << ":" << "(" << curr.second[0] << "," << curr.second[1] << "," << curr.second[2] << ")" << std::endl;
                 // curr_time_to_wait = this->go_to(curr.second[0], curr.second[1], curr.second[2], curr.second[3], 0);
-                time_to_wait = max(curr_time_to_wait, time_to_wait);
+                time_to_wait = std::max(curr_time_to_wait, time_to_wait);
             }
             rclcpp::sleep_for(std::chrono::seconds(time_to_wait));
         }

@@ -4,20 +4,23 @@
 #include <ompl/geometric/planners/rrt/InformedRRTstar.h>
 #include <ompl/base/objectives/PathLengthOptimizationObjective.h>
 #include <octomap/octomap.h>
-#include "octomap_msgs/conversions.h"
-#include "octomap_msgs/srv/get_octomap.hpp"
 
 #include "traversal.hpp"
 
 namespace ob = ompl::base;
 namespace og = ompl::geometric;
 
+octomap::point3d center_;
+octomap::OcTree* octree_;
+
 class Planner {
 public:
     Planner(octomap::OcTree* tree, Bounds b, rclcpp::Logger logger)
-        : bounds_(b), logger_(logger), octree_(tree) {
+        : bounds_(b), logger_(logger) {
+        octree_ = tree;
         space = std::make_shared<ob::RealVectorStateSpace>(3);
 
+        std::cout << bounds_;
         ob::RealVectorBounds bounds(3);
         bounds.setLow(0, bounds_.min[0]);
         bounds.setHigh(0, bounds_.max[0]);        
@@ -35,8 +38,6 @@ public:
     }
 
     int runPlanner(const Eigen::Vector3d& start, const Eigen::Vector3d& goal, std::vector<Eigen::Vector3d>& pathArray) {
-
-
         ob::ScopedState<ob::RealVectorStateSpace> startState(space);
         ob::ScopedState<ob::RealVectorStateSpace> goalState(space);
 
@@ -48,17 +49,30 @@ public:
         goalState->values[1] = goal[1];
         goalState->values[2] = goal[2];
 
+        std::cout << "start: " << "(" << start[0] << "," << start[1] << "," << start[2] << ") " << "goal: " << goal[0] << "," << goal[1] << "," << goal[2] << ")" << std::endl;
+        printOctreeBounds();
+
+        const auto *tmpState = startState.get()->as<ob::RealVectorStateSpace::StateType>();
+        std::cout << "Start state: " << tmpState->values[0] << " " << tmpState->values[1] << " " << tmpState->values[2] << std::endl;
+
+        if(!isStateValid(startState.get())){
+            std::cout << "Start state is invalid" << std::endl;
+
+            throw std::runtime_error("start state is invalid");
+        }
+
         pdef->clearSolutionPaths();  
         pdef->clearStartStates();
         pdef->addStartState(startState);
         pdef->clearGoal();
         pdef->setGoalState(goalState);
         
-        auto planner = std::make_shared<og::InformedRRTstar>(si);
-        planner->setProblemDefinition(pdef);
-        planner->setup();
+        ob::PlannerPtr plan(new og::InformedRRTstar(si));
+        plan->setProblemDefinition(pdef);
+        plan->setup();
         
-        ob::PlannerStatus solved = planner->solve(ob::timedPlannerTerminationCondition(0.5));
+        ob::PlannerStatus solved = plan->solve(2);
+        std::cout << "Solved!" << std::endl;
 
         if (solved) {
             std::cout << "Found a solution!" << std::endl;
@@ -81,6 +95,15 @@ public:
         center_ = center;
     }
 
+    void printOctreeBounds() const {
+        double min_x, min_y, min_z, max_x, max_y, max_z;
+        octree_->getMetricMin(min_x, min_y, min_z);
+        octree_->getMetricMax(max_x, max_y, max_z);
+
+        std::cout << "Octree Bounds:\n";
+        std::cout << "  Min: (" << min_x << ", " << min_y << ", " << min_z << ")\n";
+        std::cout << "  Max: (" << max_x << ", " << max_y << ", " << max_z << ")\n";
+    }
 private:
     bool isStateValid(const ob::State *state) const {
         const auto *realState = state->as<ob::RealVectorStateSpace::StateType>();
@@ -88,16 +111,31 @@ private:
         double y = realState->values[1];
         double z = realState->values[2];
 
+        octomap::point3d center(center_.x(), center_.y(), center_.z());
+
+        std::cout << "center before search: " << center << std::endl;
         octomap::OcTreeNode *node = octree_->search(x, y, z);
+        std::cout << "center after search: " << center << std::endl;
+
+        std::cout << "Searching worked!" << std::endl;
+
         if (node != nullptr && octree_->isNodeOccupied(node)) {
+            std::cout << "node was occupied!" << std::endl;
             return false;
         }
         
         octomap::point3d target(x, y, z);
         octomap::point3d hit;
-        bool collision = octree_->castRay(center_, target - center_, hit, true, (target - center_).norm() - 0.01);
+
+        std::cout << "center before castRay: " << center << std::endl;
+        bool collision = octree_->castRay(center, target - center, hit, true, (target - center).norm() - 0.01);
+        
+        std::cout << "center after castRay: " << center << std::endl;
+
+        std::cout << "CastRay worked!" << std::endl;
         return !collision;
     }
+
 
     ob::OptimizationObjectivePtr getPathLengthObjWithCostToGo(const ob::SpaceInformationPtr){
         ob::OptimizationObjectivePtr obj(new ob::PathLengthOptimizationObjective(si));
@@ -105,10 +143,9 @@ private:
     }
 
     Bounds bounds_;
-    octomap::point3d center_;
     rclcpp::Logger logger_;
     ob::SpaceInformationPtr si;
     std::shared_ptr<ob::RealVectorStateSpace> space;
     ob::ProblemDefinitionPtr pdef;
-    octomap::OcTree* octree_;
 };
+

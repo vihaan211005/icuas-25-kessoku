@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.8)
 project(icuas25_competition)
 
+# set(CMAKE_BUILD_TYPE Debug)
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
@@ -65,6 +66,7 @@ target_link_libraries(crazyflie_client ompl)
 ament_target_dependencies(crazyflie_client rclcpp crazyflie_interfaces geometry_msgs builtin_interfaces ros2_aruco_interfaces octomap_msgs icuas25_msgs octomap Boost Eigen3 ompl)
 
 target_compile_options(crazyflie_client PRIVATE -Ofast -Wall -Wextra -Wpedantic)
+# target_compile_options(crazyflie_client PRIVATE -Ofast -g -Wall -Wextra -Wpedantic)
 
 # Install targets
 install(TARGETS

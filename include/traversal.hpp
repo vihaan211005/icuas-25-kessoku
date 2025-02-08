@@ -2,26 +2,21 @@
 #include <vector>
 #include <iostream>
 #include <queue>
-#include <stack>
 #include <cmath>
 #include <Eigen/Dense>
 #include <chrono>
 #include <boost/thread.hpp>
 
-#define Array3D vector<vector<vector<int>>>
-
-using namespace std;
-using namespace octomap;
-using Eigen::Vector3d;
-using Eigen::Vector3i;
+#define Array3D std::vector<std::vector<std::vector<int>>>
+#define BoolArray3D std::vector<std::vector<std::vector<bool>>>
 
 class Bounds
 {
 public:
-    Vector3d min, max;
-    Bounds(Vector3d min = Vector3d(0, 0, 0), Vector3d max = Vector3d(0, 0, 0)) : min(min), max(max) {}
+    Eigen::Vector3d min, max;
+    Bounds(Eigen::Vector3d min = Eigen::Vector3d(0, 0, 0), Eigen::Vector3d max = Eigen::Vector3d(0, 0, 0)) : min(min), max(max) {}
 
-    friend ostream &operator<<(ostream &os, const Bounds &b)
+    friend std::ostream &operator<<(std::ostream &os, const Bounds &b)
     {
         os << "Bounds(" << b.min << ", " << b.max << ")";
         return os;
@@ -31,11 +26,11 @@ public:
 class DronePos
 {
 public:
-    Vector3i pos;
+    Eigen::Vector3i pos;
     int yaw;
     double theta;
     double phai;
-    DronePos(Vector3i pos = Vector3i(0, 0, 0), int yaw = 0, double theta = 0, double phai = 0) : pos(pos), yaw(yaw), theta(theta), phai(phai) {}
+    DronePos(Eigen::Vector3i pos = Eigen::Vector3i(0, 0, 0), int yaw = 0, double theta = 0, double phai = 0) : pos(pos), yaw(yaw), theta(theta), phai(phai) {}
 
     bool operator<(const DronePos &other) const
     {
@@ -48,13 +43,10 @@ public:
 class Solution
 {
 public:
-    vector<Vector3d> startPts; // dont use the startPt[0]; set this as the spawn position
-    vector<vector<pair<Vector3d, int>>> toVisit;
+    std::vector<Eigen::Vector3d> startPts; // dont use the startPt[0]; set this as the spawn position
+    std::vector<std::vector<std::pair<Eigen::Vector3d, int>>> toVisit;
 
-    vector<vector<int>> toBreak; // visit idx and go back
-
-    vector<Vector3i> facesVisited;
-    vector<Vector3i> prevPoints;
+    std::vector<std::vector<int>> toBreak; // visit idx and go back
 
     int eval;  // > 0
     bool flag; // false
@@ -70,7 +62,7 @@ public:
     Bounds mapBounds;
 
     Solver();
-    Solver(Vector3d base, OcTree octree, int radius, int num_drones) : baseStation(base), octree(octree), radius(radius), num_drones(num_drones) {}
+    Solver(Eigen::Vector3d base, octomap::OcTree octree, int radius, int num_drones) : baseStation(base), octree(octree), radius(radius), num_drones(num_drones) {}
 
     void initialSetup()
     {
@@ -83,43 +75,41 @@ public:
 
     void mainLogic()
     {
-        vector<Vector3i> prevPoints;
-        {
-            boost::lock_guard<boost::mutex> lock(param_mutex);
-            prevPoints = solution.prevPoints;
-        }
-        vector<Vector3i> startPts(num_drones);
-        startPts[0] = Vector3i(0, 0, 0); // base
-        vector<vector<DronePos>> poses(num_drones - 1);
-        vector<vector<int>> toBreak(num_drones - 1);
-        vector<Vector3i> facesVisited;
+        std::vector<Eigen::Vector3i> startPts(num_drones);
+        startPts[0] = Eigen::Vector3i(0, 0, 0); // base
+        std::vector<std::vector<DronePos>> poses(num_drones);
+        std::vector<std::vector<int>> toBreak(num_drones);
+        std::vector<Eigen::Vector3i> newFacesVisited;
+
+        BoolArray3D isVisited(dimArray.x(), std::vector<std::vector<bool>>(dimArray.y(), std::vector<bool>(dimArray.z(), false)));
 
         int local_eval = 0;
-        for (int i = 0; i < num_drones - 1; i++)
+        for (int i = 0; i < num_drones; i++)
         {
-            vector<Vector3i> all_points = pointsInLOS(startPts[i]);
-            vector<Vector3i> empty_points;
+            std::vector<Eigen::Vector3i> all_points = pointsInLOS(startPts[i]);
+            std::vector<Eigen::Vector3i> empty_points;
 
             for (auto &point : all_points)
             {
-                if (binaryArray[point.x()][point.y()][point.z()] == 2)
+                if (binaryArray[point.x()][point.y()][point.z()] == 2 && !isVisited[point.x()][point.y()][point.z()])
                 {
                     DronePos dronepos = getAdjacentPoint(point, startPts[i]);
-                    if (check2points(dronepos.pos, startPts[i]))
+                    // if (check2points(dronepos.pos, startPts[i]))
+                    if (check2points_octree(dronepos.pos, startPts[i]))
                     {
                         local_eval++;
                         poses[i].push_back(dronepos);
-                        facesVisited.push_back(point);
+                        newFacesVisited.push_back(point);
                     }
                 }
-                else if (binaryArray[point.x()][point.y()][point.z()] == 0)
+                else if (binaryArray[point.x()][point.y()][point.z()] == 0 && !isVisited[point.x()][point.y()][point.z()])
                 {
                     bool nearbyEmpty = true;
                     for (int i = -1; i <= 1; i++)
                         for (int j = -1; j <= 1; j++)
                             for (int k = -1; k <= 1; k++)
                             {
-                                Vector3i curr = point + Vector3i(i, j, k);
+                                Eigen::Vector3i curr = point + Eigen::Vector3i(i, j, k);
                                 if (curr.x() >= 0 && curr.x() < dimArray.x() && curr.y() >= 0 && curr.y() < dimArray.y() && curr.z() >= 0 && curr.z() < dimArray.z())
                                     if (binaryArray[curr.x()][curr.y()][curr.z()])
                                         nearbyEmpty = false;
@@ -127,39 +117,51 @@ public:
                     if (nearbyEmpty)
                         empty_points.push_back(point);
                 }
+                isVisited[point.x()][point.y()][point.z()] = true;
             }
-            startPts[i + 1] = getRandomPointFromLOS(empty_points, startPts[i], prevPoints);
+            startPts[i + 1] = getRandomPointFromLOS(empty_points, startPts[i], allPrevPoints);
+        }
 
+        {
+            boost::mutex::scoped_lock lock(param_mutex);
+            if (solution.eval >= local_eval && !solution.flag)
+                return;
+        }
+
+        for (int i = 0; i < num_drones; i++)
+        {
             sort(poses[i].begin(), poses[i].end());
 
             for (int j = 0; j < int(poses[i].size()) - 1; j++)
                 if (!check2points(poses[i][j].pos, poses[i][j + 1].pos))
                     toBreak[i].push_back(j);
         }
-        vector<Vector3d> centres(num_drones);
+
+        std::vector<Eigen::Vector3d> centres(num_drones);
         for (int i = 0; i < num_drones; i++)
         {
             centres[i] = indexToPoint(startPts[i]);
         }
 
-        vector<vector<pair<Vector3d, int>>> toVisit(num_drones - 1);
-        for (int i = 0; i < num_drones - 1; i++)
+        std::vector<std::vector<std::pair<Eigen::Vector3d, int>>> toVisit(num_drones);
+        for (int i = 0; i < num_drones; i++)
             for (auto dronepos : poses[i])
-                toVisit[i].push_back(make_pair(indexToPoint(dronepos.pos), dronepos.yaw));
+                toVisit[i].push_back(std::make_pair(indexToPoint(dronepos.pos), dronepos.yaw));
         {
             boost::mutex::scoped_lock lock(param_mutex);
             if (solution.flag)
             {
-                for (auto &point : solution.prevPoints)
-                    binaryArray[point.x()][point.y()][point.z()] = 4;
-                saveToCSV("first");
-                for (auto &point : solution.prevPoints)
-                    binaryArray[point.x()][point.y()][point.z()] = 0;
-
-                for (uint i = 0; i < solution.facesVisited.size(); i++)
+                for (uint i = 0; i < solFacesVisited.size(); i++)
                 {
-                    binaryArray[solution.facesVisited[i].x()][solution.facesVisited[i].y()][solution.facesVisited[i].z()] = 3;
+                    binaryArray[solFacesVisited[i].x()][solFacesVisited[i].y()][solFacesVisited[i].z()] = 3;
                 }
+
+                for (int i = allPrevPoints.size() - 5; i < allPrevPoints.size(); i++)
+                    binaryArray[allPrevPoints[i].x()][allPrevPoints[i].y()][allPrevPoints[i].z()] = 4;
+                saveToCSV("first");
+                for (int i = allPrevPoints.size() - 5; i < allPrevPoints.size(); i++)
+                    binaryArray[allPrevPoints[i].x()][allPrevPoints[i].y()][allPrevPoints[i].z()] = 0;
+
                 solution.eval = 0;
                 solution.flag = false;
                 return;
@@ -170,32 +172,35 @@ public:
                 solution.startPts = centres;
                 solution.toVisit = toVisit;
                 solution.toBreak = toBreak;
-                solution.facesVisited = facesVisited;
-                solution.prevPoints = startPts;
+                solFacesVisited = newFacesVisited;
+                allPrevPoints.insert(allPrevPoints.end(), startPts.begin(), startPts.end());
             }
         }
     }
 
 private:
-    Vector3d baseStation;
-    OcTree octree;
+    Eigen::Vector3d baseStation;
+    octomap::OcTree octree;
     int radius;
     int num_drones;
 
     Array3D binaryArray;
     double resolution;
-    Vector3i dimArray;
+    Eigen::Vector3i dimArray;
+
+    std::vector<Eigen::Vector3i> solFacesVisited;
+    std::vector<Eigen::Vector3i> allPrevPoints;
 
     // Converts indextopoint
-    Vector3d indexToPoint(Vector3i index)
+    Eigen::Vector3d indexToPoint(Eigen::Vector3i index)
     {
         return index.cast<double>() * resolution + mapBounds.min;
     }
 
     // Saves 3DArray to csv file
-    void saveToCSV(string file_name)
+    void saveToCSV(std::string file_name)
     {
-        ofstream outfile(file_name + ".csv");
+        std::ofstream outfile(file_name + ".csv");
 
         for (int z = 0; z < dimArray.z(); ++z)
             for (int y = 0; y < dimArray.y(); ++y)
@@ -208,7 +213,7 @@ private:
                 }
                 outfile << "\n";
             }
-        cout << "CSV Exported!" << endl;
+        std::cout << "CSV Exported!" << std::endl;
     }
 
     // Converts OctTree to 3DArray
@@ -222,25 +227,25 @@ private:
         dimArray = ((mapBounds.max - mapBounds.min) / resolution).unaryExpr([](double val)
                                                                             { return static_cast<int>(std::round(val)); });
 
-        binaryArray.resize(dimArray.x(), vector<vector<int>>(dimArray.y(), vector<int>(dimArray.z(), 0)));
+        binaryArray.resize(dimArray.x(), std::vector<std::vector<int>>(dimArray.y(), std::vector<int>(dimArray.z(), 0)));
 
-        for (OcTree::leaf_iterator it = octree.begin_leafs(), end = octree.end_leafs(); it != end; ++it)
+        for (octomap::OcTree::leaf_iterator it = octree.begin_leafs(), end = octree.end_leafs(); it != end; ++it)
         {
-            Vector3d point3d(it.getX(), it.getY(), it.getZ());
+            Eigen::Vector3d point3d(it.getX(), it.getY(), it.getZ());
 
             if (it->getOccupancy() > 0.5)
             {
                 double half_size = it.getSize() / 2.0;
-                Vector3d leaf_min = point3d - Vector3d(half_size, half_size, half_size);
-                Vector3d leaf_max = point3d + Vector3d(half_size, half_size, half_size);
+                Eigen::Vector3d leaf_min = point3d - Eigen::Vector3d(half_size, half_size, half_size);
+                Eigen::Vector3d leaf_max = point3d + Eigen::Vector3d(half_size, half_size, half_size);
 
-                Vector3i start_idx = ((leaf_min - mapBounds.min) / resolution).unaryExpr([](double val)
-                                                                                         { return static_cast<int>(std::round(val)); });
-                Vector3i end_idx = ((leaf_max - mapBounds.min) / resolution).unaryExpr([](double val)
-                                                                                       { return static_cast<int>(std::round(val)); });
+                Eigen::Vector3i start_idx = ((leaf_min - mapBounds.min) / resolution).unaryExpr([](double val)
+                                                                                                { return static_cast<int>(std::round(val)); });
+                Eigen::Vector3i end_idx = ((leaf_max - mapBounds.min) / resolution).unaryExpr([](double val)
+                                                                                              { return static_cast<int>(std::round(val)); });
 
-                start_idx = start_idx.cwiseMax(Vector3i(0, 0, 0));
-                end_idx = end_idx.cwiseMin(dimArray - Vector3i(1, 1, 1));
+                start_idx = start_idx.cwiseMax(Eigen::Vector3i(0, 0, 0));
+                end_idx = end_idx.cwiseMin(dimArray - Eigen::Vector3i(1, 1, 1));
 
                 // start_idx_x = max(0, start_idx_x);
                 // end_idx_x = min(dimArray.x - 1, end_idx_x);
@@ -263,12 +268,12 @@ private:
     {
         int x = 0, y = 0, z = 0;
 
-        queue<Vector3i> queue;
-        queue.push(Vector3i(x, y, z));
+        std::queue<Eigen::Vector3i> queue;
+        queue.push(Eigen::Vector3i(x, y, z));
 
         while (!queue.empty())
         {
-            Vector3i curr = queue.front();
+            Eigen::Vector3i curr = queue.front();
             queue.pop();
 
             if (curr.x() < 0 || curr.x() >= dimArray.x() || curr.y() < 0 || curr.y() >= dimArray.y() || curr.z() < 0 || curr.z() >= dimArray.z() || binaryArray[curr.x()][curr.y()][curr.z()])
@@ -276,12 +281,12 @@ private:
 
             binaryArray[curr.x()][curr.y()][curr.z()] = 2;
 
-            queue.push(curr - Vector3i(1, 0, 0));
-            queue.push(curr + Vector3i(1, 0, 0));
-            queue.push(curr - Vector3i(0, 1, 0));
-            queue.push(curr + Vector3i(0, 1, 0));
-            queue.push(curr - Vector3i(0, 0, 1));
-            queue.push(curr + Vector3i(0, 0, 1));
+            queue.push(curr - Eigen::Vector3i(1, 0, 0));
+            queue.push(curr + Eigen::Vector3i(1, 0, 0));
+            queue.push(curr - Eigen::Vector3i(0, 1, 0));
+            queue.push(curr + Eigen::Vector3i(0, 1, 0));
+            queue.push(curr - Eigen::Vector3i(0, 0, 1));
+            queue.push(curr + Eigen::Vector3i(0, 0, 1));
         }
 
         for (int i = 0; i < dimArray.x(); ++i)
@@ -298,13 +303,13 @@ private:
     // Reduce resolution by factor
     void reduceResolution(int factor)
     {
-        Vector3i newDim = dimArray / factor;
+        Eigen::Vector3i newDim = dimArray / factor;
 
         mapBounds.max -= resolution * (((dimArray - newDim * factor).cast<double>()));
         resolution *= factor;
         dimArray = newDim;
 
-        vector<vector<vector<int>>> reducedArray(dimArray.x(), vector<vector<int>>(dimArray.y(), vector<int>(dimArray.z(), 0)));
+        std::vector<std::vector<std::vector<int>>> reducedArray(dimArray.x(), std::vector<std::vector<int>>(dimArray.y(), std::vector<int>(dimArray.z(), 0)));
 
         for (int i = 0; i < dimArray.x(); ++i)
             for (int j = 0; j < dimArray.y(); ++j)
@@ -330,7 +335,7 @@ private:
     // Add buffer
     void addBoundary()
     {
-        mapBounds.max += Vector3d(resolution, resolution, resolution);
+        mapBounds.max += Eigen::Vector3d(resolution, resolution, resolution);
         mapBounds.min.x() -= resolution;
         mapBounds.min.y() -= resolution;
 
@@ -338,7 +343,7 @@ private:
         dimArray.y() += 2;
         dimArray.z() += 1;
 
-        vector<vector<vector<int>>> newArray(dimArray.x(), vector<vector<int>>(dimArray.y(), vector<int>(dimArray.z(), 0)));
+        std::vector<std::vector<std::vector<int>>> newArray(dimArray.x(), std::vector<std::vector<int>>(dimArray.y(), std::vector<int>(dimArray.z(), 0)));
 
         for (int i = 1; i < dimArray.x() - 1; ++i)
             for (int j = 1; j < dimArray.y() - 1; ++j)
@@ -392,32 +397,32 @@ private:
                                 binaryArray[i][j][k] = 3; // Mark as horizontal face
                         }
                     }
-        cout << "Total = " << total_vertical << endl;
+        std::cout << "Total = " << total_vertical << std::endl;
     }
 
     // // Check LOS via octree
-    bool check2points_octree(Vector3i p1, Vector3i p2)
+    bool check2points_octree(Eigen::Vector3i p1, Eigen::Vector3i p2)
     {
         if (p1 == p2)
             return true;
-        Vector3d startidx = indexToPoint(p1);
-        Vector3d endidx = indexToPoint(p2);
-        point3d start(startidx.x(), startidx.y(), startidx.z());
-        point3d end(endidx.x(), endidx.y(), endidx.z());
-        point3d hit;
+        Eigen::Vector3d startidx = indexToPoint(p1);
+        Eigen::Vector3d endidx = indexToPoint(p2);
+        octomap::point3d start(startidx.x(), startidx.y(), startidx.z());
+        octomap::point3d end(endidx.x(), endidx.y(), endidx.z());
+        octomap::point3d hit;
         bool hits = octree.castRay(start, end - start, hit, true, (end - start).norm() - 0.01);
         return !hits;
     }
 
     // Check LOS btwn 2 points
-    bool check2points(Vector3i p1, Vector3i p2)
+    bool check2points(Eigen::Vector3i p1, Eigen::Vector3i p2)
     {
-        Vector3i dp = p1 - p2;
-        int steps = max({abs(dp.x()), abs(dp.y()), abs(dp.z())});
+        Eigen::Vector3i dp = p1 - p2;
+        int steps = std::max({abs(dp.x()), abs(dp.y()), abs(dp.z())});
 
         for (int i = 1; i < steps; ++i)
         {
-            Vector3i curr = p2 + dp * i / steps;
+            Eigen::Vector3i curr = p2 + dp * i / steps;
 
             if (binaryArray[curr.x()][curr.y()][curr.z()])
                 return false;
@@ -427,16 +432,16 @@ private:
     }
 
     // Returns points in LOS
-    vector<Vector3i> pointsInLOS(Vector3i centre)
+    std::vector<Eigen::Vector3i> pointsInLOS(Eigen::Vector3i centre)
     {
-        vector<Vector3i> pointsInSphere;
-        vector<Vector3i> inLOS;
+        std::vector<Eigen::Vector3i> pointsInSphere;
+        std::vector<Eigen::Vector3i> inLOS;
 
         for (int i = -radius; i <= radius; ++i)
             for (int j = -radius; j <= radius; ++j)
                 for (int k = -radius; k <= radius; ++k)
                 {
-                    Vector3i curr = centre + Vector3i(i, j, k);
+                    Eigen::Vector3i curr = centre + Eigen::Vector3i(i, j, k);
 
                     if (curr.x() < 0 || curr.x() >= dimArray.x() || curr.y() < 0 || curr.y() >= dimArray.y() || curr.z() < 0 || curr.z() >= dimArray.z())
                         continue;
@@ -449,12 +454,12 @@ private:
         for (auto &point : pointsInSphere)
         {
             bool isClearPath = true;
-            Vector3i d = point - centre;
-            int steps = max({abs(d.x()), abs(d.y()), abs(d.z())});
+            Eigen::Vector3i d = point - centre;
+            int steps = std::max({abs(d.x()), abs(d.y()), abs(d.z())});
 
             for (int i = 1; i < steps; ++i)
             {
-                Vector3i curr = centre + d * i / steps;
+                Eigen::Vector3i curr = centre + d * i / steps;
 
                 if (binaryArray[curr.x()][curr.y()][curr.z()])
                 {
@@ -471,28 +476,28 @@ private:
     }
 
     // Return empty point in LOS
-    Vector3i getRandomPointFromLOS(vector<Vector3i> &pts, Vector3i centre, vector<Vector3i> prevPoints, double sigma = 0.01)
+    Eigen::Vector3i getRandomPointFromLOS(std::vector<Eigen::Vector3i> &pts, Eigen::Vector3i centre, std::vector<Eigen::Vector3i> prevPoints, double sigma = 0.01)
     {
-        vector<pair<double, Vector3i>> weightedPts;
+        std::vector<std::pair<double, Eigen::Vector3i>> weightedPts;
 
         for (auto &point : pts)
         {
             if (point.z() < 1)
                 continue;
-            Vector3i d = point - centre;
+            Eigen::Vector3i d = point - centre;
             double distance = sqrt(pow(d.x(), 2) + pow(d.y(), 2) + pow(d.z(), 2));
 
             double gaussianWeight = 1.0;
             for (auto &prev : prevPoints)
             {
-                Vector3i diff = point - prev;
+                Eigen::Vector3i diff = point - prev;
                 double distToPrev = sqrt(pow(diff.x(), 2) + pow(diff.y(), 2) + pow(diff.z(), 2));
                 double gaussian = exp(-pow(distToPrev, 2) / (2 * pow(sigma, 2)));
                 gaussianWeight *= 1.0 - gaussian;
             }
 
             double combinedWeight = distance;
-            weightedPts.push_back(make_pair(combinedWeight, point));
+            weightedPts.push_back(std::make_pair(combinedWeight, point));
         }
 
         double sumWeights = 0.0;
@@ -501,7 +506,7 @@ private:
             sumWeights += weightedPt.first;
         }
 
-        srand(chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now().time_since_epoch()).count());
+        srand(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count());
         double randomValue = (double)rand() / RAND_MAX * sumWeights;
 
         double cumulativeWeight = 0.0;
@@ -519,16 +524,16 @@ private:
         return weightedPts.back().second;
     }
 
-    // Return adjacent point of a point
-    DronePos getAdjacentPoint(Vector3i point, Vector3i centre)
+    // Return adjacent point of a point //fix error
+    DronePos getAdjacentPoint(Eigen::Vector3i point, Eigen::Vector3i centre)
     {
-        vector<DronePos> adjacentPoints;
+        std::vector<DronePos> adjacentPoints;
         for (int i = -1; i <= 1; i++)
             for (int j = -1; j <= 1; j++)
             {
                 if (!i & !j)
                     continue;
-                Vector3i cur = point + Vector3i(i, j, 0);
+                Eigen::Vector3i cur = point + Eigen::Vector3i(i, j, 0);
                 adjacentPoints.push_back(DronePos(cur, (i + 1) * 3 + (j + 1), atan2(cur.y(), cur.x()), acos((cur.z()) / sqrt(pow(cur.x(), 2) + pow(cur.y(), 2) + pow(cur.z(), 2)))));
             }
 
@@ -538,15 +543,25 @@ private:
                 return dronepos;
         }
 
-        cout << "Big Problem";
+        std::cout << "Big Problem";
         return DronePos();
     }
 };
 
-/*
-int main()
-{
-    Solver solver = Solver(Vector3d(0, 0, 0), OcTree("city_1.binvox.bt"), 43, 5);
-    solver.initialSetup();
-}
-*/
+// int main()
+// {
+//     Solver solver = Solver(Eigen::Vector3d(0, 0, 0), octomap::OcTree("city_1.binvox.bt"), 43, 5);
+//     solver.initialSetup();
+//     int i = 0;
+//     int total = 0;
+//     while (++i)
+//     {
+//         solver.mainLogic();
+//         if (!(i % 100)){
+//             solver.solution.flag = true;
+//             total += solver.solution.eval;
+//             std::cout << "Total: " << total << std::endl;
+//         }
+//     }
+//     return 0;
+// }
