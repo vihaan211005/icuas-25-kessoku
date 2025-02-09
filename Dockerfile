@@ -214,6 +214,7 @@ COPY launch $HOME/CrazySim/ros2_ws/src/icuas25_competition/launch
 COPY CMakeLists.txt $HOME/CrazySim/ros2_ws/src/icuas25_competition/
 COPY package.xml $HOME/CrazySim/ros2_ws/src/icuas25_competition/
 COPY Dockerfile $HOME/CrazySim/ros2_ws/src/icuas25_competition/
+COPY external $HOME/CrazySim/ros2_ws/src/icuas25_competition/external
 
 # Reduce IMU refresh rate, and increase the gazebo timestep (to run of potato pcs)
 RUN bash -c "chmod +x $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/edit.sh && $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/edit.sh"

@@ -26,10 +26,14 @@ find_package(ompl REQUIRED)
 
 include_directories(
   include
+  external/include
   ${EIGEN3_INCLUDE_DIR}
   ${OMPL_INCLUDE_DIRS}
 )
-link_directories(${OMPL_LIBRARIES})
+link_directories(
+  ${OMPL_LIBRARIES}
+  external/lib
+)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
