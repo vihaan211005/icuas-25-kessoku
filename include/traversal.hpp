@@ -375,6 +375,7 @@ private:
                                         if (binaryArray[i + x][j + y][k + z])
                                             total++;
                                         if (!z && !binaryArray[i + x][j + y][k + z] && (!x || !y))
+                                        if (!z && !binaryArray[i + x][j + y][k + z] && (!x || !y))
                                         {
                                             if (x < 0)
                                                 plane[0]++;
