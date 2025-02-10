@@ -95,7 +95,7 @@ public:
         pdef->clearGoal();
         pdef->setGoalState(goalState);
         
-        ob::PlannerPtr plan(new og::RRTConnect(si));
+        ob::PlannerPtr plan(new og::InformedRRTstar(si));
         plan->setProblemDefinition(pdef);
         plan->setup();
         
