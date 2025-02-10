@@ -13,7 +13,6 @@
 #include <ompl/geometric/planners/rrt/RRTConnect.h>
 #include <ompl/geometric/planners/rrt/RRT.h>
 #include "traversal.hpp"
-#include "utils.hpp"
 
 namespace ob = ompl::base;
 namespace og = ompl::geometric;
@@ -22,12 +21,15 @@ static octomap::point3d center_;
 static octomap::OcTree* octree_;
 static std::vector<Eigen::Vector3d> pos_;
 
+static std::shared_ptr<fcl::CollisionGeometry<double>> tree_obj;
+static std::vector<std::shared_ptr<fcl::CollisionGeometry<double>>> quad_obj;
+static std::shared_ptr <fcl::CollisionGeometry<double>> quadcopter;
+
 class Planner {
 public:
-    Planner(octomap::OcTree* tree, Bounds b, rclcpp::Logger logger, utils::sharedQueue<Eigen::Vector4d>& shared_queue) : 
+    Planner(octomap::OcTree* tree, Bounds b, rclcpp::Logger logger) : 
         bounds_(b), 
-        logger_(logger), 
-        shared_queue_(shared_queue)
+        logger_(logger)
     {
         octree_ = tree;
         fcl::OcTree<double>* tree_ = new fcl::OcTree<double>(std::shared_ptr<const octomap::OcTree>(new octomap::OcTree(0.1)));
@@ -57,7 +59,7 @@ public:
         pdef->setOptimizationObjective(Planner::getPathLengthObjWithCostToGo(si));
     }
 
-    int runPlanner(const Eigen::Vector4d& start, const Eigen::Vector4d& goal) {
+    int runPlanner(const Eigen::Vector4d& start, const Eigen::Vector4d& goal, std::vector<Eigen::Vector4d>& pathArray) {
         ob::ScopedState<ob::SE3StateSpace> startState(space);
         ob::ScopedState<ob::SE3StateSpace> goalState(space);
 
@@ -83,28 +85,39 @@ public:
         goalState->rotation().y = goalQuat.y();
         goalState->rotation().z = goalQuat.z();
         goalState->rotation().w = goalQuat.w();
-
-        RCLCPP_INFO(logger_, "Start: (%lf, %lf, %lf, %lf) Goal: (%lf, %lf, %lf, %lf)", start[0], start[1], start[2], start[3], goal[0], goal[1], goal[2], goal[3]);
+        
+        RCLCPP_INFO(logger_, "----Problem description:---");
         this->printOctreeBounds();
+        
+        RCLCPP_INFO(logger_, "Start: (%lf, %lf, %lf, %lf) Goal: (%lf, %lf, %lf, %lf) Center: (%lf, %lf, %lf)", 
+            startState->getX(), startState->getY(), startState->getZ(), start[3], 
+            goalState->getX(), goalState->getY(), goalState->getZ(), goal[3], 
+            center_.x(), center_.y(), center_.z());
 
+        for(uint i = 0; i < 4; i++){
+            RCLCPP_INFO(logger_, "Position %d: (%lf, %lf, %lf)", i+1, pos_[i].x(), pos_[i].y(), pos_[i].z());
+        }
+        RCLCPP_INFO(logger_, "---------------------------");
+        
         if(!isStateValid(startState.get())){
             RCLCPP_INFO(logger_, "Start State is Invalid");
             throw std::runtime_error("start state is invalid");
         }
-
+        
         pdef->clearSolutionPaths();  
         pdef->clearStartStates();
         pdef->addStartState(startState);
         pdef->clearGoal();
         pdef->setGoalState(goalState);
         
-        ob::PlannerPtr plan(new og::RRTConnect(si));
+        ob::PlannerPtr plan(new og::InformedRRTstar(si));
         plan->setProblemDefinition(pdef);
         plan->setup();
         
+        RCLCPP_INFO(logger_, "Solver running now!");
         ob::PlannerStatus solved = plan->solve(2);
         RCLCPP_INFO(logger_, "Solver successfully ran!");
-
+        
         if (solved) {
             RCLCPP_INFO(logger_, "Found a solution!");
             og::PathGeometric path(dynamic_cast<const og::PathGeometric&>(*pdef->getSolutionPath()));
@@ -118,7 +131,7 @@ public:
                 stateQuat.z() = goalState->rotation().z;
                 stateQuat.w() = goalState->rotation().w;
                 Eigen::Vector4d p(state->getX(), state->getY(), state->getZ(), quaternionToYaw(stateQuat));
-                shared_queue_.push(p);
+                pathArray.push_back(p);
             }
         } 
         else {
@@ -169,54 +182,63 @@ private:
 
 		fcl::CollisionObject quadcopterObject(quadcopter);
         const ob::RealVectorStateSpace::StateType *pos = se3State->as<ob::RealVectorStateSpace::StateType>(0);
-		const ob::SO3StateSpace::StateType *rot = se3State->as<ob::SO3StateSpace::StateType>(1);
-		fcl::Vector3d translation(pos->values[0],pos->values[1],pos->values[2]);
-		fcl::Quaterniond rotation(rot->w, rot->x, rot->y, rot->z);
-		quadcopterObject.setTransform(rotation, translation);
+        const ob::SO3StateSpace::StateType *rot = se3State->as<ob::SO3StateSpace::StateType>(1);
+        fcl::Vector3d translation(pos->values[0], pos->values[1], pos->values[2]);
+        fcl::Quaterniond rotation(rot->w, rot->x, rot->y, rot->z);
+        quadcopterObject.setTransform(rotation, translation);
 
         fcl::CollisionObject quad1Object(quad_obj[0]);
-        fcl::Vector3d translation1(pos_[0].x(),pos_[0].y(),pos_[0].z());
+        fcl::Vector3d translation1(pos_[0].x(), pos_[0].y(), pos_[0].z());
         fcl::Quaterniond rotation1(1, 0, 0, 0);
-        quadcopterObject.setTransform(rotation1, translation1);
+        quad1Object.setTransform(rotation1, translation1);
 
         fcl::CollisionObject quad2Object(quad_obj[1]);
-        fcl::Vector3d translation2(pos_[1].x(),pos_[1].y(),pos_[1].z());
+        fcl::Vector3d translation2(pos_[1].x(), pos_[1].y(), pos_[1].z());
         fcl::Quaterniond rotation2(1, 0, 0, 0);
-        quadcopterObject.setTransform(rotation2, translation2);
+        quad2Object.setTransform(rotation2, translation2);
 
         fcl::CollisionObject quad3Object(quad_obj[2]);
-        fcl::Vector3d translation3(pos_[2].x(),pos_[2].y(),pos_[2].z());
+        fcl::Vector3d translation3(pos_[2].x(), pos_[2].y(), pos_[2].z());
         fcl::Quaterniond rotation3(1, 0, 0, 0);
-        quadcopterObject.setTransform(rotation3, translation3);
+        quad3Object.setTransform(rotation3, translation3);
 
         fcl::CollisionObject quad4Object(quad_obj[3]);
-        fcl::Vector3d translation4(pos_[3].x(),pos_[3].y(),pos_[3].z());
+        fcl::Vector3d translation4(pos_[3].x(), pos_[3].y(), pos_[3].z());
         fcl::Quaterniond rotation4(1, 0, 0, 0);
-        quadcopterObject.setTransform(rotation4, translation4);
+        quad4Object.setTransform(rotation4, translation4);
 
         fcl::CollisionObject<double> treeObj((tree_obj));
 
-		fcl::CollisionRequest<double> requestType(1,false,1,false);
+        fcl::CollisionRequest<double> requestType(1, false, 1, false);
 
-		fcl::CollisionResult<double> collisionResultTree;
-		fcl::collide(&quadcopterObject, &treeObj, requestType, collisionResultTree);
-        if(collisionResultTree.isCollision()) return false;
+        fcl::CollisionResult<double> collisionResultTree;
+        fcl::collide(&quadcopterObject, &treeObj, requestType, collisionResultTree);
+        if (collisionResultTree.isCollision()){
+            return false;}
 
-		fcl::CollisionResult<double> collisionResultQuad1;
-		fcl::collide(&quadcopterObject, &quad1Object, requestType, collisionResultQuad1);
-        if(collisionResultQuad1.isCollision()) return false;
+        fcl::CollisionResult<double> collisionResultQuad1;
+        fcl::collide(&quadcopterObject, &quad1Object, requestType, collisionResultQuad1);
+        if (collisionResultQuad1.isCollision()){;
+            return false;
+        }
+        
+        fcl::CollisionResult<double> collisionResultQuad2;
+        fcl::collide(&quadcopterObject, &quad2Object, requestType, collisionResultQuad2);
+        if (collisionResultQuad2.isCollision()){;
+            return false;
+        }
 
-		fcl::CollisionResult<double> collisionResultQuad2;
-		fcl::collide(&quadcopterObject, &quad2Object, requestType, collisionResultQuad2);
-        if(collisionResultQuad2.isCollision()) return false;
+        fcl::CollisionResult<double> collisionResultQuad3;
+        fcl::collide(&quadcopterObject, &quad3Object, requestType, collisionResultQuad3);
+        if (collisionResultQuad3.isCollision()){;
+            return false;
+        }
 
-		fcl::CollisionResult<double> collisionResultQuad3;
-		fcl::collide(&quadcopterObject, &quad3Object, requestType, collisionResultQuad3);
-        if(collisionResultQuad3.isCollision()) return false;
-
-		fcl::CollisionResult<double> collisionResultQuad4;
-		fcl::collide(&quadcopterObject, &quad4Object, requestType, collisionResultQuad4);
-        if(collisionResultQuad4.isCollision()) return false;
+        fcl::CollisionResult<double> collisionResultQuad4;
+        fcl::collide(&quadcopterObject, &quad4Object, requestType, collisionResultQuad4);
+        if (collisionResultQuad4.isCollision()){
+            return false;
+        }
 
         return true;
     }
@@ -240,10 +262,4 @@ private:
     ob::SpaceInformationPtr si;
     std::shared_ptr<ob::SE3StateSpace> space;
     ob::ProblemDefinitionPtr pdef; 
-
-    std::shared_ptr<fcl::CollisionGeometry<double>> tree_obj;
-    std::vector<std::shared_ptr<fcl::CollisionGeometry<double>>> quad_obj;
-    std::shared_ptr <fcl::CollisionGeometry<double>> quadcopter;
-
-    utils::sharedQueue<Eigen::Vector4d>& shared_queue_;
 };

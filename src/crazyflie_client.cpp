@@ -46,8 +46,7 @@ public:
         odom_linear(std::vector<geometry_msgs::msg::Point>(num_cf)),
         odom_quat(std::vector<geometry_msgs::msg::Quaternion>(num_cf)),
         pose_subscriptions_(num_cf),
-        aruco_subscriptions_(num_cf),
-        shared_queue_()
+        aruco_subscriptions_(num_cf)
     {
         aruco_cb_options.callback_group = aruco_cb_group_;
         for(int i = 0; i < num_cf; i++){
@@ -75,7 +74,7 @@ public:
         mutex_ptr = &(solver->param_mutex);
 
         RCLCPP_INFO(this->get_logger(), "Initializing Path Planner object...");
-        planner = std::make_shared<Planner>(Planner(tree, solver->mapBounds, this->get_logger(), shared_queue_));
+        planner = std::make_shared<Planner>(Planner(tree, solver->mapBounds, this->get_logger()));
 
         RCLCPP_INFO(this->get_logger(), "Starting search...");
 
@@ -227,7 +226,7 @@ public:
         double curr_z = 4;
         double prev_z = 4;
 
-        rclcpp::sleep_for(std::chrono::seconds(5));
+        // rclcpp::sleep_for(std::chrono::seconds(2));
 
         std::stack<std::pair<int,std::vector<double>> > st;
         long long time_to_wait = 0;
@@ -235,6 +234,7 @@ public:
         octomap::point3d center;
         Eigen::Vector4d start;
         Eigen::Vector4d goal;
+        std::vector<Eigen::Vector3d> pos_(5);
 
         // double start_yaw;
         // double goal_yaw;
@@ -263,7 +263,6 @@ public:
                     st.push({i, {drone_, curr_x, curr_y, curr_z}});
                     // std::cout << "[" << drone_ << "]" << ":" << "(" << curr_x << "," << curr_y << "," << curr_z << ")" << std::endl;
                     curr_time_to_wait = this->go_to(drone_, curr_x, curr_y, curr_z, 0);
-                    curr_time_to_wait = this->go_to(drone_, curr_x, curr_y, curr_z, 0);
                     time_to_wait = std::max(curr_time_to_wait, time_to_wait);
 
                     curr_z += diff_z;
@@ -274,6 +273,7 @@ public:
                     if(i == solution->startPts.size() - 1 && drone_ == 5){
                         start = Eigen::Vector4d(curr_x, curr_y, curr_z, 0);
                     }
+                    pos_[drone_-1] = Eigen::Vector3d(curr_x, curr_y, curr_z); 
                 }
             }
             else{
@@ -293,85 +293,78 @@ public:
                     if(i == solution->startPts.size() - 1 && drone_ == 5){
                         start = Eigen::Vector4d(curr_x, curr_y, curr_z, 0);
                     }
+                    pos_[drone_-1] = Eigen::Vector3d(curr_x, curr_y, curr_z); 
                 }
             }
             prev_z = curr_z;
             rclcpp::sleep_for(std::chrono::seconds(time_to_wait));
         }
+        
 
+        
+        std::cout << "pos_ size: " << pos_.size() << std::endl;
+        for(int k = 0; k < pos_.size(); k++){
+            std::cout << pos_[k].x() << " " << pos_[k].y() << " " << pos_[k].z() << std::endl;
+        }
+        
+        // std::vector<Eigen::Vector3d> poses = {Eigen::Vector3d(16.644729, 14.208915, 20.504419),Eigen::Vector3d(16.644729, 41.814807, 24.564109),Eigen::Vector3d(28.011861, 66.984885, 25.376047),Eigen::Vector3d(13.396977, 56.429691, 2.229845)};
+        // octomap::point3d cemter_(poses[3].x(), poses[3].y(), poses[3].z());
         planner->setCenter(center);
-        // planner->setPosition();
+        planner->setPosition(pos_);
 
-        std::thread run_planner_thread([&](){
-            for(uint i = 0; i < solution->toVisit[4].size(); i++){
-                auto goalxyz = solution->toVisit[4][i].first;
-                int yaw = solution->toVisit[4][i].second;
+        // Eigen::Vector4d start_(13.396977, 56.429691, 2.429845, 0);
+        // Eigen::Vector4d goal_(19.892481, 74.292327, 14.208915, -1);
+        // planner->runPlanner(start_, goal_);
+        std::vector<Eigen::Vector4d> pathArray;
 
-                // yaw mapping
-                // TODO:cross-check this mapping
-                switch(yaw){
-                    case 0: 
-                        yaw = M_PI / 4;
-                        break;
-                    case 1:
-                        yaw = M_PI / 2;
-                        break;
-                    case 2:
-                        yaw = 3*M_PI / 4;
-                        break;
-                    case 3:
-                        yaw = - M_PI / 2;
-                        break;
-                    case 4:
-                        yaw = - M_PI / 2;
-                        break;
-                    case 5:
-                        yaw = - M_PI / 2;
-                        break;
-                    case 6:
-                        yaw = - M_PI / 4;
-                        break;
-                    case 7:
-                        yaw = - M_PI / 2;
-                        break;
-                    case 8:
-                        yaw = - 3*M_PI / 4;
-                        break;
-                    default: throw std::runtime_error("yaw is not from [0-8]");
-                }
-
-                goal << goalxyz.x(), goalxyz.y(), goalxyz.z(), static_cast<double>(yaw);
-                std::cout << "(" << start << "," << yaw  << ")" << " (" << goal << "," << yaw << ")" << std::endl;
-                std::cout << "center: " << center << std::endl;
-
-                // Eigen::Vector3d start_(28.8238, 18.2686, 1.61791);
-                // Eigen::Vector3d goal_(37.7551, 22.3283, 28.0119); 
-                // Eigen:: Vector3d center_;
-                // planner->runPlanner(start_, goal_, pathArray);
-
-                planner->printOctreeBounds();
-                rclcpp::sleep_for(std::chrono::seconds(2));
-
-                planner->runPlanner(start, goal);
-                start = goal;    
-            }
-            traj_ended = true;
-        });
-
-        std::thread go_planner_pts_thread([&](){
-            while(true){
-                if(traj_ended && shared_queue_.d_queue.empty()){
+        for(uint i = 0; i < solution->toVisit[4].size(); i++){
+            auto goalxyz = solution->toVisit[4][i].first;
+            int yaw = solution->toVisit[4][i].second;
+            
+            // yaw mapping
+            // TODO:cross-check this mapping
+            switch(yaw){
+                case 0: 
+                    yaw = M_PI / 4;
                     break;
-                }
-                Eigen::Vector4d curr_goal = shared_queue_.pop();
-                curr_time_to_wait = this->go_to(5, curr_goal[0], curr_goal[1], curr_goal[2], curr_goal[3]);
-                rclcpp::sleep_for(std::chrono::seconds(curr_time_to_wait));
+                case 1:
+                    yaw = M_PI / 2;
+                    break;
+                case 2:
+                    yaw = 3*M_PI / 4;
+                    break;
+                case 3:
+                    yaw = - M_PI / 2;
+                    break;
+                case 4:
+                    yaw = - M_PI / 2;
+                    break;
+                case 5:
+                    yaw = - M_PI / 2;
+                    break;
+                case 6:
+                    yaw = - M_PI / 4;
+                    break;
+                case 7:
+                    yaw = - M_PI / 2;
+                    break;
+                case 8:
+                    yaw = - 3*M_PI / 4;
+                    break;
+                default: throw std::runtime_error("yaw is not from [0-8]");
             }
-        });
 
-        run_planner_thread.join();
-        go_planner_pts_thread.join();
+            goal << goalxyz.x(), goalxyz.y(), goalxyz.z(), static_cast<double>(yaw);
+            planner->runPlanner(start, goal, pathArray);
 
+            for(int j = 0; j < pathArray.size(); j++){
+                curr_time_to_wait = this->go_to(5, pathArray[j][0], pathArray[j][1], pathArray[j][2], pathArray[j][3]);
+                 rclcpp::sleep_for(std::chrono::seconds(curr_time_to_wait));
+            }
+            pathArray.clear();
+
+            start = goal;
+        }
         RCLCPP_INFO(this->get_logger(), "Traversed all points!");
 
         // for(uint k = 0; k < pathArray.size(); k++){
@@ -387,7 +380,6 @@ public:
             if(!st.empty()) idx = st.top().first;
             while(!st.empty() && st.top().first == idx){
                 auto curr = st.top(); st.pop();
-                // std::cout << "groupling: " << curr.first << "idx: " << idx << std::endl;
                 // std::cout << "[" << curr.first << "]" << ":" << "(" << curr.second[0] << "," << curr.second[1] << "," << curr.second[2] << ")" << std::endl;
                 curr_time_to_wait = this->go_to(curr.second[0], curr.second[1], curr.second[2], curr.second[3], 0);
                 time_to_wait = std::max(curr_time_to_wait, time_to_wait);
@@ -477,9 +469,6 @@ private:
 
     int num_cf;
     boost::mutex *mutex_ptr;
-
-    utils::sharedQueue<Eigen::Vector4d> shared_queue_;
-    std::atomic<bool> traj_ended;
 
     std::vector<geometry_msgs::msg::Point> odom_linear;
     std::vector<geometry_msgs::msg::Quaternion> odom_quat;

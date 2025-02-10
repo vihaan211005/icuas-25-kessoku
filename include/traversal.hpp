@@ -528,11 +528,11 @@ private:
     DronePos getAdjacentPoint(Eigen::Vector3i point, Eigen::Vector3i centre)
     {
         std::vector<DronePos> adjacentPoints;
-        vector<pair<int, int>> directions = {{0,1},{0,-1},{1,0},{-1,0}}
+        std::vector<std::pair<int, int>> directions = {{0,1},{0,-1},{1,0},{-1,0}};
         for (auto &direction : directions)
         {
-            i = direction.first;
-            j = direction.second;
+            float i = direction.first;
+            float j = direction.second;
 
             Eigen::Vector3i cur = point + Eigen::Vector3i(i, j, 0) - centre;
             adjacentPoints.push_back(DronePos(cur + centre, (i + 1) * 3 + (j + 1), atan2(cur.y(), cur.x()), acos((cur.z()) / sqrt(pow(cur.x(), 2) + pow(cur.y(), 2) + pow(cur.z(), 2)))));
