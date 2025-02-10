@@ -374,7 +374,7 @@ private:
                                     {
                                         if (binaryArray[i + x][j + y][k + z])
                                             total++;
-                                        if (!z && !binaryArray[i + x][j + y][k + z])
+                                        if (!z && !binaryArray[i + x][j + y][k + z] && (!x || !y))
                                         {
                                             if (x < 0)
                                                 plane[0]++;
@@ -528,14 +528,15 @@ private:
     DronePos getAdjacentPoint(Eigen::Vector3i point, Eigen::Vector3i centre)
     {
         std::vector<DronePos> adjacentPoints;
-        for (int i = -1; i <= 1; i++)
-            for (int j = -1; j <= 1; j++)
-            {
-                if (!i & !j)
-                    continue;
-                Eigen::Vector3i cur = point + Eigen::Vector3i(i, j, 0);
-                adjacentPoints.push_back(DronePos(cur, (i + 1) * 3 + (j + 1), atan2(cur.y(), cur.x()), acos((cur.z()) / sqrt(pow(cur.x(), 2) + pow(cur.y(), 2) + pow(cur.z(), 2)))));
-            }
+        vector<pair<int, int>> directions = {{0,1},{0,-1},{1,0},{-1,0}}
+        for (auto &direction : directions)
+        {
+            i = direction.first;
+            j = direction.second;
+
+            Eigen::Vector3i cur = point + Eigen::Vector3i(i, j, 0) - centre;
+            adjacentPoints.push_back(DronePos(cur + centre, (i + 1) * 3 + (j + 1), atan2(cur.y(), cur.x()), acos((cur.z()) / sqrt(pow(cur.x(), 2) + pow(cur.y(), 2) + pow(cur.z(), 2)))));
+        }
 
         for (auto &dronepos : adjacentPoints)
         {

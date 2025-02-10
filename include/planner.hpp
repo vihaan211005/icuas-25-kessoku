@@ -1,13 +1,17 @@
 #include <ompl/base/SpaceInformation.h>
 #include <ompl/base/spaces/SE3StateSpace.h>
 #include <ompl/geometric/SimpleSetup.h>
-#include <ompl/geometric/planners/rrt/InformedRRTstar.h>
 #include <ompl/base/objectives/PathLengthOptimizationObjective.h>
 #include <octomap/octomap.h>
 #include <ompl/config.h>
 #include <Eigen/Geometry>
 
 #include "fcl/fcl.h"
+//Planners
+#include <ompl/geometric/planners/rrt/InformedRRTstar.h>
+#include <ompl/geometric/planners/rrt/RRTstar.h>
+#include <ompl/geometric/planners/rrt/RRTConnect.h>
+#include <ompl/geometric/planners/rrt/RRT.h>
 #include "traversal.hpp"
 #include "utils.hpp"
 
@@ -91,7 +95,7 @@ public:
         pdef->clearGoal();
         pdef->setGoalState(goalState);
         
-        ob::PlannerPtr plan(new og::InformedRRTstar(si));
+        ob::PlannerPtr plan(new og::RRTConnect(si));
         plan->setProblemDefinition(pdef);
         plan->setup();
         
