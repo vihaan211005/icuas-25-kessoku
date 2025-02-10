@@ -262,7 +262,7 @@ public:
                     // rclcpp::sleep_for(std::chrono::seconds(5));
                     st.push({i, {drone_, curr_x, curr_y, curr_z}});
                     // std::cout << "[" << drone_ << "]" << ":" << "(" << curr_x << "," << curr_y << "," << curr_z << ")" << std::endl;
-                    // curr_time_to_wait = this->go_to(drone_, curr_x, curr_y, curr_z, 0);
+                    curr_time_to_wait = this->go_to(drone_, curr_x, curr_y, curr_z, 0);
                     time_to_wait = std::max(curr_time_to_wait, time_to_wait);
 
                     curr_z += diff_z;
