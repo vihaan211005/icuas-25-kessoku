@@ -156,10 +156,10 @@ public:
                     binaryArray[solFacesVisited[i].x()][solFacesVisited[i].y()][solFacesVisited[i].z()] = 3;
                 }
 
-                for (int i = allPrevPoints.size() - 5; i < allPrevPoints.size(); i++)
+                for (uint i = allPrevPoints.size() - 5; i < allPrevPoints.size(); i++)
                     binaryArray[allPrevPoints[i].x()][allPrevPoints[i].y()][allPrevPoints[i].z()] = 4;
                 saveToCSV("first");
-                for (int i = allPrevPoints.size() - 5; i < allPrevPoints.size(); i++)
+                for (uint i = allPrevPoints.size() - 5; i < allPrevPoints.size(); i++)
                     binaryArray[allPrevPoints[i].x()][allPrevPoints[i].y()][allPrevPoints[i].z()] = 0;
 
                 solution.eval = 0;

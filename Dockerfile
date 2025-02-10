@@ -200,13 +200,18 @@ RUN apt install -y ros-${ROS2_DISTRO}-ros-gz${GZ_RELEASE}
 
 RUN echo "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$HOME/acados/lib" >> $HOME/.bashrc
 
-
 # setup ros2 environment variables
 RUN echo "export ROS_LOCALHOST_ONLY=1" >> $HOME/.bashrc
 RUN echo "export ROS_DOMAIN_ID=$(shuf -i 1-101 -n 1)" >> $HOME/.bashrc
 WORKDIR $HOME/CrazySim/ros2_ws
 
 COPY scripts $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts
+# Reduce IMU refresh rate, and increase the gazebo timestep (to run of potato pcs)
+RUN bash -c "chmod +x $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/edit.sh && $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/edit.sh"
+
+# Install external libs
+RUN bash -c "chmod +x $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/install_fcl.sh && $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/install_fcl.sh"
+
 COPY src $HOME/CrazySim/ros2_ws/src/icuas25_competition/src
 COPY startup $HOME/CrazySim/ros2_ws/src/icuas25_competition/startup
 COPY include $HOME/CrazySim/ros2_ws/src/icuas25_competition/include
@@ -214,11 +219,7 @@ COPY launch $HOME/CrazySim/ros2_ws/src/icuas25_competition/launch
 COPY CMakeLists.txt $HOME/CrazySim/ros2_ws/src/icuas25_competition/
 COPY package.xml $HOME/CrazySim/ros2_ws/src/icuas25_competition/
 COPY Dockerfile $HOME/CrazySim/ros2_ws/src/icuas25_competition/
-COPY external $HOME/CrazySim/ros2_ws/src/icuas25_competition/external
 
-# Reduce IMU refresh rate, and increase the gazebo timestep (to run of potato pcs)
-RUN bash -c "chmod +x $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/edit.sh && $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/edit.sh"
-RUN bash -c "$HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/edit.sh && $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/edit.sh"
 
 RUN bash -c "source /opt/ros/${ROS2_DISTRO}/setup.bash;colcon build --symlink-install --merge-install --cmake-args=-DCMAKE_EXPORT_COMPILE_COMMANDS=ON --packages-skip icuas25_competition"
 RUN bash -c "source /opt/ros/${ROS2_DISTRO}/setup.bash;source $HOME/CrazySim/ros2_ws/install/setup.bash;colcon build --symlink-install --merge-install --cmake-args=-DCMAKE_EXPORT_COMPILE_COMMANDS=ON --packages-select icuas25_competition"
