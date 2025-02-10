@@ -1,0 +1,14 @@
+<?xml version="1.0" ?>
+
+<launch>
+  
+  <node name="toppra_trajectory_generator" pkg="topp_ros" type="generate_toppra_trajectory.py" output="screen">
+  </node>
+
+  <node name="toppra_example_uav_ugv" pkg="topp_ros" type="toppra_multiple_robots_call_example_and_plot.py" output="screen">
+    <remap from="uav_trajectory" to="/f550/command/trajectory"/>
+    <remap from="ugv_trajectory" to="/gvrbot/trajectory"/>
+    <remap from="manipulator_trajectory" to="/wp_manipulator/trajectory"/>
+  </node>
+
+</launch>
