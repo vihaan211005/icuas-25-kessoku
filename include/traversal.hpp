@@ -119,7 +119,8 @@ public:
                 }
                 isVisited[point.x()][point.y()][point.z()] = true;
             }
-            startPts[i + 1] = getRandomPointFromLOS(empty_points, startPts[i], allPrevPoints);
+            if(i + 1 < num_drones)
+                startPts[i + 1] = getRandomPointFromLOS(empty_points, startPts[i], allPrevPoints);
         }
 
         {
@@ -156,10 +157,10 @@ public:
                     binaryArray[solFacesVisited[i].x()][solFacesVisited[i].y()][solFacesVisited[i].z()] = 3;
                 }
 
-                for (uint i = allPrevPoints.size() - 5; i < allPrevPoints.size(); i++)
+                for (uint i = allPrevPoints.size() - num_drones; i < allPrevPoints.size(); i++)
                     binaryArray[allPrevPoints[i].x()][allPrevPoints[i].y()][allPrevPoints[i].z()] = 4;
                 saveToCSV("first");
-                for (uint i = allPrevPoints.size() - 5; i < allPrevPoints.size(); i++)
+                for (uint i = allPrevPoints.size() - num_drones; i < allPrevPoints.size(); i++)
                     binaryArray[allPrevPoints[i].x()][allPrevPoints[i].y()][allPrevPoints[i].z()] = 0;
 
                 solution.eval = 0;
