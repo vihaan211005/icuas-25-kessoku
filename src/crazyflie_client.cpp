@@ -334,13 +334,13 @@ public:
                     yaw = 3*M_PI / 4;
                     break;
                 case 3:
-                    yaw = - M_PI / 2;
+                    yaw = 0;
                     break;
                 case 4:
                     yaw = - M_PI / 2;
                     break;
                 case 5:
-                    yaw = - M_PI / 2;
+                    yaw = M_PI;
                     break;
                 case 6:
                     yaw = - M_PI / 4;
