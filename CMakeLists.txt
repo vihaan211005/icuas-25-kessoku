@@ -65,7 +65,9 @@ install(DIRECTORY
   DESTINATION share/${PROJECT_NAME}/
 )
 
-add_executable(crazyflie_client src/crazyflie_client.cpp include/traversal.hpp include/planner.hpp)
+add_executable(crazyflie_client src/crazyflie_client_parallel.cpp include/traversal.hpp include/planner_parallel.hpp)
+# add_executable(crazyflie_client src/crazyflie_client.cpp include/traversal.hpp include/planner.hpp)
+
 target_link_libraries(crazyflie_client ompl fcl)
 ament_target_dependencies(crazyflie_client rclcpp crazyflie_interfaces geometry_msgs builtin_interfaces ros2_aruco_interfaces octomap_msgs icuas25_msgs octomap Boost Eigen3 ompl)
 
