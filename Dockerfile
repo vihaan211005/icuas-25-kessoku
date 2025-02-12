@@ -210,7 +210,7 @@ COPY scripts $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts
 RUN bash -c "chmod +x $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/edit.sh && $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/edit.sh"
 
 # Install external libs
-RUN bash -c "chmod +x $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/install_fcl.sh && $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/install_fcl.sh"
+RUN bash -c "chmod +x $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/install_ext.sh && $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/install_ext.sh"
 
 COPY src $HOME/CrazySim/ros2_ws/src/icuas25_competition/src
 COPY startup $HOME/CrazySim/ros2_ws/src/icuas25_competition/startup
