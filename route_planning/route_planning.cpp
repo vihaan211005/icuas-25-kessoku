@@ -1,74 +1,112 @@
-// Minimal example to call the GLOP solver.
-#include <cstdlib>
-#include <memory>
+#include <cmath>
+#include <cstdint>
+#include <sstream>
+#include <vector>
 
-#include "absl/flags/flag.h"
-#include "absl/log/flags.h"
-#include "ortools/base/init_google.h"
-#include "ortools/base/logging.h"
-#include "ortools/init/init.h"
-#include "ortools/linear_solver/linear_solver.h"
+#include "ortools/constraint_solver/routing.h"
+#include "ortools/constraint_solver/routing_enums.pb.h"
+#include "ortools/constraint_solver/routing_index_manager.h"
+#include "ortools/constraint_solver/routing_parameters.h"
 
 namespace operations_research {
-void BasicExample() {
-  LOG(INFO) << "Google OR-Tools version : " << OrToolsVersion::VersionString();
+struct DataModel {
+  std::vector<std::vector<double>> distance_matrix;
+  int num_vehicles = 1;
+  RoutingIndexManager::NodeIndex depot{0};
+};
 
-  // Create the linear solver with the GLOP backend.
-  std::unique_ptr<MPSolver> solver(MPSolver::CreateSolver("GLOP"));
-  if (!solver) {
-    LOG(WARNING) << "Could not create solver GLOP";
-    return;
+
+
+
+std::vector<std::vector<double>> PrintSolution(const RoutingIndexManager& manager,
+              const RoutingModel& routing, const Assignment& solution, const std::vector<std::vector<double>>& points) {
+  double index = routing.Start(0);
+  std::stringstream route;
+
+  std::vector<std::vector<double>> waypoints;
+
+  while (!routing.IsEnd(index)) {
+    int i =  manager.IndexToNode(index).value();
+    waypoints.emplace_back(points[i]);
+    index = solution.Value(routing.NextVar(index));
   }
-
-  // Create the variables x and y.
-  MPVariable* const x = solver->MakeNumVar(0.0, 1, "x");
-  MPVariable* const y = solver->MakeNumVar(0.0, 2, "y");
-
-  LOG(INFO) << "Number of variables = " << solver->NumVariables();
-
-  // Create a linear constraint, x + y <= 2.
-  const double infinity = solver->infinity();
-  MPConstraint* const ct = solver->MakeRowConstraint(-infinity, 2.0, "ct");
-  ct->SetCoefficient(x, 1);
-  ct->SetCoefficient(y, 1);
-
-  LOG(INFO) << "Number of constraints = " << solver->NumConstraints();
-
-  // Create the objective function, 3 * x + y.
-  MPObjective* const objective = solver->MutableObjective();
-  objective->SetCoefficient(x, 3);
-  objective->SetCoefficient(y, 1);
-  objective->SetMaximization();
-
-  LOG(INFO) << "Solving with " << solver->SolverVersion();
-  const MPSolver::ResultStatus result_status = solver->Solve();
-
-  // Check that the problem has an optimal solution.
-  LOG(INFO) << "Status: " << result_status;
-  if (result_status != MPSolver::OPTIMAL) {
-    LOG(INFO) << "The problem does not have an optimal solution!";
-    if (result_status == MPSolver::FEASIBLE) {
-      LOG(INFO) << "A potentially suboptimal solution was found";
-    } else {
-      LOG(WARNING) << "The solver could not solve the problem.";
-      return;
-    }
-  }
-
-  LOG(INFO) << "Solution:";
-  LOG(INFO) << "Objective value = " << objective->Value();
-  LOG(INFO) << "x = " << x->solution_value();
-  LOG(INFO) << "y = " << y->solution_value();
-
-  LOG(INFO) << "Advanced usage:";
-  LOG(INFO) << "Problem solved in " << solver->wall_time() << " milliseconds";
-  LOG(INFO) << "Problem solved in " << solver->iterations() << " iterations";
+  int i =  manager.IndexToNode(index).value();
+  waypoints.emplace_back(points[i]);
+  return waypoints;
 }
-}  // namespace operations_research
 
-int main(int argc, char* argv[]) {
-  InitGoogle(argv[0], &argc, &argv, true);
-  absl::SetFlag(&FLAGS_stderrthreshold, 0);
-  operations_research::BasicExample();
+
+
+double distance(const std::vector<double>& pt1,const std::vector<double> pt2){
+  double square_sum = 0;
+  for(int i = 0;i<3;i++) square_sum += (pt1[i]-pt2[i])*(pt1[i]-pt2[i]);
+  return square_sum;
+}
+
+
+
+
+DataModel process_points(const std::vector<std::vector<double>> &points){
+  
+  DataModel data;
+  
+  int n_points = points.size(); 
+  
+  data.distance_matrix = std::vector<std::vector<double>>(n_points, std::vector<double>(n_points,0));
+  
+  for(int i = 0 ; i<n_points;i++)
+    for(int j = 0; j<n_points;j++)
+      data.distance_matrix[i][j] = distance(points[i], points[j]);
+    
+  return data;
+}
+
+
+
+
+std::vector<std::vector<double>> Tsp(std::vector<std::vector<double>> &points) {
+  DataModel data = process_points(points);
+
+  RoutingIndexManager manager(data.distance_matrix.size(), data.num_vehicles,
+                              data.depot);
+
+  RoutingModel routing(manager);
+
+  const int transit_callback_index = routing.RegisterTransitCallback(
+      [&data, &manager](const double from_index,
+                        const double to_index) -> double {
+        const int from_node = manager.IndexToNode(from_index).value();
+        const int to_node = manager.IndexToNode(to_index).value();
+        return data.distance_matrix[from_node][to_node];
+      });
+
+  routing.SetArcCostEvaluatorOfAllVehicles(transit_callback_index);
+
+  RoutingSearchParameters searchParameters = DefaultRoutingSearchParameters();
+  searchParameters.set_first_solution_strategy(
+      FirstSolutionStrategy::PATH_CHEAPEST_ARC);
+
+  const Assignment* solution = routing.SolveWithParameters(searchParameters);
+
+  return  PrintSolution(manager, routing, *solution, points);
+}
+
+}  
+
+int main(int /*argc*/, char* /*argv*/[]) {
+  std::vector<std::vector<double>> store = {
+      {1,1,1},
+      {2,2,2},
+      {25,25,25},
+      {1,2,1},
+  };
+
+
+  std::vector<std::vector<double>> waypoints  = operations_research::Tsp(store);
+
+  for(auto wp : waypoints){
+    std::cout<<wp[0]<<" "<<wp[1]<<" "<<wp[2]<<std::endl;
+  }
+
   return EXIT_SUCCESS;
 }
