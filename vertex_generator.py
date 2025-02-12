@@ -310,15 +310,19 @@ if __name__ == "__main__":
     points = []
     colors = []
 
+    cnt = 0
+    cnt2 = 0
     for x in range(updated_binary_array.shape[0]):
         for y in range(updated_binary_array.shape[1]):
             for z in range(updated_binary_array.shape[2]):
                 if updated_binary_array[x, y, z] > 0:  # Non-zero points
                     points.append([x, y, z])
                     if updated_binary_array[x, y, z] == 5:
+                        cnt2 += 1
                         colors.append([1, 0, 0])  # Red for marked vertices
                     elif updated_binary_array[x, y, z] == 6:
-                        colors.append([0, 1, 0])
+                        colors.append([0, 1, 0])  # Green for shifted
+                        cnt += 1
                     else:
                         colors.append([0, 0, 1])  # Blue for other points
 
@@ -327,5 +331,6 @@ if __name__ == "__main__":
     pcd.points = o3d.utility.Vector3dVector(np.array(points))
     pcd.colors = o3d.utility.Vector3dVector(np.array(colors))
 
+    print(cnt2)
     # Visualize the point cloud
     o3d.visualization.draw_geometries([pcd])
