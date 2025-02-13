@@ -2,23 +2,6 @@ import re
 import os
 import shutil
 
-# File path to your SDF file
-sdf_file = "worlds/city_1_world.sdf"
-
-# Hardcoded ArUco marker poses
-aruco_markers = [
-    (29.16, 49.431, 1.288, 1.5708, 0, 0),
-    (25.233, 73.555, 10.522, 1.5708, 0, 0.807),
-    (45.538, 101.58, 29.429, 1.5708, 0, 4.968),
-    (83.253, 87.747, 0.72931, 1.5708, 0, 3.8275),
-    (63.303, 12.454, 20.22, 1.5708, 0, 5.8486),
-    (48.633, 112.05, 11.207, 1.5708, 0, 2.42),
-    (70.576, 112.46, 2.0234, 1.5708, 0, 3.944),
-    (47.351, 62.635, 15.552, 1.5708, 0, 2.6396),
-    (20.048, 78.774, 6.9019, 1.5708, 0, 3.9954),
-    (22.823, 80.502, 2.7143, 1.5708, 0, 3.1512)
-]
-
 def copy_aruco_images(source_dir, target_dir):
     """
     Copies only the image files from aruco_marker_x directories in source_dir
@@ -89,6 +72,9 @@ def mkdir(n):
             config_content = config_template.format(i+6)
             file.writelines(config_content)
         print(f"Completed Directory {i+6}")
+
+# File path to your SDF file
+sdf_file = "worlds/city_1_world.sdf"
 
 # Hardcoded ArUco marker poses
 aruco_markers = [
