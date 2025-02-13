@@ -46,8 +46,17 @@ def visualize_voxels(voxel_grid):
 
     # Assign blue color to value 4
     blue_mask = colors == 4
-    colors_rgb[blue_mask] = [0, 0, 1]  # RGB for blue
+    red_mask = colors == 5
+    green_mask = colors == 6
+    rg_mask = colors == 7
+    gb_mask = colors > 7
 
+
+    colors_rgb[blue_mask] = [0, 0, 1]  # RGB for blue
+    colors_rgb[red_mask] = [1, 0, 0] # RGB for red 
+    colors_rgb[green_mask] = [0, 1, 0]
+    colors_rgb[rg_mask] = [1, 1, 0]
+    colors_rgb[gb_mask] = [0, 1, 1]
     # Set colors in the point cloud
     pcd.colors = o3d.utility.Vector3dVector(colors_rgb)
     
@@ -78,9 +87,9 @@ def save_array_to_pkl(array):
 # Main Function
 if __name__ == "__main__":
     # Define the dimensions of the 3D binary array
-    x_dim = 211
-    y_dim = 256
-    z_dim = 83
+    x_dim = 129
+    y_dim = 152
+    z_dim = 53
 
     binary_array = load_csv_to_array(f"first.csv", x_dim, y_dim, z_dim)
     save_array_to_pkl(binary_array)
