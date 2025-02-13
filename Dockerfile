@@ -195,7 +195,12 @@ RUN apt-get update &&  apt-get upgrade -y && apt-get install -y \
                    ros-${ROS2_DISTRO}-octomap-server \
                    ros-${ROS2_DISTRO}-octomap-msgs \
                    libeigen3-dev \
-                   libompl-dev ompl-demos
+                   libompl-dev \
+                   ompl-demos \
+                   libboost-program-options-dev \
+                   libboost-filesystem-dev \
+                   libnlopt-cxx-dev \
+                   libgoogle-glog-dev
 RUN apt install -y ros-${ROS2_DISTRO}-ros-gz${GZ_RELEASE}
 
 RUN echo "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$HOME/acados/lib" >> $HOME/.bashrc
@@ -206,12 +211,6 @@ RUN echo "export ROS_DOMAIN_ID=$(shuf -i 1-101 -n 1)" >> $HOME/.bashrc
 WORKDIR $HOME/CrazySim/ros2_ws
 
 COPY scripts $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts
-# Reduce IMU refresh rate, and increase the gazebo timestep (to run of potato pcs)
-RUN bash -c "chmod +x $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/edit.sh && $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/edit.sh"
-
-# Install external libs
-RUN bash -c "chmod +x $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/install_ext.sh && $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/install_ext.sh"
-
 COPY src $HOME/CrazySim/ros2_ws/src/icuas25_competition/src
 COPY startup $HOME/CrazySim/ros2_ws/src/icuas25_competition/startup
 COPY include $HOME/CrazySim/ros2_ws/src/icuas25_competition/include
@@ -219,8 +218,21 @@ COPY launch $HOME/CrazySim/ros2_ws/src/icuas25_competition/launch
 COPY CMakeLists.txt $HOME/CrazySim/ros2_ws/src/icuas25_competition/
 COPY package.xml $HOME/CrazySim/ros2_ws/src/icuas25_competition/
 COPY Dockerfile $HOME/CrazySim/ros2_ws/src/icuas25_competition/
+COPY to_move $HOME/CrazySim/ros2_ws/src/icuas25_competition/to_move
 
+# Reduce IMU refresh rate, and increase the gazebo timestep (to run of potato pcs)
+RUN bash -c "chmod +x $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/edit.sh && $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/edit.sh"
 
+# Install fcl
+RUN bash -c "chmod +x $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/install_fcl.sh && $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/install_fcl.sh"
+
+# Install uav_trajectories
+RUN bash -c "chmod +x $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/install_traj.sh && $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/install_traj.sh"
+
+# Install or_tools
+RUN bash -c "chmod +x $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/install_ortools.sh && $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/install_ortools.sh"
+
+# Build packages
 RUN bash -c "source /opt/ros/${ROS2_DISTRO}/setup.bash;colcon build --symlink-install --merge-install --cmake-args=-DCMAKE_EXPORT_COMPILE_COMMANDS=ON --packages-skip icuas25_competition"
 RUN bash -c "source /opt/ros/${ROS2_DISTRO}/setup.bash;source $HOME/CrazySim/ros2_ws/install/setup.bash;colcon build --symlink-install --merge-install --cmake-args=-DCMAKE_EXPORT_COMPILE_COMMANDS=ON --packages-select icuas25_competition"
 RUN echo "ros2_ws" >> $HOME/.bashrc && \

@@ -26,9 +26,11 @@
 #include <stdexcept>
 #include <vector>
 #include <stack>
+#include <cstdlib>  
 
 #include "planner_parallel.hpp"
 
+#define RUN_GZ 1
 //TODO: currently initializing the timer only when done with mission, can we do it from the start with empty stuff being published?
 //      stacking error, next_h > curr_h; next_h < curr_h
         
@@ -261,7 +263,9 @@ public:
                     // rclcpp::sleep_for(std::chrono::seconds(5));
                     st.push({i, {drone_, curr_x, curr_y, curr_z}});
                     // std::cout << "[" << drone_ << "]" << ":" << "(" << curr_x << "," << curr_y << "," << curr_z << ")" << std::endl;
+            #if RUN_GZ
                     curr_time_to_wait = this->go_to(drone_, curr_x, curr_y, curr_z, 0);
+            #endif
                     time_to_wait = std::max(curr_time_to_wait, time_to_wait);
 
                     curr_z += diff_z;
@@ -281,7 +285,9 @@ public:
                     // rclcpp::sleep_for(std::chrono::seconds(5));
                     st.push({i, {drone_, curr_x, curr_y, curr_z}});
                     // std::cout << "[" << drone_ << "]" << ":" << "(" << curr_x << "," << curr_y << "," << curr_z << ")" << std::endl;
+            #if RUN_GZ
                     curr_time_to_wait = this->go_to(drone_, curr_x, curr_y, curr_z, 0);
+            #endif
                     time_to_wait = std::max(curr_time_to_wait, time_to_wait);
 
                     curr_z -= diff_z;
@@ -317,40 +323,8 @@ public:
 
         for(uint i = 0; i < solution->toVisit[4].size(); i++){
             auto goalxyz = solution->toVisit[4][i].first;
-            int yaw = solution->toVisit[4][i].second;
+            double yaw = getYaw(solution->toVisit[4][i].second);
             
-            // TODO:cross-check this mapping
-            switch(yaw){
-                case 0: 
-                    yaw = M_PI / 4;
-                    break;
-                case 1:
-                    yaw = M_PI / 2;
-                    break;
-                case 2:
-                    yaw = 3*M_PI / 4;
-                    break;
-                case 3:
-                    yaw = - M_PI / 2;
-                    break;
-                case 4:
-                    yaw = - M_PI / 2;
-                    break;
-                case 5:
-                    yaw = - M_PI / 2;
-                    break;
-                case 6:
-                    yaw = - M_PI / 4;
-                    break;
-                case 7:
-                    yaw = - M_PI / 2;
-                    break;
-                case 8:
-                    yaw = - 3*M_PI / 4;
-                    break;
-                default: throw std::runtime_error("yaw is not from [0-8]");
-            }
-
             goal << goalxyz.x(), goalxyz.y(), goalxyz.z(), static_cast<double>(yaw);
             std::cout << "Pushing to producer queue" << std::endl;
             plannerProducerQueue.push({start, goal});
@@ -368,7 +342,9 @@ public:
             while(!st.empty() && st.top().first == idx){
                 auto curr = st.top(); st.pop();
                 // std::cout << "[" << curr.first << "]" << ":" << "(" << curr.second[0] << "," << curr.second[1] << "," << curr.second[2] << ")" << std::endl;
+        #if RUN_GZ
                 curr_time_to_wait = this->go_to(curr.second[0], curr.second[1], curr.second[2], curr.second[3], 0);
+        #endif
                 time_to_wait = std::max(curr_time_to_wait, time_to_wait);
             }
             rclcpp::sleep_for(std::chrono::seconds(time_to_wait));
@@ -396,7 +372,9 @@ private:
         auto curr = plannerConsumerQueue.pop();
         long long curr_time_to_wait = 0;
         // std::cout << "Inside planner_consumer: [" << 5 << "]" << ":" << "(" << curr[0] << "," << curr[1] << "," << curr[2] <<  "," << curr[3] << ")" << std::endl;
+    #if RUN_GZ
         curr_time_to_wait = this->go_to(5, curr[0], curr[1], curr[2], curr[3]);
+    #endif
         rclcpp::sleep_for(std::chrono::seconds(curr_time_to_wait));
         {
             std::lock_guard<std::mutex> lock(mtx);
@@ -442,6 +420,61 @@ private:
 
             curr_aruco_position = {-1e8, -1e8, -1e8};
         }
+    }
+    double getYaw(double yaw) {
+        static const double yawValues[] = {
+            M_PI / 4,   // 0
+            M_PI / 2,   // 1
+            3*M_PI / 4, // 2
+            0,          // 3
+            -M_PI / 2,  // 4
+            M_PI,       // 5
+            -M_PI / 4,  // 6
+            -M_PI / 2,  // 7
+            -3*M_PI / 4 // 8
+        };
+
+        int index = static_cast<int>(yaw);
+        if (index < 0 || index > 8) {
+            throw std::runtime_error("yaw is not from [0-8]");
+        }
+
+        return yawValues[index];
+    }
+
+    std::vector<std::vector<double>> runTSP(std::vector<std::vector<double>> waypoints){
+        std::ofstream wfile;
+        wfile.open("/waypoints.csv");    
+        for(int i = 0; i < waypoints.size(); i++){
+            if(wfile.is_open()){
+                wfile << waypoints[i][0] << " " << waypoints[i][1] << " " << waypoints[i][2] << "\n";
+            }
+        }
+        wfile.close();
+
+        const char* tsp_solver = std::getenv("TSP_SOLVER");
+        std::string command = tsp_solver; 
+        int status = system(command.c_str());
+
+        if (status == 0) {
+            std::cout << "TSP solver ran successfully" << std::endl;
+        } else {
+            std::cerr << "Error in running TSP solver" << std::endl;
+        }
+
+        std::vector<std::vector<double>> reordered_waypoints;
+        double x, y, z;
+        std::string line;
+        std::ifstream rfile;
+        rfile.open("/waypoints_tsp.csv");
+        if (rfile.is_open()) {
+            while (std::getline(rfile, line)) {
+                rfile >> x >> y >> z;
+                reordered_waypoints.push_back({x, y, z});
+            }
+            rfile.close();
+        }
+        return reordered_waypoints;
     }
 
 
