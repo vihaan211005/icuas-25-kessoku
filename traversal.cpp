@@ -65,7 +65,11 @@ public:
         markFaces();
         markCorner();
         makeAdjacency();
+
         runBFS();
+
+        saveEdgesToCSV("edges", adjacency_matrix);
+
         visited.resize(dimArray.x(), std::vector<std::vector<bool>>(dimArray.y(), std::vector<bool>(dimArray.z(), false)));
 
         int n = nodes_graph.size();
@@ -75,7 +79,7 @@ public:
             {
                 binaryArray[nodes_graph[i].x()][nodes_graph[i].y()][nodes_graph[i].z()] = 4;
                 auto get = getAdjacentFace(i);
-                std::cout << get.first.size() << std::endl;
+
                 for (auto j : get.first)
                 {
                     binaryArray[j.pos.x()][j.pos.y()][j.pos.z()] = 5;
@@ -222,6 +226,24 @@ private:
                     count++;
                 }
         std::cout << "Number of edges: " << count << std::endl;
+    }
+
+    void saveEdgesToCSV(std::string file_name, std::vector<std::vector<bool>> adjacency_matrix)
+    {
+        std::ofstream outfile(file_name + ".csv");
+
+        for (int i = 0; i < nodes_graph.size(); ++i)
+        {
+            for (int j = 0; j < nodes_graph.size(); ++j)
+            {
+                if (adjacency_matrix[i][j])
+                {
+                    outfile << nodes_graph[i].x() << ", " << nodes_graph[i].y() << ", " << nodes_graph[i].z() << ", " << nodes_graph[j].x() << ", " << nodes_graph[j].y() << ", " << nodes_graph[j].z() << "\n";
+                }
+            }
+        }
+
+        std::cout << "CSV Exported!" << std::endl;
     }
 
     void markCorner()
