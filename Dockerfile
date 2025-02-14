@@ -220,16 +220,16 @@ COPY package.xml $HOME/CrazySim/ros2_ws/src/icuas25_competition/
 COPY Dockerfile $HOME/CrazySim/ros2_ws/src/icuas25_competition/
 COPY to_move $HOME/CrazySim/ros2_ws/src/icuas25_competition/to_move
 
-# Reduce IMU refresh rate, and increase the gazebo timestep (to run of potato pcs)
+# Reduce IMU refresh rate, and increase the gazebo timestep (to run on potato pcs), add arucos
 RUN bash -c "chmod +x $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/edit.sh && $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/edit.sh"
+RUN bash -c "chmod +x $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/add_markers.py && $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/add_markers.py"
 
-# Install fcl
+# Installations
+## fcl
 RUN bash -c "chmod +x $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/install_fcl.sh && $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/install_fcl.sh"
-
-# Install uav_trajectories
+## uav_trajectories
 RUN bash -c "chmod +x $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/install_traj.sh && $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/install_traj.sh"
-
-# Install or_tools
+## or_tools
 RUN bash -c "chmod +x $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/install_ortools.sh && $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/install_ortools.sh"
 
 # Build packages
