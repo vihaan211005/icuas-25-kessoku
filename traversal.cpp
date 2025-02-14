@@ -4,8 +4,6 @@
 #include <queue>
 #include <cmath>
 #include <Eigen/Dense>
-#include <chrono>
-#include <boost/thread.hpp>
 
 #define Array3D std::vector<std::vector<std::vector<int>>>
 #define BoolArray3D std::vector<std::vector<std::vector<bool>>>
@@ -40,14 +38,13 @@ public:
     std::vector<int> distance;
     std::vector<Eigen::Vector3d> nodes_graph;
 
-    std::vector<std::pair<int, std::pair<std::vector<Eigen::Vector3d>, std::vector<Eigen::Vector3d>>>> bfs_order;
+    std::vector<std::pair<int, std::pair<std::vector<Eigen::Vector4d>, std::vector<Eigen::Vector4d>>>> bfs_order;
 };
 
 class Solver
 {
 public:
     Solution solution;
-    boost::mutex param_mutex;
     Bounds mapBounds;
 
     Solver();
@@ -56,6 +53,7 @@ public:
     void initialSetup()
     {
         octreeToBinaryArray();
+        std::cout << "mapBounds: " << mapBounds << std::endl;
         reduceResolution(2);
         markInterior();
         for (int i = 0; i < 12; ++i)
@@ -189,24 +187,32 @@ private:
 
             // solution.bfs_order.push_back(std::make_pair(node, std::make_pair(std::vector<Eigen::Vector3d>, std::vector<Eigen::Vector3d>)));
             std::pair<std::vector<std::vector<DronePos>>, std::vector<std::vector<DronePos>>> faces = getAdjacentFace(node);
-            std::vector<Eigen::Vector3d> pehla;
-            std::vector<Eigen::Vector3d> dusra;
+            std::vector<Eigen::Vector4d> pehla;
+            std::vector<Eigen::Vector4d> dusra;
 
             for (auto face : faces.first)
             {
                 for(auto l : face){
                     binaryArray[l.pos.x()][l.pos.y()][l.pos.z()] = 5;
                 }
-                pehla.push_back(indexToPoint(face[0].pos));
-                pehla.push_back(indexToPoint(face[face.size() - 1].pos));
+                Eigen::Vector3d p1 = indexToPoint(face[0].pos);
+                double yaw1 = (face[0].yaw*M_PI)+(M_PI/2)*(face[0].yaw>1);
+                Eigen::Vector3d p2 = indexToPoint(face[face.size() - 1].pos);
+                double yaw2 = (face[face.size() - 1].yaw*M_PI)+(M_PI/2)*(face[face.size() - 1].yaw>1);
+                pehla.push_back(Eigen::Vector4d(p1.x(), p1.y(), p1.z(), yaw1));
+                pehla.push_back(Eigen::Vector4d(p2.x(), p2.y(), p2.z(), yaw2));
             }
             for (auto face : faces.second)
             {
                 for(auto l : face){
                     binaryArray[l.pos.x()][l.pos.y()][l.pos.z()] = 5;
                 }
-                dusra.push_back(indexToPoint(face[0].pos));
-                dusra.push_back(indexToPoint(face[face.size() - 1].pos));
+                Eigen::Vector3d p1 = indexToPoint(face[0].pos);
+                double yaw1 = (face[0].yaw*M_PI)+(M_PI/2)*(face[0].yaw>1);
+                Eigen::Vector3d p2 = indexToPoint(face[face.size() - 1].pos);
+                double yaw2 = (face[face.size() - 1].yaw*M_PI)+(M_PI/2)*(face[face.size() - 1].yaw>1);
+                dusra.push_back(Eigen::Vector4d(p1.x(), p1.y(), p1.z(), yaw1));
+                dusra.push_back(Eigen::Vector4d(p2.x(), p2.y(), p2.z(), yaw2));
             }
             if(pehla.size() || dusra.size())
                 solution.bfs_order.push_back(std::make_pair(node, std::make_pair(pehla, dusra)));
