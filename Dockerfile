@@ -153,7 +153,19 @@ RUN cd $HOME/CrazySim/crazyflie-firmware \
     &&  cmake .. \
     &&  make all
 
-    
+#install fcl and libccd 
+RUN git clone https://github.com/danfis/libccd.git
+RUN mkdir -p libccd/build \ 
+    && cd libccd/build \
+    && cmake .. \
+    && make install
+
+RUN git clone https://github.com/flexible-collision-library/fcl.git
+RUN mkdir -p fcl/build \
+    && cd fcl/build \
+    && cmake .. \
+    && make install
+
 #install other ROS2 ws packages
 WORKDIR $HOME/CrazySim/ros2_ws/src
 RUN git clone https://github.com/JMU-ROBOTICS-VIVA/ros2_aruco.git 
@@ -224,9 +236,7 @@ COPY to_move $HOME/CrazySim/ros2_ws/src/icuas25_competition/to_move
 RUN bash -c "chmod +x $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/edit.sh && $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/edit.sh"
 RUN bash -c "chmod +x $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/add_markers.py && $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/add_markers.py"
 
-# Installations
-## fcl
-RUN bash -c "chmod +x $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/install_fcl.sh && $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/install_fcl.sh"
+# External lib install
 ## uav_trajectories
 RUN bash -c "chmod +x $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/install_traj.sh && $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/install_traj.sh"
 ## or_tools
