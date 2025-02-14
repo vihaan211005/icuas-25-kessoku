@@ -34,15 +34,13 @@ public:
 class Solution
 {
 public:
-    std::vector<Eigen::Vector3d> startPts; // dont use the startPt[0]; set this as the spawn position
-    std::vector<std::vector<std::pair<Eigen::Vector3d, int>>> toVisit;
+    int n;
+    std::vector<std::vector<bool>> adjacency_matrix;
+    std::vector<int> parent;
+    std::vector<int> distance;
+    std::vector<Eigen::Vector3d> nodes_graph;
 
-    std::vector<std::vector<int>> toBreak; // visit idx and go back
-
-    int eval;  // > 0
-    bool flag; // false
-
-    Solution() : eval(0), flag(false) {}
+    std::vector<std::pair<int, std::pair<std::vector<Eigen::Vector3d>, std::vector<Eigen::Vector3d>>>> bfs_order;
 };
 
 class Solver
@@ -66,36 +64,21 @@ public:
         markCorner();
         makeAdjacency();
 
-        runBFS();
-
-        saveEdgesToCSV("edges", adjacency_matrix);
-
-        visited.resize(dimArray.x(), std::vector<std::vector<bool>>(dimArray.y(), std::vector<bool>(dimArray.z(), false)));
-
-        int n = nodes_graph.size();
-        for (int i = 0; i < n; i++)
-        {
-            if (distance[i] < 5)
-            {
-                binaryArray[nodes_graph[i].x()][nodes_graph[i].y()][nodes_graph[i].z()] = 4;
-                auto get = getAdjacentFace(i);
-
-                for (auto j : get.first)
-                {
-                    binaryArray[j.pos.x()][j.pos.y()][j.pos.z()] = 5;
-                }
-                for (auto j : get.second)
-                {
-                    binaryArray[j.pos.x()][j.pos.y()][j.pos.z()] = 6;
-                }
-            }
-            else
-                binaryArray[nodes_graph[i].x()][nodes_graph[i].y()][nodes_graph[i].z()] = 7;
-        }
-
-        saveToCSV("first");
         std::cout << "mapBounds: " << mapBounds << std::endl;
         std::cout << "dimArray: " << dimArray << std::endl;
+        visited.resize(dimArray.x(), std::vector<std::vector<bool>>(dimArray.y(), std::vector<bool>(dimArray.z(), false)));
+
+        runBFS();
+
+        solution.n = nodes_graph.size();
+        solution.adjacency_matrix = adjacency_matrix;
+        solution.parent = parent;
+        solution.distance = distance;
+        for(auto node : nodes_graph)
+            solution.nodes_graph.push_back(indexToPoint(node));
+
+        saveEdgesToCSV("edges", adjacency_matrix);
+        saveToCSV("first");
     }
 
 private:
@@ -113,17 +96,18 @@ private:
 
     std::vector<Eigen::Vector3i> nodes_graph{Eigen::Vector3i(0, 0, 0)};
     std::vector<int> distance;
+    std::vector<int> parent;
     std::vector<std::vector<bool>> adjacency_matrix;
 
-    std::pair<std::vector<DronePos>, std::vector<DronePos>> getAdjacentFace(int node)
+    std::pair<std::vector<std::vector<DronePos>>, std::vector<std::vector<DronePos>>> getAdjacentFace(int node)
     {
         int dirx = std::get<0>(node_dirs[node]);
         int diry = std::get<1>(node_dirs[node]);
 
+        std::pair<std::vector<std::vector<DronePos>>, std::vector<std::vector<DronePos>>> solution_;
+        
         if (!dirx && !diry)
-            return std::make_pair(std::vector<DronePos>(), std::vector<DronePos>());
-
-        std::pair<std::vector<DronePos>, std::vector<DronePos>> solution;
+            return solution_;
 
         int x = std::get<2>(node_dirs[node]).x();
         int y = std::get<2>(node_dirs[node]).y();
@@ -135,18 +119,21 @@ private:
         while (1)
         {
             i = 0;
+            std::vector<DronePos> poses;
             while (1)
             {
                 if (check2points_octree(Eigen::Vector3i(x + dirx, y + i, z + j), nodes_graph[node], radius) && binaryArray[x][y + i][z + j] == 2 && (!visited[x][y + i][z + j] || !i))
                 {
-                    solution.first.push_back(DronePos(Eigen::Vector3i(x + dirx, y + i, z + j), (dirx + 1) >> 1));
+                    poses.push_back(DronePos(Eigen::Vector3i(x + dirx, y + i, z + j), (dirx + 1) >> 1));
                     visited[x][y + i][z + j] = true;
                 }
                 else
                     break;
                 diry == 1 ? i-- : i++;
             }
-            if (!i || !(z + j))
+            if (poses.size())
+                solution_.first.push_back(poses);
+            if ((!i) || !(z + j))
                 break;
             j--;
         }
@@ -155,53 +142,86 @@ private:
         while (1)
         {
             i = 0;
+            std::vector<DronePos> poses;
             while (1)
             {
                 if (check2points_octree(Eigen::Vector3i(x + i, y + diry, z + j), nodes_graph[node], radius) && binaryArray[x + i][y][z + j] == 2 && (!visited[x + i][y][z + j] || !i))
                 {
-                    solution.second.push_back(DronePos(Eigen::Vector3i(x + i, y + diry, z + j), (diry + 5) >> 1));
+                    poses.push_back(DronePos(Eigen::Vector3i(x + i, y + diry, z + j), (diry + 5) >> 1));
                     visited[x + i][y][z + j] = true;
                 }
                 else
                     break;
                 dirx == 1 ? i-- : i++;
             }
-            if (!i || !(z + j))
+            if (poses.size())
+                solution_.second.push_back(poses);
+            if ((!i) || !(z + j))
                 break;
             j--;
         }
 
-        return solution;
+        return solution_;
     }
 
     void runBFS()
     {
         int n = nodes_graph.size();
         std::queue<int> queue;
-        std::vector<bool> visited(n, false);
+        std::vector<bool> visited_(n, false);
         distance.resize(n, INT_MAX);
+        parent.resize(n, INT_MAX);
 
         queue.push(0);
-        visited[0] = true;
+        visited_[0] = true;
         distance[0] = 0;
+        parent[0] = 0;
 
         std::vector<std::vector<bool>> adjacency_matrix_new(n, std::vector<bool>(n, 0));
 
         int count = 0;
 
-        while (!queue.empty() && distance[queue.front()] < num_drones - 1)
+        while (!queue.empty())
         {
             int node = queue.front();
             Eigen::Vector3i curr = nodes_graph[node];
             queue.pop();
 
+            // solution.bfs_order.push_back(std::make_pair(node, std::make_pair(std::vector<Eigen::Vector3d>, std::vector<Eigen::Vector3d>)));
+            std::pair<std::vector<std::vector<DronePos>>, std::vector<std::vector<DronePos>>> faces = getAdjacentFace(node);
+            std::vector<Eigen::Vector3d> pehla;
+            std::vector<Eigen::Vector3d> dusra;
+
+            for (auto face : faces.first)
+            {
+                for(auto l : face){
+                    binaryArray[l.pos.x()][l.pos.y()][l.pos.z()] = 5;
+                }
+                pehla.push_back(indexToPoint(face[0].pos));
+                pehla.push_back(indexToPoint(face[face.size() - 1].pos));
+            }
+            for (auto face : faces.second)
+            {
+                for(auto l : face){
+                    binaryArray[l.pos.x()][l.pos.y()][l.pos.z()] = 5;
+                }
+                dusra.push_back(indexToPoint(face[0].pos));
+                dusra.push_back(indexToPoint(face[face.size() - 1].pos));
+            }
+            if(pehla.size() || dusra.size())
+                solution.bfs_order.push_back(std::make_pair(node, std::make_pair(pehla, dusra)));
+
+            if(distance[node] == num_drones - 1)
+                continue;
+
             for (int i = 0; i < n; ++i)
             {
-                if (adjacency_matrix[node][i] && !visited[i])
+                if (adjacency_matrix[node][i] && !visited_[i])
                 {
                     queue.push(i);
-                    visited[i] = true;
+                    visited_[i] = true;
                     distance[i] = distance[node] + 1;
+                    parent[i] = node;
                     adjacency_matrix_new[i][node] = 1;
                     adjacency_matrix_new[node][i] = 1;
                     count++;
