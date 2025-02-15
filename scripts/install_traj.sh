@@ -2,7 +2,7 @@
 
 mkdir -p $HOME/CrazySim/ros2_ws/src/icuas25_competition/ext && cd $HOME/CrazySim/ros2_ws/src/icuas25_competition/ext
 
-git clone --recursive https://github.com/whoenig/uav_trajectories.git traj
+git clone --recursive https://github.com/pulak-gautam/uav_trajectories.git traj
 mkdir -p traj/build && cd traj/build
 cmake ..
 make 
