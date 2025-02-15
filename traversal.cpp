@@ -69,6 +69,7 @@ public:
         node_dirs.push_back(std::make_tuple(0, 0, baseIndex));
         markFaces();
         markCorner();
+        handleEdgeCase();
         makeAdjacency();
 
         std::cout << "mapBounds: " << mapBounds << std::endl;
@@ -106,6 +107,38 @@ private:
     std::vector<int> distance;
     std::vector<int> parent;
     std::vector<std::vector<bool>> adjacency_matrix;
+
+    void handleEdgeCase()
+    {
+        int n = nodes_graph.size();
+        Eigen::Vector3i start = nodes_graph[0];
+        double min = 1e10;
+        int min_vala;
+        bool toHandle = true;
+        for (int i = 1; i < n; i++)
+        {
+            Eigen::Vector3i node = nodes_graph[i];
+            if (check2points_octree(start, node, radius))
+                toHandle = false;
+            else if (check2points_octree(start, node))
+                if ((start - node).norm() < min)
+                {
+                    min = (start - node).norm();
+                    min_vala = i;
+                }
+        }
+        if (toHandle)
+        {
+            Eigen::Vector3i node = nodes_graph[min_vala];
+            int times = min / (radius * 0.8) - 1;
+            for (int i = 0; i < times; ++i)
+            {
+                Eigen::Vector3i new_node = start + (node - start) * (i + 1) / times;
+                nodes_graph.push_back(new_node);
+                node_dirs.push_back(std::make_tuple(0,0,new_node));
+            }
+        }
+    }
 
     std::pair<std::vector<std::vector<DronePos>>, std::vector<std::vector<DronePos>>> getAdjacentFace(int node)
     {
@@ -532,7 +565,7 @@ private:
     }
 
     // // Check LOS via octree
-    bool check2points_octree(Eigen::Vector3i p1, Eigen::Vector3i p2, double radius = 10000)
+    bool check2points_octree(Eigen::Vector3i p1, Eigen::Vector3i p2, double radius = 1e10) // change radius
     {
         if (p1 == p2)
             return true;
