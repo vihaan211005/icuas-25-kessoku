@@ -223,6 +223,10 @@ RUN echo "export ROS_DOMAIN_ID=$(shuf -i 1-101 -n 1)" >> $HOME/.bashrc
 WORKDIR $HOME/CrazySim/ros2_ws
 
 COPY scripts $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts
+# Reduce IMU refresh rate, and increase the gazebo timestep (to run on potato pcs), add arucos
+RUN bash -c "chmod +x $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/edit.sh && $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/edit.sh"
+RUN bash -c "chmod +x $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/add_markers.py && $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/add_markers.py"
+
 COPY src $HOME/CrazySim/ros2_ws/src/icuas25_competition/src
 COPY startup $HOME/CrazySim/ros2_ws/src/icuas25_competition/startup
 COPY include $HOME/CrazySim/ros2_ws/src/icuas25_competition/include
@@ -232,15 +236,11 @@ COPY package.xml $HOME/CrazySim/ros2_ws/src/icuas25_competition/
 COPY Dockerfile $HOME/CrazySim/ros2_ws/src/icuas25_competition/
 COPY to_move $HOME/CrazySim/ros2_ws/src/icuas25_competition/to_move
 
-# Reduce IMU refresh rate, and increase the gazebo timestep (to run on potato pcs), add arucos
-RUN bash -c "chmod +x $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/edit.sh && $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/edit.sh"
-RUN bash -c "chmod +x $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/add_markers.py && $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/add_markers.py"
-
 # External lib install
 ## uav_trajectories
-RUN bash -c "chmod +x $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/install_traj.sh && $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/install_traj.sh"
+# RUN bash -c "chmod +x $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/install_traj.sh && $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/install_traj.sh"
 ## or_tools
-RUN bash -c "chmod +x $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/install_ortools.sh && $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/install_ortools.sh"
+# RUN bash -c "chmod +x $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/install_ortools.sh && $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/install_ortools.sh"
 
 # Build packages
 RUN bash -c "source /opt/ros/${ROS2_DISTRO}/setup.bash;colcon build --symlink-install --merge-install --cmake-args=-DCMAKE_EXPORT_COMPILE_COMMANDS=ON --packages-skip icuas25_competition"

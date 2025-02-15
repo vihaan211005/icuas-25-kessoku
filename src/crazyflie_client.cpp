@@ -30,9 +30,10 @@
 #include <stdexcept>
 #include <vector>
 #include <stack>
+#include <deque>
 #include <cstdlib>  
 
-#include "vertex_based/traversal.hpp"
+#include "traversal.hpp"
 
 using namespace std::chrono_literals;
                                               
@@ -77,8 +78,6 @@ public:
         solver = std::make_shared<Solver>(Eigen::Vector3d(0, 0, 0), *tree, 43, 5);
         solver->initialSetup();
 
-        RCLCPP_INFO(this->get_logger(), "Initializing Path Planner object...");
-        planner = std::make_shared<Planner>(Planner(tree, solver->mapBounds, this->get_logger()));
 
         RCLCPP_INFO(this->get_logger(), "Starting search...");
 
@@ -113,7 +112,7 @@ public:
         return 0;
     }
 
-    int takeoff(const int &drone_namespace_)
+    int takeoff(int drone_namespace_)
     {
         RCLCPP_INFO(this->get_logger(), "Initialized CrazyflieCommandClient::takeoff for namespace: %d", drone_namespace_);
 
@@ -132,7 +131,7 @@ public:
         return 0;
     }
 
-    int land(const int &drone_namespace_)
+    int land(int drone_namespace_)
     {
         RCLCPP_INFO(this->get_logger(), "Called CrazyflieCommandClient::land for namespace: %d", drone_namespace_);
 
@@ -151,7 +150,7 @@ public:
         return 0;
     }
 
-    double go_to(const int &drone_namespace_, double x, double y, double z, double yaw)
+    int go_to(int drone_namespace_, double x, double y, double z, double yaw)
     {
         RCLCPP_INFO(this->get_logger(), "Initialized CrazyflieCommandClient::go_to for namespace: %d", drone_namespace_);
 
@@ -174,20 +173,15 @@ public:
                     drone_namespace_, x, y, z, dist(std::vector<double>({x, y, z}), std::vector<double>({odom_linear[i].x, odom_linear[i].y, odom_linear[i].z})));
 
         auto result = client->async_send_request(request).get();
-
-        /*
-        while(dist(std::vector<double>({x, y, z}), std::vector<double>({odom_linear[i].x, odom_linear[i].y, odom_linear[i].z})) < EPS){
-            RCLCPP_DEBUG(this->get_logger(), "%d going to goal: [%.2f, %.2f, %.2f], odom: [%.2f, %.2f, %.2f]",
-            drone_namespace_, x, y, z, odom_linear[i].x, odom_linear[i].y, odom_linear[i].z);
-        }
-        */
         return 2 * dist(std::vector<double>{x, y, z}, std::vector<double>{odom_linear[drone_namespace_ - 1].x, odom_linear[drone_namespace_ - 1].y, odom_linear[drone_namespace_ - 1].z});
     }
 
-    double go_to_vertex(int& drone_namepsace_, int& v, std::vector<Eigen::Vector3d>& nodes_graph, std::map<int,double> drone_h){
-        auto p = nodes_graph[v];
-        p[2] += drone_h[drone_namespace_];
-        auto duration = this->go_to(drone_namespace_, p[0], p[1], p[2], 0);
+    int go_to_vertex(int drone_namespace_, int& v, std::vector<Eigen::Vector3d>& nodes_graph, std::map<int,double> drone_h){
+        auto curr = nodes_graph[v];
+        curr[2] += drone_h[drone_namespace_];
+        // auto duration = this->go_to(drone_namespace_, curr[0], curr[1], curr[2], 0);
+        std::cout << "GoTo: [" << drone_namespace_ << "]" << ":" << "(" << curr[0] << "," << curr[1] << "," << curr[2] <<  "," << 0 << ")" << std::endl;
+        
         return duration;
     }
 
@@ -214,18 +208,18 @@ public:
         
         int prev = 0;
         int curr = 0;   
-        double duration = 0.0;
-        double max_duration = 0.0;
-        for(int i = 0; i < solution->bfs_order.size(); i++){
+        int duration = 0.0;
+        int max_duration = 0.0;
+        for(uint i = 0; i < solution->bfs_order.size(); i++){
             curr = solution->bfs_order[i].first;
-            int lca = getLca(prev, curr);
+            int lca = getLca(prev, curr, solution->parent);
 
             // back to lca from prev
             while(prev > lca){
                 max_duration = 0.0;
                 while(!mp[prev].empty()){
-                    int drone = mp.back(); mp.pop_back();
-                    duration = go_to_vertex(drone, solution->parent[prev], solution->node_graph, drone_h);
+                    int drone = mp[prev].back(); mp[prev].pop_back();
+                    duration = go_to_vertex(drone, solution->parent[prev], solution->nodes_graph, drone_h);
                     max_duration = std::max(duration, max_duration);
 
                     mp[solution->parent[prev]].push_back(drone);
@@ -247,56 +241,65 @@ public:
             int k = lca;
             for(int j = lcaToCurrPath.size() - 1; j >= 0; j--){
                 while(mp[k].size() > 1){
-                    int drone = mp.back(); mp.pop_back();
+                    int drone = mp[k].back(); mp[k].pop_back();
 
-                    duration = go_to_vertex(drone, localToCurrPath[j], solution->node_graph, drone_h);
+                    duration = go_to_vertex(drone, lcaToCurrPath[j], solution->nodes_graph, drone_h);
+                    
                     max_duration = std::max(duration, max_duration);
                 } 
                 rclcpp::sleep_for(std::chrono::seconds(max_duration)); 
                 k = lcaToCurrPath[j];
             }
             
-            std::assert(mp[curr].size() > 2);
+            if(mp[curr].size() < 2){
+                throw std::runtime_error("size of mp[curr] is less than 2, at last node less than two drones?");
+            }
+
             int scan_drone = mp[curr].back();
-            auto& first_face = (bfs_order[i].second).first; 
-            auto& second_face = (bfs_order[i].second).second; 
+            auto& first_face = (solution->bfs_order[i].second).first; 
+            auto& second_face = (solution->bfs_order[i].second).second; 
+            
+            Eigen::Vector4d start;
+            Eigen::Vector4d end;
 
             if(!(first_face).empty()){
-                Eigen::Vector4d start;
-                Eigen::Vector4d end;
-                for(int j = 0; j < (first_face).size(); j+=2){
+                for(uint j = 0; j < (first_face).size(); j+=2){
                     start = first_face[j];
                     end = first_face[j+1];
 
-                    duration = this->go_to(drone_, curr_x, curr_y, curr_z, 0);
+                    // duration = this->go_to(scan_drone, start[0], start[1], start[2], start[2]);
+                    std::cout << "GoTo: [" << scan_drone << "]" << ":" << "(" << start[0] << "," << start[1] << "," << start[2] <<  "," << start[2] << ")" << std::endl;
+                    rclcpp::sleep_for(std::chrono::seconds(duration)); 
+                    
+                    // duration = this->go_to(scan_drone, end[0], end[1], end[2], end[2]);
+                    std::cout << "GoTo: [" << scan_drone << "]" << ":" << "(" << end[0] << "," << end[1] << "," << end[2] <<  "," << end[2] << ")" << std::endl;
                     rclcpp::sleep_for(std::chrono::seconds(duration)); 
 
-                    duration = go_to_vertex(scan_drone, end, solution->node_graph, drone_h, false);
-                    rclcpp::sleep_for(std::chrono::seconds(duration)); 
-
-                    duration = go_to_vertex(scan_drone, start, solution->node_graph, drone_h, false);
+                    // duration = this->go_to(scan_drone, start[0], start[1], start[2], start[2]);
+                    std::cout << "GoTo: [" << scan_drone << "]" << ":" << "(" << start[0] << "," << start[1] << "," << start[2] <<  "," << start[2] << ")" << std::endl;
                     rclcpp::sleep_for(std::chrono::seconds(duration)); 
                 }
-                duration = go_to_vertex(scan_drone, curr, solution->node_graph, drone_h);
+                duration = go_to_vertex(scan_drone, curr, solution->nodes_graph, drone_h);
             }
 
             if(!(second_face).empty()){
-                Eigen::Vector3d start;
-                Eigen::Vector3d end;
-                for(int j = 0; j < (second_face).size(); j+=2){
+                for(uint j = 0; j < (second_face).size(); j+=2){
                     start = second_face[j];
                     end = second_face[j+1];
 
-                    duration = go_to_vertex(scan_drone, start, solution->node_graph, drone_h, false);
+                    // duration = this->go_to(scan_drone, start[0], start[1], start[2], start[2]);
+                    std::cout << "GoTo: [" << scan_drone << "]" << ":" << "(" << start[0] << "," << start[1] << "," << start[2] <<  "," << start[2] << ")" << std::endl;
+                    rclcpp::sleep_for(std::chrono::seconds(duration)); 
+                    
+                    // duration = this->go_to(scan_drone, end[0], end[1], end[2], end[2]);
+                    std::cout << "GoTo: [" << scan_drone << "]" << ":" << "(" << end[0] << "," << end[1] << "," << end[2] <<  "," << end[2] << ")" << std::endl;
                     rclcpp::sleep_for(std::chrono::seconds(duration)); 
 
-                    duration = go_to_vertex(scan_drone, end, solution->node_graph, drone_h, false);
-                    rclcpp::sleep_for(std::chrono::seconds(duration)); 
-
-                    duration = go_to_vertex(scan_drone, start, solution->node_graph, drone_h, false);
-                    rclcpp::sleep_for(std::chrono::seconds(duration)); 
+                    // duration = this->go_to(scan_drone, start[0], start[1], start[2], start[2]);
+                    std::cout << "GoTo: [" << scan_drone << "]" << ":" << "(" << start[0] << "," << start[1] << "," << start[2] <<  "," << start[2] << ")" << std::endl;
+                    rclcpp::sleep_for(std::chrono::seconds(duration));
                 }
-                duration = go_to_vertex(scan_drone, curr, solution->node_graph, drone_h);
+                duration = go_to_vertex(scan_drone, curr, solution->nodes_graph, drone_h);
             }
         }
         return 0;
@@ -346,57 +349,6 @@ private:
         }
     }
 
-    std::vector<std::vector<double>> runTSP(std::vector<std::vector<double>> waypoints){
-        std::ofstream wfile;
-        wfile.open("/waypoints.csv");    
-        for(int i = 0; i < waypoints.size(); i++){
-            if(wfile.is_open()){
-                wfile << waypoints[i][0] << " " << waypoints[i][1] << " " << waypoints[i][2] << "\n";
-            }
-        }
-        wfile.close();
-
-        const char* tsp_solver = std::getenv("TSP_SOLVER");
-        std::string command = tsp_solver; 
-        int status = system(command.c_str());
-
-        if (status == 0) {
-            std::cout << "TSP solver ran successfully" << std::endl;
-        } else {
-            std::cerr << "Error in running TSP solver" << std::endl;
-        }
-
-        std::vector<std::vector<double>> reordered_waypoints;
-        double x, y, z;
-        std::string line;
-        std::ifstream rfile;
-        rfile.open("/waypoints_tsp.csv");
-        if (rfile.is_open()) {
-            while (std::getline(rfile, line)) {
-                rfile >> x >> y >> z;
-                reordered_waypoints.push_back({x, y, z});
-            }
-            rfile.close();
-        }
-        return reordered_waypoints;
-    }
-
-    bool checkLoS(Eigen::Vector3d start, Eigen::Vector3d goal) const {
-        octomap::OcTreeNode *node = tree->search(goal.x(), goal.y(), goal.z());
-        if (node != nullptr && tree->isNodeOccupied(node)) {
-            return false;
-        }
-        octomap::point3d start(start.x(), start.y(), start.z());
-        octomap::point3d goal(goal.x(), goal.y(), goal.z());
-        octomap::point3d hit;
-
-        bool collision = octree_->castRay(start, goal - start, hit, true, (goal - start).norm() - 0.01);
-        if(collision){
-            return false;
-        }
-        return true;
-    }
-
     template <typename T>
     void wait_for_service(typename std::shared_ptr<rclcpp::Client<T>> client, const std::string &service_name)
     {
@@ -423,7 +375,6 @@ private:
     octomap::OcTree* tree;
     std::shared_ptr<Solver> solver;
     std::shared_ptr<Solution> solution;
-    std::shared_ptr<Planner> planner;
 
     int num_cf;
 

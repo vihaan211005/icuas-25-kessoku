@@ -63,26 +63,9 @@ install(DIRECTORY
   worlds  
   DESTINATION share/${PROJECT_NAME}/
 )
-
-## parallel execution with planner:
-# add_executable(crazyflie_client 
-  # src/sampling_based/crazyflie_client_parallel.cpp 
-  # include/sampling_based/planner_parallel.hpp
-  # include/sampling_based/traversal.hpp 
-# )
-
-## sequential execution *with trajectory gen* without planner:
-# add_executable(crazyflie_client 
-  # src/sampling_based/crazyflie_client_sequential.cpp 
-  # include/sampling_based/planner_sequential.hpp
-  # include/sampling_based/traversal.hpp 
-# )
-
 # vertex method
 add_executable(crazyflie_client 
-  src/vertex_based/crazyflie_client.cpp 
-  include/vertex_based/planner.hpp
-  include/vertex_based/traversal.hpp 
+  src/crazyflie_client.cpp include/traversal.hpp 
 )
 
 target_link_libraries(crazyflie_client ompl fcl)

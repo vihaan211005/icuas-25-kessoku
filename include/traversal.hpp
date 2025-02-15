@@ -54,10 +54,19 @@ public:
     {
         octreeToBinaryArray();
         std::cout << "mapBounds: " << mapBounds << std::endl;
+        std::cout << "Resolution: " << resolution << std::endl;
         reduceResolution(2);
         markInterior();
-        for (int i = 0; i < 12; ++i)
+        for (int i = 0; i < 2; ++i)
             addBoundary();
+        if (mapBounds.min.x() > baseStation.x())
+            addBoundary((mapBounds.min.x() - baseStation.x()) / resolution + 1, 0, 0, 0, 0);
+        if (mapBounds.min.y() > baseStation.y())
+            addBoundary(0, (mapBounds.min.y() - baseStation.y()) / resolution + 1, 0, 0, 0);
+        baseIndex.x() = std::round((baseStation.x() - mapBounds.min.x()) / resolution);
+        baseIndex.y() = std::round((baseStation.y() - mapBounds.min.y()) / resolution);
+        nodes_graph.push_back(baseIndex);
+        node_dirs.push_back(std::make_tuple(0, 0, baseIndex));
         markFaces();
         markCorner();
         makeAdjacency();
@@ -72,7 +81,7 @@ public:
         solution.adjacency_matrix = adjacency_matrix;
         solution.parent = parent;
         solution.distance = distance;
-        for(auto node : nodes_graph)
+        for (auto node : nodes_graph)
             solution.nodes_graph.push_back(indexToPoint(node));
 
         saveEdgesToCSV("edges", adjacency_matrix);
@@ -81,6 +90,7 @@ public:
 
 private:
     Eigen::Vector3d baseStation;
+    Eigen::Vector3i baseIndex = Eigen::Vector3i(0, 0, 0);
     octomap::OcTree octree;
     int radius;
     int num_drones;
@@ -90,9 +100,9 @@ private:
     double resolution;
     Eigen::Vector3i dimArray;
 
-    std::vector<std::tuple<int, int, Eigen::Vector3i>> node_dirs{std::make_tuple(0, 0, Eigen::Vector3i(0, 0, 0))};
+    std::vector<std::tuple<int, int, Eigen::Vector3i>> node_dirs;
 
-    std::vector<Eigen::Vector3i> nodes_graph{Eigen::Vector3i(0, 0, 0)};
+    std::vector<Eigen::Vector3i> nodes_graph;
     std::vector<int> distance;
     std::vector<int> parent;
     std::vector<std::vector<bool>> adjacency_matrix;
@@ -103,7 +113,7 @@ private:
         int diry = std::get<1>(node_dirs[node]);
 
         std::pair<std::vector<std::vector<DronePos>>, std::vector<std::vector<DronePos>>> solution_;
-        
+
         if (!dirx && !diry)
             return solution_;
 
@@ -182,7 +192,6 @@ private:
         while (!queue.empty())
         {
             int node = queue.front();
-            Eigen::Vector3i curr = nodes_graph[node];
             queue.pop();
 
             // solution.bfs_order.push_back(std::make_pair(node, std::make_pair(std::vector<Eigen::Vector3d>, std::vector<Eigen::Vector3d>)));
@@ -192,32 +201,34 @@ private:
 
             for (auto face : faces.first)
             {
-                for(auto l : face){
+                for (auto l : face)
+                {
                     binaryArray[l.pos.x()][l.pos.y()][l.pos.z()] = 5;
                 }
                 Eigen::Vector3d p1 = indexToPoint(face[0].pos);
-                double yaw1 = (face[0].yaw*M_PI)+(M_PI/2)*(face[0].yaw>1);
+                double yaw1 = (face[0].yaw * M_PI) + (M_PI / 2) * (face[0].yaw > 1);
                 Eigen::Vector3d p2 = indexToPoint(face[face.size() - 1].pos);
-                double yaw2 = (face[face.size() - 1].yaw*M_PI)+(M_PI/2)*(face[face.size() - 1].yaw>1);
+                double yaw2 = (face[face.size() - 1].yaw * M_PI) + (M_PI / 2) * (face[face.size() - 1].yaw > 1);
                 pehla.push_back(Eigen::Vector4d(p1.x(), p1.y(), p1.z(), yaw1));
                 pehla.push_back(Eigen::Vector4d(p2.x(), p2.y(), p2.z(), yaw2));
             }
             for (auto face : faces.second)
             {
-                for(auto l : face){
+                for (auto l : face)
+                {
                     binaryArray[l.pos.x()][l.pos.y()][l.pos.z()] = 5;
                 }
                 Eigen::Vector3d p1 = indexToPoint(face[0].pos);
-                double yaw1 = (face[0].yaw*M_PI)+(M_PI/2)*(face[0].yaw>1);
+                double yaw1 = (face[0].yaw * M_PI) + (M_PI / 2) * (face[0].yaw > 1);
                 Eigen::Vector3d p2 = indexToPoint(face[face.size() - 1].pos);
-                double yaw2 = (face[face.size() - 1].yaw*M_PI)+(M_PI/2)*(face[face.size() - 1].yaw>1);
+                double yaw2 = (face[face.size() - 1].yaw * M_PI) + (M_PI / 2) * (face[face.size() - 1].yaw > 1);
                 dusra.push_back(Eigen::Vector4d(p1.x(), p1.y(), p1.z(), yaw1));
                 dusra.push_back(Eigen::Vector4d(p2.x(), p2.y(), p2.z(), yaw2));
             }
-            if(pehla.size() || dusra.size())
+            if (pehla.size() || dusra.size())
                 solution.bfs_order.push_back(std::make_pair(node, std::make_pair(pehla, dusra)));
 
-            if(distance[node] == num_drones - 1)
+            if (distance[node] == num_drones - 1)
                 continue;
 
             for (int i = 0; i < n; ++i)
@@ -258,9 +269,10 @@ private:
     {
         std::ofstream outfile(file_name + ".csv");
 
-        for (int i = 0; i < nodes_graph.size(); ++i)
+        int n = nodes_graph.size();
+        for (int i = 0; i < n; ++i)
         {
-            for (int j = 0; j < nodes_graph.size(); ++j)
+            for (int j = 0; j < n; ++j)
             {
                 if (adjacency_matrix[i][j])
                 {
@@ -452,22 +464,21 @@ private:
     }
 
     // Add buffer
-    void addBoundary()
+    void addBoundary(int x_front = 1, int y_front = 1, int x_back = 1, int y_back = 1, int z_back = 1)
     {
-        mapBounds.max += Eigen::Vector3d(resolution, resolution, resolution);
-        mapBounds.min.x() -= resolution;
-        mapBounds.min.y() -= resolution;
+        mapBounds.max += Eigen::Vector3d(x_back * resolution, y_back * resolution, z_back * resolution);
+        mapBounds.min -= Eigen::Vector3d(x_front * resolution, y_front * resolution, 0);
 
-        dimArray.x() += 2;
-        dimArray.y() += 2;
-        dimArray.z() += 1;
+        dimArray.x() += x_front + x_back;
+        dimArray.y() += y_front + y_back;
+        dimArray.z() += z_back;
 
         std::vector<std::vector<std::vector<int>>> newArray(dimArray.x(), std::vector<std::vector<int>>(dimArray.y(), std::vector<int>(dimArray.z(), 0)));
 
-        for (int i = 1; i < dimArray.x() - 1; ++i)
-            for (int j = 1; j < dimArray.y() - 1; ++j)
-                for (int k = 0; k < dimArray.z() - 1; ++k)
-                    newArray[i][j][k] = binaryArray[i - 1][j - 1][k];
+        for (int i = x_front; i < dimArray.x() - x_back; ++i)
+            for (int j = y_front; j < dimArray.y() - y_back; ++j)
+                for (int k = 0; k < dimArray.z() - z_back; ++k)
+                    newArray[i][j][k] = binaryArray[i - x_front][j - y_front][k];
 
         binaryArray = newArray;
     }
@@ -537,10 +548,10 @@ private:
     }
 };
 
-int main()
-{
-    Solver solver = Solver(Eigen::Vector3d(0, 0, 0), octomap::OcTree("city_1.binvox.bt"), 43, 5);
-    solver.initialSetup();
+// int main()
+// {
+//     Solver solver = Solver(Eigen::Vector3d(0, 0, 0), octomap::OcTree("city_1.binvox.bt"), 43, 5);
+//     solver.initialSetup();
 
-    return 0;
-}
+//     return 0;
+// }
