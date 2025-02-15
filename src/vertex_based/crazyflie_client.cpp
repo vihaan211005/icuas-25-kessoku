@@ -32,11 +32,8 @@
 #include <stack>
 #include <cstdlib>  
 
-#include "sampling_based/planner_sequential.hpp"
+#include "vertex_based/traversal.hpp"
 
-//TODO: currently initializing the timer only when done with mission, can we do it from the start with empty stuff being published?
-//      stacking error, next_h > curr_h; next_h < curr_h
-        
 using namespace std::chrono_literals;
                                               
 double EPS = 1E-1;
@@ -69,13 +66,16 @@ public:
                                             }, aruco_cb_options);
         }
 
+// /cf_1/battery_charge/start
+// /cf_1/battery_charge/stop
+// /cf_1/battery_status
+
         RCLCPP_INFO(this->get_logger(), "Getting Octomap...");
         get_octomap();
 
         RCLCPP_INFO(this->get_logger(), "Initializing Solver object...");
         solver = std::make_shared<Solver>(Eigen::Vector3d(0, 0, 0), *tree, 43, 5);
         solver->initialSetup();
-        mutex_ptr = &(solver->param_mutex);
 
         RCLCPP_INFO(this->get_logger(), "Initializing Path Planner object...");
         planner = std::make_shared<Planner>(Planner(tree, solver->mapBounds, this->get_logger()));
@@ -84,7 +84,6 @@ public:
 
         res_publisher_ = this->create_publisher<icuas25_msgs::msg::TargetInfo>("target_found", 10);
         aruco_timer_ = this->create_wall_timer(500ms, std::bind(&CrazyflieCommandClient::timer_callback, this), aruco_cb_group_);
-        compute_timer_ = this->create_wall_timer(500ms, std::bind(&CrazyflieCommandClient::compute_callback, this), solution_cb_group_);
         run_mission_timer_ = this->create_wall_timer(500ms, std::bind(&CrazyflieCommandClient::run_mission, this), run_mission_cb_group_);
     }
     
@@ -152,7 +151,7 @@ public:
         return 0;
     }
 
-    int go_to(const int &drone_namespace_, double x, double y, double z, double yaw)
+    double go_to(const int &drone_namespace_, double x, double y, double z, double yaw)
     {
         RCLCPP_INFO(this->get_logger(), "Initialized CrazyflieCommandClient::go_to for namespace: %d", drone_namespace_);
 
@@ -185,300 +184,120 @@ public:
         return 2 * dist(std::vector<double>{x, y, z}, std::vector<double>{odom_linear[drone_namespace_ - 1].x, odom_linear[drone_namespace_ - 1].y, odom_linear[drone_namespace_ - 1].z});
     }
 
-    int intermediate_submission(){
-        /* 
-            <pose>1 1 1 1.57 1.57 0</pose>
-            <pose>-15 -1 1 1.57 0 0</pose>
-        */
-
-        if(this->takeoff(1)) return 1;
-        rclcpp::sleep_for(std::chrono::seconds(10)); 
-
-        if(this->go_to(1, 1.0, 0.0, 1.0, 1.57)) return 1; 
-        rclcpp::sleep_for(std::chrono::seconds(20)); 
-
-        if(this->go_to(1, -15.0, -2.0, 1.0, 1.57)) return 1; 
-        rclcpp::sleep_for(std::chrono::seconds(20)); 
-
-        if(this->land(1)) return 1;
-        
-        RCLCPP_INFO(this->get_logger(), "Mission Completed!");
-
-        return 0;
+    double go_to_vertex(int& drone_namepsace_, int& v, std::vector<Eigen::Vector3d>& nodes_graph, std::map<int,double> drone_h){
+        auto p = nodes_graph[v];
+        p[2] += drone_h[drone_namespace_];
+        auto duration = this->go_to(drone_namespace_, p[0], p[1], p[2], 0);
+        return duration;
     }
 
-    int upload_trajectory(const int& drone_namespace_, uint trajectory_id = 0, std::string filename="/figure8.csv"){
-        RCLCPP_INFO(this->get_logger(), "Initialized CrazyflieCommandClient::upload_trajectory for namespace: %d", drone_namespace_);
+    int getLca(int u, int v, std::vector<int>& parent){
+        while(u != v){
+            u = parent[u];
+            v = parent[v];
 
-        auto client = this->create_client<crazyflie_interfaces::srv::UploadTrajectory>("/cf_" + std::to_string(drone_namespace_) + "/upload_trajectory", rmw_qos_profile_services_default, service_cb_group_);
-        auto request = std::make_shared<crazyflie_interfaces::srv::UploadTrajectory::Request>();
-        
-        std::vector<crazyflie_interfaces::msg::TrajectoryPolynomialPiece> pieces;
-        
-        std::ifstream file(filename);
-        if (!file.is_open()) {
-            std::cerr << "Cannot open /figure8.csv" << std::endl;
-            return 1;
+            if(u == 0 || v == 0) return 0;
         }
-
-        std::string line;
-        std::getline(file, line);
-        bool startLine = true;
-
-        while (std::getline(file, line)) {
-            if (line.empty() || startLine){
-                startLine = false;
-                continue;
-            }
-
-            std::istringstream ss(line);
-            std::string token;
-            std::vector<float> values;
-            while (std::getline(ss, token, ',')) {
-                values.push_back(std::stof(token));
-            }
-
-            if (values.size() != 33) {
-                std::cerr << "Unexpected token count: " << values.size() << std::endl;
-                continue;
-            }
-
-            crazyflie_interfaces::msg::TrajectoryPolynomialPiece piece;
-            piece.poly_x.resize(8);
-            piece.poly_y.resize(8);
-            piece.poly_z.resize(8);
-            piece.poly_yaw.resize(8);
-
-            // Row pattern: token[0]=duration, tokens[1-8]=poly_x, [9-16]=poly_y, [17-24]=poly_z, [25-32]=poly_yaw
-            float duration_value = values[0];
-            for (size_t i = 0; i < 8; ++i) {
-                piece.poly_x[i]   = values[1 + i];
-                piece.poly_y[i]   = values[1 + 8 + i];
-                piece.poly_z[i]   = values[1 + 16 + i];
-                piece.poly_yaw[i] = values[1 + 24 + i];
-            }
-
-            builtin_interfaces::msg::Duration d;
-            d.sec = static_cast<int32_t>(duration_value);
-            d.nanosec = static_cast<uint32_t>((duration_value - d.sec) * 1e9);
-            piece.duration = d;
-
-            pieces.push_back(piece);
-        }
-        file.close();
-
-        request->trajectory_id = trajectory_id;
-        request->piece_offset = 0;
-        request->pieces = pieces;
-
-        wait_for_service(client, "/cf_" + std::to_string(drone_namespace_) + "/upload_trajectory");
-
-        for(int i = 0; i < pieces.size(); i++){
-            for(int j = 0; j < pieces[i].poly_x.size(); j++){
-                std::cout << pieces[i].poly_x[j] << " ";
-            }
-            for(int j = 0; j < pieces[i].poly_y.size(); j++){
-                std::cout << pieces[i].poly_y[j] << " ";
-            }
-            for(int j = 0; j < pieces[i].poly_z.size(); j++){
-                std::cout << pieces[i].poly_z[j] << " ";
-            }
-            for(int j = 0; j < pieces[i].poly_yaw.size(); j++){
-                std::cout << pieces[i].poly_yaw[j] << " ";
-            }
-            std::cout << std::endl;
-        }
-
-        auto result = client->async_send_request(request).get();
-        RCLCPP_INFO(this->get_logger(), "UploadTrajectory request sent to %d",
-                    drone_namespace_);
-
-        return 0;
-    }
-
-    int start_trajectory(const int& drone_namespace_, float timescale = 0, uint trajectory_id = 0){
-        RCLCPP_INFO(this->get_logger(), "Initialized CrazyflieCommandClient::start_trajectory for namespace: %d", drone_namespace_);
-
-        auto client = this->create_client<crazyflie_interfaces::srv::StartTrajectory>("/cf_" + std::to_string(drone_namespace_) + "/start_trajectory", rmw_qos_profile_services_default, service_cb_group_);
-        auto request = std::make_shared<crazyflie_interfaces::srv::StartTrajectory::Request>();
-         
-        request->group_mask = 0;
-        request->trajectory_id = trajectory_id;
-        request->timescale = 5;
-        request->reversed = false;
-        request->relative = false;
-
-        wait_for_service(client, "/cf_" + std::to_string(drone_namespace_) + "/start_trajectory");
-
-        int i = drone_namespace_ - 1;
-
-        auto result = client->async_send_request(request).get();
-        RCLCPP_INFO(this->get_logger(), "StartTrajectory request sent to %d",
-                    drone_namespace_);
-
-        return 0;
+        return u;
     }
 
     int run_mission(){
-        bool run = false;
-        {
-            boost::lock_guard<boost::mutex> lock(*(this->mutex_ptr));
-            if(solver->solution.flag == false && solver->solution.eval > 0){
-                solution = std::make_shared<Solution>(solver->solution);
-                solver->solution.flag = true;
-                run = true;
-            }
+        std::map<int,double> drone_h;
+        double curr_h = 0;
+        for(int i = 1; i <= num_cf; i++){
+            drone_h[i] = curr_h;
+            curr_h -= 0.15;
         }
 
-        if(!run) return 0;
-
-        RCLCPP_INFO(this->get_logger(), "Got a solution!");
-
-        double diff_z = 0.2;
-
-        // go to start point
-        double curr_x = solution->startPts[0].x();
-        double curr_y = solution->startPts[0].y();
-        double curr_z = 4;
-        double prev_z = 4;
-
-        // rclcpp::sleep_for(std::chrono::seconds(2));
-
-        std::stack<std::pair<int,std::vector<double>> > st;
-        long long time_to_wait = 0;
-        long long curr_time_to_wait = 0;
-
-        std::vector<Eigen::Vector3d> pos_(5);
-
-        // double start_yaw;
-        // double goal_yaw;
-
-        for(int i = 1; i <= 5; i++){
-            st.push({0, {i, curr_x, curr_y, curr_z}});
-            //std::cout << "[" << i << "]" << ":" << "(" << curr_x << "," << curr_y << "," << curr_z << ")" << std::endl;
-            // curr_time_to_wait = this->go_to(i, curr_x, curr_y, curr_z, 0);
-            time_to_wait = std::max(curr_time_to_wait, time_to_wait);
-
-            curr_z += diff_z;
-        }
-        // rclcpp::sleep_for(std::chrono::seconds(time_to_wait));
+        std::map<int,std::deque<int>> mp;
+        mp[0] = {1,2,3,4,5};
         
+        int prev = 0;
+        int curr = 0;   
+        double duration = 0.0;
+        double max_duration = 0.0;
+        for(int i = 0; i < solution->bfs_order.size(); i++){
+            curr = solution->bfs_order[i].first;
+            int lca = getLca(prev, curr);
 
-        // go onward to their respective vantage points
-        for(uint i = 1; i < solution->startPts.size(); i++){
-            time_to_wait = 0;
+            // back to lca from prev
+            while(prev > lca){
+                max_duration = 0.0;
+                while(!mp[prev].empty()){
+                    int drone = mp.back(); mp.pop_back();
+                    duration = go_to_vertex(drone, solution->parent[prev], solution->node_graph, drone_h);
+                    max_duration = std::max(duration, max_duration);
 
-            double curr_x = solution->startPts[i].x();
-            double curr_y = solution->startPts[i].y();
-            double curr_z = solution->startPts[i].z();
-            if(solution->startPts[i].z() <= prev_z){
-                for(uint drone_ = i; drone_ <= 5; drone_++){
-                    // rclcpp::sleep_for(std::chrono::seconds(5));
-                    st.push({i, {drone_, curr_x, curr_y, curr_z}});
-                    // std::cout << "[" << drone_ << "]" << ":" << "(" << curr_x << "," << curr_y << "," << curr_z << ")" << std::endl;
-                    curr_time_to_wait = this->go_to(drone_, curr_x, curr_y, curr_z, 0);
-                    time_to_wait = std::max(curr_time_to_wait, time_to_wait);
-
-                    curr_z += diff_z;
-
-                    if(i == solution->startPts.size() - 1 && drone_ == 4){
-                        center = octomap::point3d(curr_x, curr_y, curr_z);
-                    }
-                    if(i == solution->startPts.size() - 1 && drone_ == 5){
-                        start = Eigen::Vector4d(curr_x, curr_y, curr_z, 0);
-                    }
-                    pos_[drone_-1] = Eigen::Vector3d(curr_x, curr_y, curr_z); 
+                    mp[solution->parent[prev]].push_back(drone);
                 }
+                rclcpp::sleep_for(std::chrono::seconds(max_duration)); 
+                prev = solution->parent[prev];
+                mp[prev].clear();
             }
-            else{
-                curr_z += diff_z*(5 - i);
-                for(uint drone_ = 5; drone_ >= i; drone_--){
-                    // rclcpp::sleep_for(std::chrono::seconds(5));
-                    st.push({i, {drone_, curr_x, curr_y, curr_z}});
-                    // std::cout << "[" << drone_ << "]" << ":" << "(" << curr_x << "," << curr_y << "," << curr_z << ")" << std::endl;
-                    curr_time_to_wait = this->go_to(drone_, curr_x, curr_y, curr_z, 0);
-                    time_to_wait = std::max(curr_time_to_wait, time_to_wait);
+            
 
-                    curr_z -= diff_z;
+            std::vector<int> lcaToCurrPath;
+            int tmp = curr;
+            while(tmp != lca){
+                lcaToCurrPath.push_back(tmp);
+                tmp = solution->parent[tmp];
+            }
 
-                    if(i == solution->startPts.size() - 1 && drone_ == 4){
-                        center = octomap::point3d(curr_x, curr_y, curr_z);
-                    }
-                    if(i == solution->startPts.size() - 1 && drone_ == 5){
-                        start = Eigen::Vector4d(curr_x, curr_y, curr_z, 0);
-                    }
-                    pos_[drone_-1] = Eigen::Vector3d(curr_x, curr_y, curr_z); 
+            // from lca to curr
+            int k = lca;
+            for(int j = lcaToCurrPath.size() - 1; j >= 0; j--){
+                while(mp[k].size() > 1){
+                    int drone = mp.back(); mp.pop_back();
+
+                    duration = go_to_vertex(drone, localToCurrPath[j], solution->node_graph, drone_h);
+                    max_duration = std::max(duration, max_duration);
+                } 
+                rclcpp::sleep_for(std::chrono::seconds(max_duration)); 
+                k = lcaToCurrPath[j];
+            }
+            
+            std::assert(mp[curr].size() > 2);
+            int scan_drone = mp[curr].back();
+            auto& first_face = (bfs_order[i].second).first; 
+            auto& second_face = (bfs_order[i].second).second; 
+
+            if(!(first_face).empty()){
+                Eigen::Vector4d start;
+                Eigen::Vector4d end;
+                for(int j = 0; j < (first_face).size(); j+=2){
+                    start = first_face[j];
+                    end = first_face[j+1];
+
+                    duration = this->go_to(drone_, curr_x, curr_y, curr_z, 0);
+                    rclcpp::sleep_for(std::chrono::seconds(duration)); 
+
+                    duration = go_to_vertex(scan_drone, end, solution->node_graph, drone_h, false);
+                    rclcpp::sleep_for(std::chrono::seconds(duration)); 
+
+                    duration = go_to_vertex(scan_drone, start, solution->node_graph, drone_h, false);
+                    rclcpp::sleep_for(std::chrono::seconds(duration)); 
                 }
+                duration = go_to_vertex(scan_drone, curr, solution->node_graph, drone_h);
             }
-            prev_z = curr_z;
-            rclcpp::sleep_for(std::chrono::seconds(time_to_wait));
-        }
-        
-        planner->setCenter(center);
-        planner->setPosition(pos_);
 
-        /* DEBUG STATEMENTS
-        std::cout << "pos_ size: " << pos_.size() << std::endl;
-        for(int k = 0; k < pos_.size(); k++){
-            std::cout << pos_[k].x() << " " << pos_[k].y() << " " << pos_[k].z() << std::endl;
-        }
+            if(!(second_face).empty()){
+                Eigen::Vector3d start;
+                Eigen::Vector3d end;
+                for(int j = 0; j < (second_face).size(); j+=2){
+                    start = second_face[j];
+                    end = second_face[j+1];
 
-        std::vector<Eigen::Vector3d> poses = {Eigen::Vector3d(16.644729, 14.208915, 20.504419),Eigen::Vector3d(16.644729, 41.814807, 24.564109),Eigen::Vector3d(28.011861, 66.984885, 25.376047),Eigen::Vector3d(13.396977, 56.429691, 2.229845)};
-        octomap::point3d cemter_(poses[3].x(), poses[3].y(), poses[3].z());
-        Eigen::Vector4d start_(13.396977, 56.429691, 2.429845, 0);
-        Eigen::Vector4d goal_(19.892481, 74.292327, 14.208915, -1);
-        planner->runPlanner(start_, goal_);
-        */
+                    duration = go_to_vertex(scan_drone, start, solution->node_graph, drone_h, false);
+                    rclcpp::sleep_for(std::chrono::seconds(duration)); 
 
-        std::vector<Eigen::Vector4d> pathArray;
-        for(uint i = 0; i < solution->toVisit[4].size(); i++){
-            auto goalxyz = solution->toVisit[4][i].first;
-            double yaw = getYaw(solution->toVisit[4][i].second);
-            
-            goal << goalxyz.x(), goalxyz.y(), goalxyz.z(), static_cast<double>(yaw);
-            
-            if(dist(pos_[3], goal) < 1) continue;
-            if(!checkLoS(start, goal)){
-                planner->runPlanner(start, goal, pathArray);
+                    duration = go_to_vertex(scan_drone, end, solution->node_graph, drone_h, false);
+                    rclcpp::sleep_for(std::chrono::seconds(duration)); 
+
+                    duration = go_to_vertex(scan_drone, start, solution->node_graph, drone_h, false);
+                    rclcpp::sleep_for(std::chrono::seconds(duration)); 
+                }
+                duration = go_to_vertex(scan_drone, curr, solution->node_graph, drone_h);
             }
-            else{
-                pathArray.push_back(goal);
-            }
-            start = goal;
-        }
-
-        wfile.open("/traj_wp.csv");    
-        for(uint i = 0; i < pathArray.size(); i++){
-            std::ofstream wfile;
-            if(wfile.is_open()){
-                wfile << (i + 1) * 0.3 << " " << curr[0] << " " << waypoints[i][1] << " " << waypoints[i][2] << "\n";
-            }
-        }
-        wfile.close();
-
-        const char* traj_gen = std::getenv("TRAJ_GEN");
-        std::string command = traj_gen; 
-        int status = system(command.c_str());
-
-        if (status == 0) {
-            std::cout << "TSP solver ran successfully" << std::endl;
-        } else {
-            std::cerr << "Error in running TSP solver" << std::endl;
-        }
-
-        RCLCPP_INFO(this->get_logger(), "Traversed all points!");
-
-        int idx = 0;
-        while(!st.empty()){
-            time_to_wait = 0;
-            if(!st.empty()) idx = st.top().first;
-            while(!st.empty() && st.top().first == idx){
-                auto curr = st.top(); st.pop();
-                // std::cout << "[" << curr.first << "]" << ":" << "(" << curr.second[0] << "," << curr.second[1] << "," << curr.second[2] << ")" << std::endl;
-                curr_time_to_wait = this->go_to(curr.second[0], curr.second[1], curr.second[2], curr.second[3], 0);
-                time_to_wait = std::max(curr_time_to_wait, time_to_wait);
-            }
-            rclcpp::sleep_for(std::chrono::seconds(time_to_wait));
         }
         return 0;
     }
@@ -488,11 +307,6 @@ public:
     }
 
 private:
-    void compute_callback(){
-    //    RCLCPP_INFO(this->get_logger(), "Computing solution...");
-       solver->mainLogic();
-    }
-
     void pose_callback(const geometry_msgs::msg::PoseStamped & msg, const int drone_namespace_){
         int i = drone_namespace_ - 1; //cf_1 -> 0
         odom_linear[i] = geometry_msgs::msg::Point(msg.pose.position);
@@ -530,26 +344,6 @@ private:
 
             curr_aruco_position = {-1e8, -1e8, -1e8};
         }
-    }
-    double getYaw(double yaw) {
-        static const double yawValues[] = {
-            M_PI / 4,   // 0
-            M_PI / 2,   // 1
-            3*M_PI / 4, // 2
-            0,          // 3
-            -M_PI / 2,  // 4
-            M_PI,       // 5
-            -M_PI / 4,  // 6
-            -M_PI / 2,  // 7
-            -3*M_PI / 4 // 8
-        };
-
-        int index = static_cast<int>(yaw);
-        if (index < 0 || index > 8) {
-            throw std::runtime_error("yaw is not from [0-8]");
-        }
-
-        return yawValues[index];
     }
 
     std::vector<std::vector<double>> runTSP(std::vector<std::vector<double>> waypoints){
@@ -632,9 +426,7 @@ private:
     std::shared_ptr<Planner> planner;
 
     int num_cf;
-    boost::mutex *mutex_ptr;
 
-    octomap::point3d center;
     Eigen::Vector4d start;
     Eigen::Vector4d goal;
 
@@ -642,13 +434,11 @@ private:
     std::vector<geometry_msgs::msg::Quaternion> odom_quat;
 
     rclcpp::CallbackGroup::SharedPtr service_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
-    rclcpp::CallbackGroup::SharedPtr solution_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
     rclcpp::CallbackGroup::SharedPtr aruco_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
     rclcpp::CallbackGroup::SharedPtr run_mission_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
     rclcpp::SubscriptionOptions aruco_cb_options;
 
     rclcpp::TimerBase::SharedPtr aruco_timer_;
-    rclcpp::TimerBase::SharedPtr compute_timer_;
     rclcpp::TimerBase::SharedPtr run_mission_timer_;
 
     std::vector<rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr> pose_subscriptions_;

@@ -27,7 +27,6 @@ find_package(fcl REQUIRED)
 
 include_directories(
   include
-  external/include
   ${EIGEN3_INCLUDE_DIR}
   ${OMPL_INCLUDE_DIRS}
 )
@@ -66,17 +65,24 @@ install(DIRECTORY
 )
 
 ## parallel execution with planner:
-# src/sampling_based/crazyflie_client_parallel.cpp 
 # add_executable(crazyflie_client 
-# include/sampling_based/planner_parallel.hpp
-# include/sampling_based/traversal.hpp 
+  # src/sampling_based/crazyflie_client_parallel.cpp 
+  # include/sampling_based/planner_parallel.hpp
+  # include/sampling_based/traversal.hpp 
 # )
 
 ## sequential execution *with trajectory gen* without planner:
+# add_executable(crazyflie_client 
+  # src/sampling_based/crazyflie_client_sequential.cpp 
+  # include/sampling_based/planner_sequential.hpp
+  # include/sampling_based/traversal.hpp 
+# )
+
+# vertex method
 add_executable(crazyflie_client 
-src/sampling_based/crazyflie_client_sequential.cpp 
-include/sampling_based/planner_sequential.hpp
-include/sampling_based/traversal.hpp 
+  src/vertex_based/crazyflie_client.cpp 
+  include/vertex_based/planner.hpp
+  include/vertex_based/traversal.hpp 
 )
 
 target_link_libraries(crazyflie_client ompl fcl)

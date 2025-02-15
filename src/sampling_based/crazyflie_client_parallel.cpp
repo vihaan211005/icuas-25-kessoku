@@ -32,7 +32,7 @@
 #include <stack>
 #include <cstdlib>  
 
-#include "planner_parallel.hpp"
+#include "sampling_based/planner_parallel.hpp"
 
 //TODO: currently initializing the timer only when done with mission, can we do it from the start with empty stuff being published?
 //      stacking error, next_h > curr_h; next_h < curr_h
