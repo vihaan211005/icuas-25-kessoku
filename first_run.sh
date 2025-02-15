@@ -42,5 +42,6 @@ docker run -it \
     --env SSH_AUTH_SOCK=/ssh-agent \
     --net=host \
     --privileged \
+    --gpus all \
     --name crazysim_icuas_cont \
     crazysim_icuas_img

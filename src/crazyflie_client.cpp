@@ -38,11 +38,12 @@
 using namespace std::chrono_literals;
                                               
 double EPS = 1E-1;
+int num = 5;
 
 class CrazyflieCommandClient : public rclcpp::Node
 {
 public:
-    CrazyflieCommandClient(int num = 5) : 
+    CrazyflieCommandClient() : 
         Node("crazyflie_command_client"), 
         num_cf(num), 
         odom_linear(std::vector<geometry_msgs::msg::Point>(num_cf)),
@@ -67,7 +68,7 @@ public:
                                             }, aruco_cb_options);
         }
 
-// /cf_1/battery_charge/start
+// // /cf_1/battery_charge/start
 // /cf_1/battery_charge/stop
 // /cf_1/battery_status
 
@@ -209,142 +210,139 @@ public:
             
             auto& solution = solver->solution;
     
-            // std::map<int,double> drone_h;
-            // double curr_h = 0;
-            // for(int i = 1; i <= num_cf; i++){
-            //     drone_h[i] = curr_h;
-            //     curr_h -= 0.15;
-            // }
+            std::map<int,double> drone_h;
+            double curr_h = 0;
+            for(int i = 1; i <= num_cf; i++){
+                drone_h[i] = curr_h;
+                curr_h -= 0.15;
+            }
     
-            // std::map<int,std::deque<int>> mp;
-            // mp[0] = {1,2,3,4,5};
+            std::map<int,std::deque<int>> mp;
+            mp[0] = {1,2,3,4,5};
             
-            // int prev = 0;
-            // int curr = 0;   
-            // int duration = 0.0;
-            // int max_duration = 0.0;
-            // std::cout << solution.bfs_order.size() << std::endl;
+            int prev = 0;
+            int curr = 0;   
+            int duration = 0.0;
+            int max_duration = 0.0;
+            std::cout << solution.bfs_order.size() << std::endl;
             
-            // for(uint i = 0; i < solution.bfs_order.size(); i++){
-            //     curr = solution.bfs_order[i].first;
-            //     int lca = getLca(prev, curr, solution.parent);
+            for(uint i = 0; i < solution.bfs_order.size(); i++){
+                curr = solution.bfs_order[i].first;
+                int lca = getLca(prev, curr, solution.parent);
                 
-            //     // back to lca from prev
-            //     std::cout << "going from prev:" << prev << " -> lca:" << lca << std::endl;    
-            //     while(prev != lca){
-            //         max_duration = 0.0;
-            //         while(!mp[prev].empty()){
-            //             int drone = mp[prev].back(); mp[prev].pop_back();
-            //             duration = go_to_vertex(drone, solution.parent[prev], solution.nodes_graph, drone_h);
-            //             max_duration = std::max(duration, max_duration);
+                // back to lca from prev
+                std::cout << "going from prev:" << prev << " -> lca:" << lca << std::endl;    
+                while(prev != lca){
+                    max_duration = 0.0;
+                    while(!mp[prev].empty()){
+                        int drone = mp[prev].back(); mp[prev].pop_back();
+                        duration = go_to_vertex(drone, solution.parent[prev], solution.nodes_graph, drone_h);
+                        max_duration = std::max(duration, max_duration);
                         
-            //             mp[solution.parent[prev]].push_back(drone);
-            //         }
-            //         // rclcpp::sleep_for(std::chrono::seconds(max_duration)); 
-            //         prev = solution.parent[prev];
-            //     }
+                        mp[solution.parent[prev]].push_back(drone);
+                    }
+                    // rclcpp::sleep_for(std::chrono::seconds(max_duration)); 
+                    prev = solution.parent[prev];
+                }
                 
     
-            //     std::vector<int> lcaToCurrPath;
-            //     int tmp = curr;
-            //     while(tmp != lca){
-            //         lcaToCurrPath.push_back(tmp);
-            //         tmp = solution.parent[tmp];
-            //     }
+                std::vector<int> lcaToCurrPath;
+                int tmp = curr;
+                while(tmp != lca){
+                    lcaToCurrPath.push_back(tmp);
+                    tmp = solution.parent[tmp];
+                }
     
-            //     // from lca to curr
-            //     int n_drones_req = solution.distance[curr] - solution.distance[lca] + 1;
-            //     std::cout << "going from lca:" << lca << " -> curr:" << curr << std::endl;    
-            //     int k = lca;
-            //     for(int j = int(lcaToCurrPath.size()) - 1; j >= 0; j--){
-            //         std::cout << " j: " << j << std::endl;
-            //         std::cout << " k: " << k << std::endl;
-            //         std::cout << " mp[k].size(): " << mp[k].size() << std::endl;
-            //         std::cout << " n_drones_req: " << n_drones_req << std::endl;
+                // from lca to curr
+                int n_drones_req = solution.distance[curr] - solution.distance[lca] + 1;
+                std::cout << "going from lca:" << lca << " -> curr:" << curr << std::endl;    
+                int k = lca;
+                for(int j = int(lcaToCurrPath.size()) - 1; j >= 0; j--){
+                    std::cout << " j: " << j << std::endl;
+                    std::cout << " k: " << k << std::endl;
+                    std::cout << " mp[k].size(): " << mp[k].size() << std::endl;
+                    std::cout << " n_drones_req: " << n_drones_req << std::endl;
                     
-            //         for(int itr = 0; itr < n_drones_req; itr++){
+                    for(int itr = 0; itr < n_drones_req; itr++){
                         
-            //             int drone = mp[k].back(); mp[k].pop_back();
+                        int drone = mp[k].back(); mp[k].pop_back();
                         
-            //             duration = go_to_vertex(drone, lcaToCurrPath[j], solution.nodes_graph, drone_h);
-            //             if(j < 0){
-            //                 break;
-            //             }
-            //             std::cout << "lcaToCurrPath[j]: " << lcaToCurrPath[j] << std::endl;
-            //             std::cout << "j: " << j  << std::endl;
+                        duration = go_to_vertex(drone, lcaToCurrPath[j], solution.nodes_graph, drone_h);
+                        if(j < 0){
+                            break;
+                        }
+                        std::cout << "lcaToCurrPath[j]: " << lcaToCurrPath[j] << std::endl;
+                        std::cout << "j: " << j  << std::endl;
                         
-            //             mp[lcaToCurrPath[j]].push_back(drone);
+                        mp[lcaToCurrPath[j]].push_back(drone);
                         
-            //             max_duration = std::max(duration, max_duration);
-            //         }
+                        max_duration = std::max(duration, max_duration);
+                    }
                     
-            //         // rclcpp::sleep_for(std::chrono::seconds(max_duration)); 
-            //         k = lcaToCurrPath[j];
-            //         n_drones_req--;
+                    // rclcpp::sleep_for(std::chrono::seconds(max_duration)); 
+                    k = lcaToCurrPath[j];
+                    n_drones_req--;
 
-            //     }
+                }
                
-            //     if(mp[curr].size() < 2){
-            //         rclcpp::sleep_for(std::chrono::seconds(2)); 
-            //         throw std::runtime_error("size of mp[curr] is less than 2, at last node less than two drones?");
-            //     }
+                if(mp[curr].size() < 2){
+                    rclcpp::sleep_for(std::chrono::seconds(2)); 
+                    throw std::runtime_error("size of mp[curr] is less than 2, at last node less than two drones?");
+                }
     
-            //     int scan_drone = mp[curr].back();
-            //     auto& first_face = (solution.bfs_order[i].second).first; 
-            //     auto& second_face = (solution.bfs_order[i].second).second; 
+                int scan_drone = mp[curr].back();
+                auto& first_face = (solution.bfs_order[i].second).first; 
+                auto& second_face = (solution.bfs_order[i].second).second; 
                 
-            //     Eigen::Vector4d start;
-            //     Eigen::Vector4d end;
+                Eigen::Vector4d start;
+                Eigen::Vector4d end;
     
-            //     if(!(first_face).empty()){
-            //         for(uint j = 0; j < (first_face).size(); j+=2){
-            //             start = first_face[j];
-            //             end = first_face[j+1];
+                if(!(first_face).empty()){
+                    for(uint j = 0; j < (first_face).size(); j+=2){
+                        start = first_face[j];
+                        end = first_face[j+1];
     
-            //             // duration = this->go_to(scan_drone, start[0], start[1], start[2], start[2]);
-            //             // std::cout << "GoTo: [" << scan_drone << "]" << ":" << "(" << start[0] << "," << start[1] << "," << start[2] <<  "," << start[2] << ")" << std::endl;
-            //             // rclcpp::sleep_for(std::chrono::seconds(duration)); 
+                        // duration = this->go_to(scan_drone, start[0], start[1], start[2], start[2]);
+                        // std::cout << "GoTo: [" << scan_drone << "]" << ":" << "(" << start[0] << "," << start[1] << "," << start[2] <<  "," << start[2] << ")" << std::endl;
+                        // rclcpp::sleep_for(std::chrono::seconds(duration)); 
                         
-            //             // duration = this->go_to(scan_drone, end[0], end[1], end[2], end[2]);
-            //             // std::cout << "GoTo: [" << scan_drone << "]" << ":" << "(" << end[0] << "," << end[1] << "," << end[2] <<  "," << end[2] << ")" << std::endl;
-            //             // rclcpp::sleep_for(std::chrono::seconds(duration)); 
+                        // duration = this->go_to(scan_drone, end[0], end[1], end[2], end[2]);
+                        // std::cout << "GoTo: [" << scan_drone << "]" << ":" << "(" << end[0] << "," << end[1] << "," << end[2] <<  "," << end[2] << ")" << std::endl;
+                        // rclcpp::sleep_for(std::chrono::seconds(duration)); 
     
-            //             // duration = this->go_to(scan_drone, start[0], start[1], start[2], start[2]);
-            //             // std::cout << "GoTo: [" << scan_drone << "]" << ":" << "(" << start[0] << "," << start[1] << "," << start[2] <<  "," << start[2] << ")" << std::endl;
-            //             // rclcpp::sleep_for(std::chrono::seconds(duration)); 
-            //         }
-            //         // duration = go_to_vertex(scan_drone, curr, solution.nodes_graph, drone_h);
-            //     }
+                        // duration = this->go_to(scan_drone, start[0], start[1], start[2], start[2]);
+                        // std::cout << "GoTo: [" << scan_drone << "]" << ":" << "(" << start[0] << "," << start[1] << "," << start[2] <<  "," << start[2] << ")" << std::endl;
+                        // rclcpp::sleep_for(std::chrono::seconds(duration)); 
+                    }
+                    // duration = go_to_vertex(scan_drone, curr, solution.nodes_graph, drone_h);
+                }
     
-            //     if(!(second_face).empty()){
-            //         for(uint j = 0; j < (second_face).size(); j+=2){
-            //             start = second_face[j];
-            //             end = second_face[j+1];
+                if(!(second_face).empty()){
+                    for(uint j = 0; j < (second_face).size(); j+=2){
+                        start = second_face[j];
+                        end = second_face[j+1];
     
-            //             // duration = this->go_to(scan_drone, start[0], start[1], start[2], start[2]);
-            //             // std::cout << "GoTo: [" << scan_drone << "]" << ":" << "(" << start[0] << "," << start[1] << "," << start[2] <<  "," << start[2] << ")" << std::endl;
-            //             // rclcpp::sleep_for(std::chrono::seconds(duration)); 
+                        // duration = this->go_to(scan_drone, start[0], start[1], start[2], start[2]);
+                        // std::cout << "GoTo: [" << scan_drone << "]" << ":" << "(" << start[0] << "," << start[1] << "," << start[2] <<  "," << start[2] << ")" << std::endl;
+                        // rclcpp::sleep_for(std::chrono::seconds(duration)); 
                         
-            //             // duration = this->go_to(scan_drone, end[0], end[1], end[2], end[2]);
-            //             // std::cout << "GoTo: [" << scan_drone << "]" << ":" << "(" << end[0] << "," << end[1] << "," << end[2] <<  "," << end[2] << ")" << std::endl;
-            //             // rclcpp::sleep_for(std::chrono::seconds(duration)); 
+                        // duration = this->go_to(scan_drone, end[0], end[1], end[2], end[2]);
+                        // std::cout << "GoTo: [" << scan_drone << "]" << ":" << "(" << end[0] << "," << end[1] << "," << end[2] <<  "," << end[2] << ")" << std::endl;
+                        // rclcpp::sleep_for(std::chrono::seconds(duration)); 
     
-            //             // duration = this->go_to(scan_drone, start[0], start[1], start[2], start[2]);
-            //             // std::cout << "GoTo: [" << scan_drone << "]" << ":" << "(" << start[0] << "," << start[1] << "," << start[2] <<  "," << start[2] << ")" << std::endl;
-            //             // rclcpp::sleep_for(std::chrono::seconds(duration));
-            //         }
-            //         // duration = go_to_vertex(scan_drone, curr, solution.nodes_graph, drone_h);
-            //     }
+                        // duration = this->go_to(scan_drone, start[0], start[1], start[2], start[2]);
+                        // std::cout << "GoTo: [" << scan_drone << "]" << ":" << "(" << start[0] << "," << start[1] << "," << start[2] <<  "," << start[2] << ")" << std::endl;
+                        // rclcpp::sleep_for(std::chrono::seconds(duration));
+                    }
+                    // duration = go_to_vertex(scan_drone, curr, solution.nodes_graph, drone_h);
+                }
     
-            //     prev = curr;
-            // }
+                prev = curr;
+            }
             
             flag = true;
         }
-    }
-
-    ~CrazyflieCommandClient(){
-        delete tree;
+        return 0;
     }
 
 private:
