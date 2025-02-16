@@ -32,8 +32,10 @@
 #include <stack>
 #include <deque>
 #include <cstdlib>  
+#include <fstream>
 
 #include "traversal.hpp"
+#include "viz_tree.hpp"
 
 using namespace std::chrono_literals;
                                               
@@ -187,11 +189,11 @@ public:
     int go_to_vertex(int drone_namespace_, int& v, std::vector<Eigen::Vector3d>& nodes_graph, std::map<int,double> drone_h){
         auto curr = nodes_graph[v];
         curr[2] += drone_h[drone_namespace_];
-        // auto duration = this->go_to(drone_namespace_, curr[0], curr[1], curr[2], 0);
+        int duration = 0;
+        // duration = this->go_to(drone_namespace_, curr[0], curr[1], curr[2], 0);
         std::cout << "GoTo: [" << drone_namespace_ << "]" << ":" << "(" <<   v << ")" << std::endl;
         
-        return 0;
-        // return duration;
+        return duration;
     }
 
     int getLca(int u, int v, std::vector<int>& parent){
@@ -201,14 +203,56 @@ public:
 
             if(u == 0 || v == 0) return 0;
         }
-        std::cout << "got the lca" << std::endl;
         return u;
+    }
+
+    int visualizeTree(){
+        std::cout << "Visualizing the tree..." << std::endl;
+        std::map<int,tree_viz::Node*> tree_node;
+        
+        for(uint i = 0; i < solution_ptr->bfs_order.size(); i++){
+            int curr = solution_ptr->bfs_order[i].first;
+            
+            // std::cout << "added: " << curr << std::endl;
+            tree_node[curr] = new tree_viz::Node(curr);
+        }
+        
+        for(uint i = 1; i < solution_ptr->bfs_order.size(); i++){
+            int curr = solution_ptr->bfs_order[i].first;
+            int parent_curr = solution_ptr->parent[curr];
+
+            // std::cout << "curr: " << curr << " parent[curr]: " << parent_curr << std::endl;
+
+            if(tree_node.find(parent_curr) != tree_node.end()){
+                tree_node[parent_curr]->children.push_back(tree_node[curr]);
+            }
+            else{
+                std::cerr << parent_curr << " not in the map" << std::endl;
+                throw std::runtime_error("parent_curr not initialized in the map!");
+            }
+        }
+        auto root = tree_node[0];
+
+        std::ofstream dotFile("tree.dot", std::ios::out);
+        dotFile << "digraph Tree {" << std::endl;
+        dotFile << "    node [shape=circle];" << std::endl;
+
+        generateDot(dotFile, root);
+
+        dotFile << "}" << std::endl;
+        dotFile.close();
+        std::cout << "DOT file 'tree.dot' generated successfully!" << std::endl;
+
+        std::system("dot -Tpng tree.dot -o tree.png");
+        return 0;
     }
 
     int run_mission(){
         if(!flag){
-            
-            auto& solution = solver->solution;
+            solution_ptr = &(solver->solution);
+
+            visualizeTree();
+            exit(1);
     
             std::map<int,double> drone_h;
             double curr_h = 0;
@@ -224,11 +268,17 @@ public:
             int curr = 0;   
             int duration = 0.0;
             int max_duration = 0.0;
-            std::cout << solution.bfs_order.size() << std::endl;
+            std::cout << solution_ptr->bfs_order.size() << std::endl;
             
-            for(uint i = 0; i < solution.bfs_order.size(); i++){
-                curr = solution.bfs_order[i].first;
-                int lca = getLca(prev, curr, solution.parent);
+            for(uint i = 0; i < solution_ptr->bfs_order.size(); i++){
+                auto& first_face = (solution_ptr->bfs_order[i].second).first; 
+                auto& second_face = (solution_ptr->bfs_order[i].second).second; 
+
+                if(first_face.empty() && second_face.empty()) continue; //dont visit nodes with nothing to visit
+                if(curr == solution_ptr->bfs_order[i].first) continue; // if already there, dont need to go there again (initialized at base itself)
+
+                curr = solution_ptr->bfs_order[i].first;
+                int lca = getLca(prev, curr, solution_ptr->parent);
                 
                 // back to lca from prev
                 std::cout << "going from prev:" << prev << " -> lca:" << lca << std::endl;    
@@ -236,13 +286,13 @@ public:
                     max_duration = 0.0;
                     while(!mp[prev].empty()){
                         int drone = mp[prev].back(); mp[prev].pop_back();
-                        duration = go_to_vertex(drone, solution.parent[prev], solution.nodes_graph, drone_h);
+                        duration = go_to_vertex(drone, solution_ptr->parent[prev], solution_ptr->nodes_graph, drone_h);
                         max_duration = std::max(duration, max_duration);
                         
-                        mp[solution.parent[prev]].push_back(drone);
+                        mp[solution_ptr->parent[prev]].push_back(drone);
                     }
-                    // rclcpp::sleep_for(std::chrono::seconds(max_duration)); 
-                    prev = solution.parent[prev];
+                    rclcpp::sleep_for(std::chrono::seconds(max_duration)); 
+                    prev = solution_ptr->parent[prev];
                 }
                 
     
@@ -250,36 +300,29 @@ public:
                 int tmp = curr;
                 while(tmp != lca){
                     lcaToCurrPath.push_back(tmp);
-                    tmp = solution.parent[tmp];
+                    tmp = solution_ptr->parent[tmp];
                 }
     
                 // from lca to curr
-                int n_drones_req = solution.distance[curr] - solution.distance[lca] + 1;
+                int n_drones_req = solution_ptr->distance[curr] - solution_ptr->distance[lca] + 1;
                 std::cout << "going from lca:" << lca << " -> curr:" << curr << std::endl;    
                 int k = lca;
                 for(int j = int(lcaToCurrPath.size()) - 1; j >= 0; j--){
-                    std::cout << " j: " << j << std::endl;
-                    std::cout << " k: " << k << std::endl;
-                    std::cout << " mp[k].size(): " << mp[k].size() << std::endl;
-                    std::cout << " n_drones_req: " << n_drones_req << std::endl;
-                    
                     for(int itr = 0; itr < n_drones_req; itr++){
                         
                         int drone = mp[k].back(); mp[k].pop_back();
                         
-                        duration = go_to_vertex(drone, lcaToCurrPath[j], solution.nodes_graph, drone_h);
+                        duration = go_to_vertex(drone, lcaToCurrPath[j], solution_ptr->nodes_graph, drone_h);
                         if(j < 0){
                             break;
                         }
-                        std::cout << "lcaToCurrPath[j]: " << lcaToCurrPath[j] << std::endl;
-                        std::cout << "j: " << j  << std::endl;
                         
                         mp[lcaToCurrPath[j]].push_back(drone);
                         
                         max_duration = std::max(duration, max_duration);
                     }
                     
-                    // rclcpp::sleep_for(std::chrono::seconds(max_duration)); 
+                    rclcpp::sleep_for(std::chrono::seconds(max_duration)); 
                     k = lcaToCurrPath[j];
                     n_drones_req--;
 
@@ -291,8 +334,6 @@ public:
                 }
     
                 int scan_drone = mp[curr].back();
-                auto& first_face = (solution.bfs_order[i].second).first; 
-                auto& second_face = (solution.bfs_order[i].second).second; 
                 
                 Eigen::Vector4d start;
                 Eigen::Vector4d end;
@@ -314,7 +355,7 @@ public:
                         // std::cout << "GoTo: [" << scan_drone << "]" << ":" << "(" << start[0] << "," << start[1] << "," << start[2] <<  "," << start[2] << ")" << std::endl;
                         // rclcpp::sleep_for(std::chrono::seconds(duration)); 
                     }
-                    // duration = go_to_vertex(scan_drone, curr, solution.nodes_graph, drone_h);
+                    // duration = go_to_vertex(scan_drone, curr, solution_ptr->nodes_graph, drone_h);
                 }
     
                 if(!(second_face).empty()){
@@ -334,7 +375,7 @@ public:
                         // std::cout << "GoTo: [" << scan_drone << "]" << ":" << "(" << start[0] << "," << start[1] << "," << start[2] <<  "," << start[2] << ")" << std::endl;
                         // rclcpp::sleep_for(std::chrono::seconds(duration));
                     }
-                    // duration = go_to_vertex(scan_drone, curr, solution.nodes_graph, drone_h);
+                    // duration = go_to_vertex(scan_drone, curr, solution_ptr->nodes_graph, drone_h);
                 }
     
                 prev = curr;
@@ -410,10 +451,10 @@ private:
 
     octomap::OcTree* tree;
     std::shared_ptr<Solver> solver;
-    std::shared_ptr<Solution> solution;
 
     int num_cf;
     bool flag = false;
+    Solution* solution_ptr;
 
     Eigen::Vector4d start;
     Eigen::Vector4d goal;

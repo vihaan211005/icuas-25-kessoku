@@ -212,7 +212,7 @@ RUN apt-get update &&  apt-get upgrade -y && apt-get install -y \
                    libboost-program-options-dev \
                    libboost-filesystem-dev \
                    libnlopt-cxx-dev \
-                   libgoogle-glog-dev
+                   libgoogle-glog-dev 
 RUN apt install -y ros-${ROS2_DISTRO}-ros-gz${GZ_RELEASE}
 
 RUN echo "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$HOME/acados/lib" >> $HOME/.bashrc
