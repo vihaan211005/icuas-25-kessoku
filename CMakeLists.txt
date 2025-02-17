@@ -16,6 +16,7 @@ find_package(crazyflie_interfaces REQUIRED)
 find_package(builtin_interfaces REQUIRED)
 find_package(ros2_aruco_interfaces REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(octomap_msgs REQUIRED)
 find_package(octomap REQUIRED)
@@ -76,7 +77,8 @@ target_link_libraries(crazyflie_client
 ament_target_dependencies(crazyflie_client 
   rclcpp 
   crazyflie_interfaces 
-  geometry_msgs 
+  geometry_msgs
+  sensor_msgs 
   builtin_interfaces 
   ros2_aruco_interfaces 
   octomap_msgs 

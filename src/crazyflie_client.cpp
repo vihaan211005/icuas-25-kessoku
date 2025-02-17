@@ -18,6 +18,8 @@
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "std_msgs/msg/string.hpp"
 #include "icuas25_msgs/msg/target_info.hpp"
+#include "sensor_msgs/msg/battery_state.hpp"
+#include "std_msgs/msg/bool.hpp"
 
 #include <boost/functional/hash.hpp>
 #include <boost/thread.hpp>
@@ -36,6 +38,7 @@
 
 #include "traversal.hpp"
 #include "viz_tree.hpp"
+#include "utils.hpp"
 
 using namespace std::chrono_literals;
                                               
@@ -51,9 +54,14 @@ public:
         odom_linear(std::vector<geometry_msgs::msg::Point>(num_cf)),
         odom_quat(std::vector<geometry_msgs::msg::Quaternion>(num_cf)),
         pose_subscriptions_(num_cf),
-        aruco_subscriptions_(num_cf)
+        aruco_subscriptions_(num_cf),
+        start_charging_pub_(num_cf),
+        stop_charging_pub_(num_cf),
+        battery_status_(num_cf, 1)
     {
         aruco_cb_options.callback_group = aruco_cb_group_;
+        battery_cb_options.callback_group = battery_cb_group_;
+
         for(int i = 0; i < num_cf; i++){
             pose_subscriptions_[i] = this->create_subscription<geometry_msgs::msg::PoseStamped>(
                                             "/cf_" + std::to_string(i+1) + "/pose", 
@@ -68,11 +76,14 @@ public:
                                             [this, i](const ros2_aruco_interfaces::msg::ArucoMarkers::SharedPtr msg) {
                                                 this->aruco_callback(*msg, i + 1);
                                             }, aruco_cb_options);
-        }
 
-// // /cf_1/battery_charge/start
-// /cf_1/battery_charge/stop
-// /cf_1/battery_status
+            battery_subscriptions_[i] = this->create_subscription<sensor_msgs::msg::BatteryState>(
+                                            "/cf_" + std::to_string(i+1) + "/battery_status", 
+                                            10,
+                                            [this, i](const sensor_msgs::msg::BatteryState::SharedPtr msg) {
+                                                this->battery_callback(*msg, i + 1);
+                                            }, battery_cb_options);
+        }
 
         RCLCPP_INFO(this->get_logger(), "Getting Octomap...");
         get_octomap();
@@ -186,12 +197,107 @@ public:
         return 2 * dist(std::vector<double>{x, y, z}, std::vector<double>{odom_linear[drone_namespace_ - 1].x, odom_linear[drone_namespace_ - 1].y, odom_linear[drone_namespace_ - 1].z});
     }
 
-    int go_to_vertex(int drone_namespace_, int& v, std::vector<Eigen::Vector3d>& nodes_graph, std::map<int,double> drone_h){
+    int go_for_recharge(int v){
+        int lca = 0;
+        
+        // back to base from curr
+        std::cout << utils::Color::FG_RED << "going to base! curr:" << v << " -> base:" << lca << utils::Color::FG_DEFAULT << std::endl;;
+        int n_drones_curr = mp[v].size();
+
+        int duration = 0;
+        int max_duration = 0;
+        while(v != lca){
+            max_duration = 0;
+            while(!mp[v].empty()){
+                int drone = mp[v].back(); mp[v].pop_back();
+                duration = go_to_vertex(drone, solution_ptr->parent[v], solution_ptr->nodes_graph);
+                max_duration = std::max(duration, max_duration);
+                
+                mp[solution_ptr->parent[v]].push_back(drone);
+            }
+            rclcpp::sleep_for(std::chrono::seconds(max_duration)); 
+            v = solution_ptr->parent[v];
+        }
+
+        // /root/CrazySim/ros2_ws/src/icuas25_competition/launch/drone_spawn_list/positions.txt
+        std::ifstream file("/root/CrazySim/ros2_ws/src/icuas25_competition/launch/drone_spawn_list/positions.txt");
+        std::string line;
+        std::vector<std::vector<double>> positions;
+        while(std::getline(file, line)){
+            std::istringstream iss(line);
+            std::vector<double> position;
+            double x, y, z;
+            if(!(iss >> x >> y >> z)){
+                break;
+            }
+            position.push_back(x);
+            position.push_back(y);
+            position.push_back(z);
+            positions.push_back(position);
+        }
+
+        max_duration = 0;
+        for(int i = 0; i < num_cf; i++){
+            int drone = i + 1;
+            // duration = go_to(drone, positions[i][0], positions[i][1], positions[i][2], 0.1);
+            max_duration = std::max(duration, max_duration);
+        }
+        rclcpp::sleep_for(std::chrono::seconds(max_duration)); 
+        for(int i = 0; i < num_cf; i++){
+            int drone = i + 1;
+            land(drone);
+        }
+
+        while(min_charge < 0.95){
+            rclcpp::sleep_for(std::chrono::seconds(5));
+            RCLCPP_INFO(this->get_logger(), "Charging...");
+        }
+
+        for(int i = 0; i < num_cf; i++){
+            int drone = i + 1;
+            takeoff(drone);
+        }
+
+        // back to base from curr (v)
+        std::vector<int> lcaToCurrPath;
+        int tmp = v;
+        while(tmp != lca){
+            lcaToCurrPath.push_back(tmp);
+            tmp = solution_ptr->parent[tmp];
+        }
+
+        int n_drones_req = n_drones_curr;
+        std::cout << utils::Color::FG_RED << "going to curr:" << v << " -> base:" << lca << utils::Color::FG_DEFAULT << std::endl;;    
+        int k = lca;
+        for(int j = int(lcaToCurrPath.size()) - 1; j >= 0; j--){
+            max_duration = 0;
+            for(int itr = 0; itr < n_drones_req; itr++){
+                
+                int drone = mp[k].back(); mp[k].pop_back();
+                
+                duration = go_to_vertex(drone, lcaToCurrPath[j], solution_ptr->nodes_graph);
+                if(j < 0){
+                    break;
+                }
+                
+                mp[lcaToCurrPath[j]].push_back(drone);
+                max_duration = std::max(duration, max_duration);
+            }
+            rclcpp::sleep_for(std::chrono::seconds(max_duration)); 
+
+            k = lcaToCurrPath[j];
+            n_drones_req--;
+        }
+        
+        return 0;
+    }
+
+    int go_to_vertex(int drone_namespace_, int v, std::vector<Eigen::Vector3d>& nodes_graph){
         auto curr = nodes_graph[v];
         curr[2] += drone_h[drone_namespace_];
         int duration = 0;
-        // duration = this->go_to(drone_namespace_, curr[0], curr[1], curr[2], 0);
-        std::cout << "GoTo: [" << drone_namespace_ << "]" << ":" << "(" <<   v << ")" << std::endl;
+        std::cout << utils::Color::FG_BLUE << "GoTo: [" << drone_namespace_ << "]" << ":" << "(" <<   v << ")" << utils::Color::FG_DEFAULT << std::endl;
+        // duration = go_to(drone_namespace_, curr[0], curr[1], curr[2], 0);
         
         return duration;
     }
@@ -252,22 +358,21 @@ public:
             solution_ptr = &(solver->solution);
 
             visualizeTree();
-            exit(1);
+            // exit(1);
     
-            std::map<int,double> drone_h;
             double curr_h = 0;
             for(int i = 1; i <= num_cf; i++){
                 drone_h[i] = curr_h;
                 curr_h -= 0.15;
             }
-    
-            std::map<int,std::deque<int>> mp;
+
+            // std::map<int,std::deque<int>> mp;
             mp[0] = {1,2,3,4,5};
             
             int prev = 0;
             int curr = 0;   
-            int duration = 0.0;
-            int max_duration = 0.0;
+            int duration = 0;
+            int max_duration = 0;
             std::cout << solution_ptr->bfs_order.size() << std::endl;
             
             for(uint i = 0; i < solution_ptr->bfs_order.size(); i++){
@@ -281,12 +386,13 @@ public:
                 int lca = getLca(prev, curr, solution_ptr->parent);
                 
                 // back to lca from prev
-                std::cout << "going from prev:" << prev << " -> lca:" << lca << std::endl;    
+                std::cout << utils::Color::FG_BLUE << "going from prev:" << prev << " -> lca:" << lca << utils::Color::FG_DEFAULT << std::endl;;
+                    
                 while(prev != lca){
-                    max_duration = 0.0;
+                    max_duration = 0;
                     while(!mp[prev].empty()){
                         int drone = mp[prev].back(); mp[prev].pop_back();
-                        duration = go_to_vertex(drone, solution_ptr->parent[prev], solution_ptr->nodes_graph, drone_h);
+                        duration = go_to_vertex(drone, solution_ptr->parent[prev], solution_ptr->nodes_graph);
                         max_duration = std::max(duration, max_duration);
                         
                         mp[solution_ptr->parent[prev]].push_back(drone);
@@ -294,8 +400,21 @@ public:
                     rclcpp::sleep_for(std::chrono::seconds(max_duration)); 
                     prev = solution_ptr->parent[prev];
                 }
-                
-    
+
+                // if lca is base (reorder for the most charged ones to go)
+                if(lca == 0){
+                    std::vector<int> drones_lca;
+                    while(!mp[lca].empty()){
+                        drones_lca.push_back(mp[lca].back());
+                        mp[lca].pop_back();
+                    }
+                    std::sort(drones_lca.begin(), drones_lca.end(), [&](int a, int b){ return battery_status_[a-1] < battery_status_[b-1]; });
+
+                    for(uint i = 0; i < drones_lca.size(); i++){
+                        mp[lca].push_back(drones_lca[i]);
+                    } // TODO: cross-check this logic
+                }
+
                 std::vector<int> lcaToCurrPath;
                 int tmp = curr;
                 while(tmp != lca){
@@ -305,14 +424,15 @@ public:
     
                 // from lca to curr
                 int n_drones_req = solution_ptr->distance[curr] - solution_ptr->distance[lca] + 1;
-                std::cout << "going from lca:" << lca << " -> curr:" << curr << std::endl;    
+                std::cout << utils::Color::FG_BLUE << "going from lca:" << lca << " -> curr:" << curr << utils::Color::FG_DEFAULT << std::endl;;    
                 int k = lca;
                 for(int j = int(lcaToCurrPath.size()) - 1; j >= 0; j--){
+                    max_duration = 0;
                     for(int itr = 0; itr < n_drones_req; itr++){
                         
                         int drone = mp[k].back(); mp[k].pop_back();
                         
-                        duration = go_to_vertex(drone, lcaToCurrPath[j], solution_ptr->nodes_graph, drone_h);
+                        duration = go_to_vertex(drone, lcaToCurrPath[j], solution_ptr->nodes_graph);
                         if(j < 0){
                             break;
                         }
@@ -337,25 +457,26 @@ public:
                 
                 Eigen::Vector4d start;
                 Eigen::Vector4d end;
-    
+
+
                 if(!(first_face).empty()){
                     for(uint j = 0; j < (first_face).size(); j+=2){
                         start = first_face[j];
                         end = first_face[j+1];
-    
-                        // duration = this->go_to(scan_drone, start[0], start[1], start[2], start[2]);
+
+                        // duration = go_to(scan_drone, start[0], start[1], start[2], start[2]);
                         // std::cout << "GoTo: [" << scan_drone << "]" << ":" << "(" << start[0] << "," << start[1] << "," << start[2] <<  "," << start[2] << ")" << std::endl;
-                        // rclcpp::sleep_for(std::chrono::seconds(duration)); 
+                        rclcpp::sleep_for(std::chrono::seconds(duration)); 
                         
-                        // duration = this->go_to(scan_drone, end[0], end[1], end[2], end[2]);
+                        // duration = go_to(scan_drone, end[0], end[1], end[2], end[2]);
                         // std::cout << "GoTo: [" << scan_drone << "]" << ":" << "(" << end[0] << "," << end[1] << "," << end[2] <<  "," << end[2] << ")" << std::endl;
-                        // rclcpp::sleep_for(std::chrono::seconds(duration)); 
+                        rclcpp::sleep_for(std::chrono::seconds(duration)); 
     
-                        // duration = this->go_to(scan_drone, start[0], start[1], start[2], start[2]);
+                        // duration = go_to(scan_drone, start[0], start[1], start[2], start[2]);
                         // std::cout << "GoTo: [" << scan_drone << "]" << ":" << "(" << start[0] << "," << start[1] << "," << start[2] <<  "," << start[2] << ")" << std::endl;
-                        // rclcpp::sleep_for(std::chrono::seconds(duration)); 
+                        rclcpp::sleep_for(std::chrono::seconds(duration)); 
                     }
-                    // duration = go_to_vertex(scan_drone, curr, solution_ptr->nodes_graph, drone_h);
+                    duration = go_to_vertex(scan_drone, curr, solution_ptr->nodes_graph);
                 }
     
                 if(!(second_face).empty()){
@@ -363,19 +484,19 @@ public:
                         start = second_face[j];
                         end = second_face[j+1];
     
-                        // duration = this->go_to(scan_drone, start[0], start[1], start[2], start[2]);
+                        // duration = go_to(scan_drone, start[0], start[1], start[2], start[2]);
                         // std::cout << "GoTo: [" << scan_drone << "]" << ":" << "(" << start[0] << "," << start[1] << "," << start[2] <<  "," << start[2] << ")" << std::endl;
-                        // rclcpp::sleep_for(std::chrono::seconds(duration)); 
+                        rclcpp::sleep_for(std::chrono::seconds(duration)); 
                         
-                        // duration = this->go_to(scan_drone, end[0], end[1], end[2], end[2]);
+                        // duration = go_to(scan_drone, end[0], end[1], end[2], end[2]);
                         // std::cout << "GoTo: [" << scan_drone << "]" << ":" << "(" << end[0] << "," << end[1] << "," << end[2] <<  "," << end[2] << ")" << std::endl;
-                        // rclcpp::sleep_for(std::chrono::seconds(duration)); 
+                        rclcpp::sleep_for(std::chrono::seconds(duration)); 
     
-                        // duration = this->go_to(scan_drone, start[0], start[1], start[2], start[2]);
+                        // duration = go_to(scan_drone, start[0], start[1], start[2], start[2]);
                         // std::cout << "GoTo: [" << scan_drone << "]" << ":" << "(" << start[0] << "," << start[1] << "," << start[2] <<  "," << start[2] << ")" << std::endl;
-                        // rclcpp::sleep_for(std::chrono::seconds(duration));
+                        rclcpp::sleep_for(std::chrono::seconds(duration));
                     }
-                    // duration = go_to_vertex(scan_drone, curr, solution_ptr->nodes_graph, drone_h);
+                    duration = go_to_vertex(scan_drone, curr, solution_ptr->nodes_graph);
                 }
     
                 prev = curr;
@@ -407,6 +528,22 @@ private:
                     prev_aruco_position = {msg.poses[k].position.x, msg.poses[k].position.y, msg.poses[k].position.z};
                 }
             }
+        }
+    }
+
+    void battery_callback(const sensor_msgs::msg::BatteryState & msg, const int drone_namespace_){
+        int k = drone_namespace_ - 1;
+
+        battery_status_[k] = msg.percentage;
+
+        double curr_min = 1.0;
+        for(double curr : battery_status_){
+            curr_min = std::min(curr_min, curr);
+        }
+        min_charge = curr_min;
+
+        if(min_charge < 0.3){
+            recharge_flag = true;
         }
     }
 
@@ -458,25 +595,38 @@ private:
 
     Eigen::Vector4d start;
     Eigen::Vector4d goal;
+    std::map<int,double> drone_h;
 
     std::vector<geometry_msgs::msg::Point> odom_linear;
     std::vector<geometry_msgs::msg::Quaternion> odom_quat;
 
     rclcpp::CallbackGroup::SharedPtr service_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
     rclcpp::CallbackGroup::SharedPtr aruco_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+    rclcpp::CallbackGroup::SharedPtr battery_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
     rclcpp::CallbackGroup::SharedPtr run_mission_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+    
     rclcpp::SubscriptionOptions aruco_cb_options;
+    rclcpp::SubscriptionOptions battery_cb_options;
 
     rclcpp::TimerBase::SharedPtr aruco_timer_;
     rclcpp::TimerBase::SharedPtr run_mission_timer_;
 
     std::vector<rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr> pose_subscriptions_;
     std::vector<rclcpp::Subscription<ros2_aruco_interfaces::msg::ArucoMarkers>::SharedPtr> aruco_subscriptions_;
+    std::vector<rclcpp::Subscription<sensor_msgs::msg::BatteryState>::SharedPtr> battery_subscriptions_;
     rclcpp::Publisher<icuas25_msgs::msg::TargetInfo>::SharedPtr res_publisher_;
+
+    std::vector<rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr> start_charging_pub_;
+    std::vector<rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr> stop_charging_pub_;
 
     double curr_aruco_id;
     std::vector<double> curr_aruco_position = {-1e8, -1e8, -1e8};
     std::vector<double> prev_aruco_position = {-1e8, -1e8, -1e8};
+
+    std::vector<float> battery_status_;
+    volatile bool recharge_flag = false;
+    std::map<int,std::deque<int>> mp;
+    double min_charge;
 };
 
 int main(int argc, char **argv)
