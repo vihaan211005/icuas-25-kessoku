@@ -98,6 +98,8 @@ public:
         res_publisher_ = this->create_publisher<icuas25_msgs::msg::TargetInfo>("target_found", 10);
         aruco_timer_ = this->create_wall_timer(500ms, std::bind(&CrazyflieCommandClient::timer_callback, this), aruco_cb_group_);
         run_mission_timer_ = this->create_wall_timer(500ms, std::bind(&CrazyflieCommandClient::run_mission, this), run_mission_cb_group_);
+    
+        drone_status.resize(num_cf, std::make_pair(true, Eigen::Vector3d()));
     }
     
     int get_octomap(const std::string &octomap_topic_ = "/octomap_binary"){
@@ -194,6 +196,7 @@ public:
             drone_namespace_, x, y, z, odom_linear[i].x, odom_linear[i].y, odom_linear[i].z);
         }
         */
+        drone_status[drone_namespace_ - 1] = std::make_pair(false, Eigen::Vector3d(x, y, z));
         return 2 * dist(std::vector<double>{x, y, z}, std::vector<double>{odom_linear[drone_namespace_ - 1].x, odom_linear[drone_namespace_ - 1].y, odom_linear[drone_namespace_ - 1].z});
     }
 
@@ -215,7 +218,8 @@ public:
                 
                 mp[solution_ptr->parent[v]].push_back(drone);
             }
-            rclcpp::sleep_for(std::chrono::seconds(max_duration)); 
+            while(check()) continue;
+            // rclcpp::sleep_for(std::chrono::seconds(max_duration)); 
             v = solution_ptr->parent[v];
         }
 
@@ -242,7 +246,8 @@ public:
             // duration = go_to(drone, positions[i][0], positions[i][1], positions[i][2], 0.1);
             max_duration = std::max(duration, max_duration);
         }
-        rclcpp::sleep_for(std::chrono::seconds(max_duration)); 
+        while(check()) continue;
+        // rclcpp::sleep_for(std::chrono::seconds(max_duration)); 
         for(int i = 0; i < num_cf; i++){
             int drone = i + 1;
             land(drone);
@@ -283,7 +288,8 @@ public:
                 mp[lcaToCurrPath[j]].push_back(drone);
                 max_duration = std::max(duration, max_duration);
             }
-            rclcpp::sleep_for(std::chrono::seconds(max_duration)); 
+            while(check()) continue;
+            // rclcpp::sleep_for(std::chrono::seconds(max_duration)); 
 
             k = lcaToCurrPath[j];
             n_drones_req--;
@@ -397,7 +403,8 @@ public:
                         
                         mp[solution_ptr->parent[prev]].push_back(drone);
                     }
-                    rclcpp::sleep_for(std::chrono::seconds(max_duration)); 
+                    while(check()) continue;
+                    // rclcpp::sleep_for(std::chrono::seconds(max_duration)); 
                     prev = solution_ptr->parent[prev];
                 }
 
@@ -442,7 +449,8 @@ public:
                         max_duration = std::max(duration, max_duration);
                     }
                     
-                    rclcpp::sleep_for(std::chrono::seconds(max_duration)); 
+                    while(check()) continue;
+                    // rclcpp::sleep_for(std::chrono::seconds(max_duration)); 
                     k = lcaToCurrPath[j];
                     n_drones_req--;
 
@@ -465,16 +473,19 @@ public:
                         end = first_face[j+1];
 
                         // duration = go_to(scan_drone, start[0], start[1], start[2], start[2]);
-                        // std::cout << "GoTo: [" << scan_drone << "]" << ":" << "(" << start[0] << "," << start[1] << "," << start[2] <<  "," << start[2] << ")" << std::endl;
-                        rclcpp::sleep_for(std::chrono::seconds(duration)); 
+                        // std::cout << "GoTo: [" << scan_drone << "]" << ":" << "("duration << start[0] << "," << start[1] << "," << start[2] <<  "," << start[2] << ")" << std::endl;
+                        while(check()) continue;
+                        //rclcpp::sleep_for(std::chrono::seconds(duration)); 
                         
                         // duration = go_to(scan_drone, end[0], end[1], end[2], end[2]);
                         // std::cout << "GoTo: [" << scan_drone << "]" << ":" << "(" << end[0] << "," << end[1] << "," << end[2] <<  "," << end[2] << ")" << std::endl;
-                        rclcpp::sleep_for(std::chrono::seconds(duration)); 
+                        while(check()) continue;
+                        //rclcpp::sleep_for(std::chrono::seconds(duration)); 
     
                         // duration = go_to(scan_drone, start[0], start[1], start[2], start[2]);
                         // std::cout << "GoTo: [" << scan_drone << "]" << ":" << "(" << start[0] << "," << start[1] << "," << start[2] <<  "," << start[2] << ")" << std::endl;
-                        rclcpp::sleep_for(std::chrono::seconds(duration)); 
+                        while(check()) continue;
+                        //rclcpp::sleep_for(std::chrono::seconds(duration)); 
                     }
                     duration = go_to_vertex(scan_drone, curr, solution_ptr->nodes_graph);
                 }
@@ -486,11 +497,13 @@ public:
     
                         // duration = go_to(scan_drone, start[0], start[1], start[2], start[2]);
                         // std::cout << "GoTo: [" << scan_drone << "]" << ":" << "(" << start[0] << "," << start[1] << "," << start[2] <<  "," << start[2] << ")" << std::endl;
-                        rclcpp::sleep_for(std::chrono::seconds(duration)); 
+                        while(check()) continue;
+                        //rclcpp::sleep_for(std::chrono::seconds(duration)); 
                         
                         // duration = go_to(scan_drone, end[0], end[1], end[2], end[2]);
                         // std::cout << "GoTo: [" << scan_drone << "]" << ":" << "(" << end[0] << "," << end[1] << "," << end[2] <<  "," << end[2] << ")" << std::endl;
-                        rclcpp::sleep_for(std::chrono::seconds(duration)); 
+                        while(check()) continue;
+                        //rclcpp::sleep_for(std::chrono::seconds(duration)); 
     
                         // duration = go_to(scan_drone, start[0], start[1], start[2], start[2]);
                         // std::cout << "GoTo: [" << scan_drone << "]" << ":" << "(" << start[0] << "," << start[1] << "," << start[2] <<  "," << start[2] << ")" << std::endl;
@@ -563,6 +576,19 @@ private:
         }
     }
 
+    bool check(){
+        for(int i = 0; i < num_cf, ++i){
+            double x = drone_status[i].second.x();
+            double y = drone_status[i].second.y();
+            double z = drone_status[i].second.z();
+            if(drone_status[i].first == false && dist(std::vector<double>({x, y, z}), std::vector<double>({odom_linear[i].x, odom_linear[i].y, odom_linear[i].z})) < EPS)
+                drone_status[i].second = true;
+            if(drone_status[i].first == false)
+                return true;
+        }
+        return false;
+    }
+
     template <typename T>
     void wait_for_service(typename std::shared_ptr<rclcpp::Client<T>> client, const std::string &service_name)
     {
@@ -627,6 +653,8 @@ private:
     volatile bool recharge_flag = false;
     std::map<int,std::deque<int>> mp;
     double min_charge;
+
+    std::vector<std::pair<bool, Eigen::Vector3d>> drone_status();
 };
 
 int main(int argc, char **argv)
