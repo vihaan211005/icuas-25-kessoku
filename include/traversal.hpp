@@ -144,6 +144,8 @@ private:
             if ((!i) || !(z + j))
                 break;
             j--;
+            if (mapBounds.min.z() + (z + j) * resolution < 1)
+                break;
         }
 
         j = 0;
@@ -167,6 +169,8 @@ private:
             if ((!i) || !(z + j))
                 break;
             j--;
+            if (mapBounds.min.z() + (z + j) * resolution < 1)
+                break;
         }
 
         return solution_;
@@ -209,6 +213,7 @@ private:
                 double yaw1 = (face[0].yaw * M_PI) + (M_PI / 2) * (face[0].yaw > 1);
                 Eigen::Vector3d p2 = indexToPoint(face[face.size() - 1].pos);
                 double yaw2 = (face[face.size() - 1].yaw * M_PI) + (M_PI / 2) * (face[face.size() - 1].yaw > 1);
+                // std::cout << "yaw1: " << yaw1 << ", yaw2: " << yaw2 << std::endl;
                 pehla.push_back(Eigen::Vector4d(p1.x(), p1.y(), p1.z(), yaw1));
                 pehla.push_back(Eigen::Vector4d(p2.x(), p2.y(), p2.z(), yaw2));
             }
@@ -222,10 +227,11 @@ private:
                 double yaw1 = (face[0].yaw * M_PI) + (M_PI / 2) * (face[0].yaw > 1);
                 Eigen::Vector3d p2 = indexToPoint(face[face.size() - 1].pos);
                 double yaw2 = (face[face.size() - 1].yaw * M_PI) + (M_PI / 2) * (face[face.size() - 1].yaw > 1);
+                // std::cout << "yaw1: " << yaw1 << ", yaw2: " << yaw2 << std::endl;
                 dusra.push_back(Eigen::Vector4d(p1.x(), p1.y(), p1.z(), yaw1));
                 dusra.push_back(Eigen::Vector4d(p2.x(), p2.y(), p2.z(), yaw2));
             }
-            //if (node)
+            // if (node)
             solution.bfs_order.push_back(std::make_pair(node, std::make_pair(pehla, dusra)));
 
             if (distance[node] == num_drones - 1)
