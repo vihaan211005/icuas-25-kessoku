@@ -43,6 +43,7 @@
 using namespace std::chrono_literals;
                                               
 double EPS = 0.5;
+double land_h = 2;
 int num = 5;
 
 class CrazyflieCommandClient : public rclcpp::Node
@@ -148,30 +149,30 @@ public:
         return 0;
     }
 
-    int land(int drone_namespace_)
+    int land(int drone)
     {
-        RCLCPP_INFO(this->get_logger(), "Called CrazyflieCommandClient::land for namespace: %d", drone_namespace_);
+        RCLCPP_INFO(this->get_logger(), "Called CrazyflieCommandClient::land for namespace: %d", drone);
 
-        auto client = this->create_client<crazyflie_interfaces::srv::Land>("/cf_" + std::to_string(drone_namespace_) + "/land", rmw_qos_profile_services_default, service_cb_group_);
+        auto client = this->create_client<crazyflie_interfaces::srv::Land>("/cf_" + std::to_string(drone) + "/land", rmw_qos_profile_services_default, service_cb_group_);
         auto request = std::make_shared<crazyflie_interfaces::srv::Land::Request>();
 
         request->group_mask = 0;
-        request->height = 0.1; 
+        request->height = land_h + drone_h[drone - 1]; 
         request->duration.sec = 2; 
         request->duration.nanosec = 0;
 
-        wait_for_service(client, "/cf_" + std::to_string(drone_namespace_) + "/land");
+        wait_for_service(client, "/cf_" + std::to_string(drone) + "/land");
 
         auto result = client->async_send_request(request).get();
 
         return 0;
     }
 
-    int go_to(int drone_namespace_, double x, double y, double z, double yaw)
+    int go_to(int drone, double x, double y, double z, double yaw)
     {
-        RCLCPP_INFO(this->get_logger(), "Initialized CrazyflieCommandClient::go_to for namespace: %d", drone_namespace_);
+        RCLCPP_INFO(this->get_logger(), "Initialized CrazyflieCommandClient::go_to for namespace: %d", drone);
 
-        auto client = this->create_client<crazyflie_interfaces::srv::GoTo>("/cf_" + std::to_string(drone_namespace_) + "/go_to", rmw_qos_profile_services_default, service_cb_group_);
+        auto client = this->create_client<crazyflie_interfaces::srv::GoTo>("/cf_" + std::to_string(drone) + "/go_to", rmw_qos_profile_services_default, service_cb_group_);
         auto request = std::make_shared<crazyflie_interfaces::srv::GoTo::Request>();
 
         request->group_mask = 0;
@@ -180,14 +181,14 @@ public:
         request->goal.y = y;
         request->goal.z = z;
         request->yaw = yaw; 
-        request->duration.sec = 1 * dist(std::vector<double>{x, y, z}, std::vector<double>{odom_linear[drone_namespace_ - 1].x, odom_linear[drone_namespace_ - 1].y, odom_linear[drone_namespace_ - 1].z}); 
+        request->duration.sec = 1 * dist(std::vector<double>{x, y, z}, std::vector<double>{odom_linear[drone - 1].x, odom_linear[drone - 1].y, odom_linear[drone - 1].z}); 
         request->duration.nanosec = 0;
 
-        wait_for_service(client, "/cf_" + std::to_string(drone_namespace_) + "/go_to");
+        wait_for_service(client, "/cf_" + std::to_string(drone) + "/go_to");
 
-        int i = drone_namespace_ - 1;
+        int i = drone - 1;
         RCLCPP_INFO(this->get_logger(), "GoTo request sent to %d with goal: [%.2f, %.2f, %.2f] yaw: [%.2f], distance: %.2f",
-                    drone_namespace_, x, y, z, yaw, dist(std::vector<double>({x, y, z}), std::vector<double>({odom_linear[i].x, odom_linear[i].y, odom_linear[i].z})));
+                    drone, x, y, z, yaw, dist(std::vector<double>({x, y, z}), std::vector<double>({odom_linear[i].x, odom_linear[i].y, odom_linear[i].z})));
 
         auto result = client->async_send_request(request).get();
 
@@ -197,15 +198,15 @@ public:
             drone_namespace_, x, y, z, odom_linear[i].x, odom_linear[i].y, odom_linear[i].z);
         }
         */
-        drone_status[drone_namespace_ - 1] = std::make_pair(false, Eigen::Vector3d(x, y, z));
+        drone_status[drone - 1] = std::make_pair(false, Eigen::Vector3d(x, y, z));
         // return 2 * dist(std::vector<double>{x, y, z}, std::vector<double>{odom_linear[drone_namespace_ - 1].x, odom_linear[drone_namespace_ - 1].y, odom_linear[drone_namespace_ - 1].z});
         return 0;
     }
 
-    int upload_trajectory(const int& drone_namespace_, uint trajectory_id, std::string filename){
-        RCLCPP_INFO(this->get_logger(), "Initialized CrazyflieCommandClient::upload_trajectory for namespace: %d", drone_namespace_);
+    int upload_trajectory(const int& drone, uint trajectory_id, std::string filename){
+        RCLCPP_INFO(this->get_logger(), "Initialized CrazyflieCommandClient::upload_trajectory for namespace: %d", drone);
 
-        auto client = this->create_client<crazyflie_interfaces::srv::UploadTrajectory>("/cf_" + std::to_string(drone_namespace_) + "/upload_trajectory", rmw_qos_profile_services_default, service_cb_group_);
+        auto client = this->create_client<crazyflie_interfaces::srv::UploadTrajectory>("/cf_" + std::to_string(drone) + "/upload_trajectory", rmw_qos_profile_services_default, service_cb_group_);
         auto request = std::make_shared<crazyflie_interfaces::srv::UploadTrajectory::Request>();
         
         std::vector<crazyflie_interfaces::msg::TrajectoryPolynomialPiece> pieces;
@@ -266,7 +267,7 @@ public:
         request->piece_offset = 0;
         request->pieces = pieces;
 
-        wait_for_service(client, "/cf_" + std::to_string(drone_namespace_) + "/upload_trajectory");
+        wait_for_service(client, "/cf_" + std::to_string(drone) + "/upload_trajectory");
 
         for(int i = 0; i < pieces.size(); i++){
             for(int j = 0; j < pieces[i].poly_x.size(); j++){
@@ -286,15 +287,15 @@ public:
 
         auto result = client->async_send_request(request).get();
         RCLCPP_INFO(this->get_logger(), "UploadTrajectory request sent to %d",
-                    drone_namespace_);
+                    drone);
 
         return 0;
     }
 
-    int start_trajectory(const int& drone_namespace_, float timescale, uint trajectory_id){
-        RCLCPP_INFO(this->get_logger(), "Initialized CrazyflieCommandClient::start_trajectory for namespace: %d", drone_namespace_);
+    int start_trajectory(const int& drone, float timescale, uint trajectory_id){
+        RCLCPP_INFO(this->get_logger(), "Initialized CrazyflieCommandClient::start_trajectory for namespace: %d", drone);
 
-        auto client = this->create_client<crazyflie_interfaces::srv::StartTrajectory>("/cf_" + std::to_string(drone_namespace_) + "/start_trajectory", rmw_qos_profile_services_default, service_cb_group_);
+        auto client = this->create_client<crazyflie_interfaces::srv::StartTrajectory>("/cf_" + std::to_string(drone) + "/start_trajectory", rmw_qos_profile_services_default, service_cb_group_);
         auto request = std::make_shared<crazyflie_interfaces::srv::StartTrajectory::Request>();
          
         request->group_mask = 0;
@@ -303,13 +304,13 @@ public:
         request->reversed = false;
         request->relative = false;
 
-        wait_for_service(client, "/cf_" + std::to_string(drone_namespace_) + "/start_trajectory");
+        wait_for_service(client, "/cf_" + std::to_string(drone) + "/start_trajectory");
 
-        int i = drone_namespace_ - 1;
+        int i = drone - 1;
 
         auto result = client->async_send_request(request).get();
         RCLCPP_INFO(this->get_logger(), "StartTrajectory request sent to %d",
-                    drone_namespace_);
+                    drone);
 
         return 0;
     }
@@ -392,12 +393,16 @@ public:
 
     int go_to_vertex(int drone, int v, std::vector<Eigen::Vector3d>& nodes_graph){
         if(v == 0){
-            go_to(drone, start_positions[drone-1][0], start_positions[drone-1][1], start_positions[drone-1][2] + 1, 0.0);
+            go_to(drone, start_positions[drone-1][0], start_positions[drone-1][1], start_positions[drone-1][2] + land_h + drone_h[drone-1], 0.0);
             return 1;
         }
         auto curr = nodes_graph[v];
         curr[2] += drone_h[drone];
+        curr[2] += drone_h[drone];
         int duration = 0;
+        std::cout << utils::Color::FG_BLUE << "GoTo: [" << drone << "]" << ":" << "(" <<   v << ")" << utils::Color::FG_DEFAULT << std::endl;
+        duration = go_to(drone, curr[0], curr[1], curr[2], 0);
+        return 0;
         std::cout << utils::Color::FG_BLUE << "GoTo: [" << drone << "]" << ":" << "(" <<   v << ")" << utils::Color::FG_DEFAULT << std::endl;
         duration = go_to(drone, curr[0], curr[1], curr[2], 0);
         return 0;
@@ -456,6 +461,11 @@ public:
 
     int run_mission(){
         if(!flag){
+            // store the start positions
+            for(int i = 0; i < num_cf; i++){
+                start_positions[i] = std::vector<double>({odom_linear[i].x, odom_linear[i].y, odom_linear[i].z});
+            }
+
             // store the start positions
             for(int i = 0; i < num_cf; i++){
                 start_positions[i] = std::vector<double>({odom_linear[i].x, odom_linear[i].y, odom_linear[i].z});
@@ -694,7 +704,7 @@ private:
             if(drone_status[i].first == false && dist(std::vector<double>({x, y, z}), std::vector<double>({odom_linear[i].x, odom_linear[i].y, odom_linear[i].z})) < EPS){
                 drone_status[i].first = true;
                 
-                if(drone_status[i].second.x() == start_positions[i][0] && drone_status[i].second.y() == start_positions[i][1] && drone_status[i].second.z() == start_positions[i][2] + 1){
+                if(drone_status[i].second.x() == start_positions[i][0] && drone_status[i].second.y() == start_positions[i][1] && drone_status[i].second.z() == start_positions[i][2] + land_h + drone_h[i]){
                     land(i+1);
                 }
             }
@@ -739,7 +749,7 @@ private:
     Eigen::Vector4d start;
     Eigen::Vector4d goal;
     std::map<int,double> drone_h;
-    std::vector<std::vector<double>>    ;
+    std::vector<std::vector<double>> start_positions;
 
     std::vector<geometry_msgs::msg::Point> odom_linear;
     std::vector<geometry_msgs::msg::Quaternion> odom_quat;
