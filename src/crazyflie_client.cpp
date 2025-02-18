@@ -42,8 +42,9 @@
 
 using namespace std::chrono_literals;
                                               
-double EPS = 0.2;
-double land_h = 2;
+double EPS = 0.5;
+double land_h = 1;
+double land_h_0 = 0.03;
 int num = 5;
 
 class CrazyflieCommandClient : public rclcpp::Node
@@ -157,7 +158,7 @@ public:
         auto request = std::make_shared<crazyflie_interfaces::srv::Land::Request>();
 
         request->group_mask = 0;
-        request->height = land_h + drone_h[drone - 1]; 
+        request->height = land_h_0 + drone_h[drone - 1]; 
         request->duration.sec = 2; 
         request->duration.nanosec = 0;
 
@@ -394,6 +395,7 @@ public:
     int go_to_vertex(int drone, int v, std::vector<Eigen::Vector3d>& nodes_graph){
         if(v == 0){
             go_to(drone, start_positions[drone-1][0], start_positions[drone-1][1], start_positions[drone-1][2] + land_h + drone_h[drone-1], 0.0);
+            rclcpp::sleep_for(std::chrono::milliseconds(300));
             return 1;
         }
         auto curr = nodes_graph[v];
