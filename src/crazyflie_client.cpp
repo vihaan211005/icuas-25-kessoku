@@ -53,6 +53,7 @@ public:
         Node("crazyflie_command_client"), 
         num_cf(num), 
         start_positions(num_cf),
+        start_positions(num_cf),
         odom_linear(std::vector<geometry_msgs::msg::Point>(num_cf)),
         odom_quat(std::vector<geometry_msgs::msg::Quaternion>(num_cf)),
         pose_subscriptions_(num_cf),
@@ -398,11 +399,7 @@ public:
         }
         auto curr = nodes_graph[v];
         curr[2] += drone_h[drone];
-        curr[2] += drone_h[drone];
         int duration = 0;
-        std::cout << utils::Color::FG_BLUE << "GoTo: [" << drone << "]" << ":" << "(" <<   v << ")" << utils::Color::FG_DEFAULT << std::endl;
-        duration = go_to(drone, curr[0], curr[1], curr[2], 0);
-        return 0;
         std::cout << utils::Color::FG_BLUE << "GoTo: [" << drone << "]" << ":" << "(" <<   v << ")" << utils::Color::FG_DEFAULT << std::endl;
         duration = go_to(drone, curr[0], curr[1], curr[2], 0);
         return 0;
@@ -461,11 +458,6 @@ public:
 
     int run_mission(){
         if(!flag){
-            // store the start positions
-            for(int i = 0; i < num_cf; i++){
-                start_positions[i] = std::vector<double>({odom_linear[i].x, odom_linear[i].y, odom_linear[i].z});
-            }
-
             // store the start positions
             for(int i = 0; i < num_cf; i++){
                 start_positions[i] = std::vector<double>({odom_linear[i].x, odom_linear[i].y, odom_linear[i].z});
