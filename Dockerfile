@@ -217,6 +217,13 @@ RUN apt install -y ros-${ROS2_DISTRO}-ros-gz${GZ_RELEASE}
 
 RUN echo "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$HOME/acados/lib" >> $HOME/.bashrc
 
+RUN mkdir -p $HOME/CrazySim/ros2_ws/src/icuas25_competition/ext && \
+    cd $HOME/CrazySim/ros2_ws/src/icuas25_competition/ext && \
+    git clone --recursive https://github.com/whoenig/uav_trajectories.git traj && \
+    mkdir -p traj/build && cd traj/build && \
+    cmake .. && make 
+RUN echo "export TRAJ_GEN=/root/CrazySim/ros2_ws/src/icuas25_competition/ext/traj/build/genTrajectory" >> $HOME/.bashrc
+
 # setup ros2 environment variables
 RUN echo "export ROS_LOCALHOST_ONLY=1" >> $HOME/.bashrc
 RUN echo "export ROS_DOMAIN_ID=$(shuf -i 1-101 -n 1)" >> $HOME/.bashrc

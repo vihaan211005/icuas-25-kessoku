@@ -200,6 +200,118 @@ public:
         return 2 * dist(std::vector<double>{x, y, z}, std::vector<double>{odom_linear[drone_namespace_ - 1].x, odom_linear[drone_namespace_ - 1].y, odom_linear[drone_namespace_ - 1].z});
     }
 
+    int upload_trajectory(const int& drone_namespace_, uint trajectory_id, std::string filename){
+        RCLCPP_INFO(this->get_logger(), "Initialized CrazyflieCommandClient::upload_trajectory for namespace: %d", drone_namespace_);
+
+        auto client = this->create_client<crazyflie_interfaces::srv::UploadTrajectory>("/cf_" + std::to_string(drone_namespace_) + "/upload_trajectory", rmw_qos_profile_services_default, service_cb_group_);
+        auto request = std::make_shared<crazyflie_interfaces::srv::UploadTrajectory::Request>();
+        
+        std::vector<crazyflie_interfaces::msg::TrajectoryPolynomialPiece> pieces;
+        
+        std::ifstream file(filename);
+        if (!file.is_open()) {
+            std::cerr << "Cannot open " << filename << std::endl;
+            return 1;
+        }
+
+        std::string line;
+        std::getline(file, line);
+        bool startLine = true;
+
+        while (std::getline(file, line)) {
+            if (line.empty() || startLine){
+                startLine = false;
+                continue;
+            }
+
+            std::istringstream ss(line);
+            std::string token;
+            std::vector<float> values;
+            while (std::getline(ss, token, ',')) {
+                values.push_back(std::stof(token));
+            }
+
+            if (values.size() != 33) {
+                std::cerr << "Unexpected token count: " << values.size() << std::endl;
+                continue;
+            }
+
+            crazyflie_interfaces::msg::TrajectoryPolynomialPiece piece;
+            piece.poly_x.resize(8);
+            piece.poly_y.resize(8);
+            piece.poly_z.resize(8);
+            piece.poly_yaw.resize(8);
+
+            // Row pattern: token[0]=duration, tokens[1-8]=poly_x, [9-16]=poly_y, [17-24]=poly_z, [25-32]=poly_yaw
+            float duration_value = values[0];
+            for (size_t i = 0; i < 8; ++i) {
+                piece.poly_x[i]   = values[1 + i];
+                piece.poly_y[i]   = values[1 + 8 + i];
+                piece.poly_z[i]   = values[1 + 16 + i];
+                piece.poly_yaw[i] = values[1 + 24 + i];
+            }
+
+            builtin_interfaces::msg::Duration d;
+            d.sec = static_cast<int32_t>(duration_value);
+            d.nanosec = static_cast<uint32_t>((duration_value - d.sec) * 1e9);
+            piece.duration = d;
+
+            pieces.push_back(piece);
+        }
+        file.close();
+
+        request->trajectory_id = trajectory_id;
+        request->piece_offset = 0;
+        request->pieces = pieces;
+
+        wait_for_service(client, "/cf_" + std::to_string(drone_namespace_) + "/upload_trajectory");
+
+        for(int i = 0; i < pieces.size(); i++){
+            for(int j = 0; j < pieces[i].poly_x.size(); j++){
+                std::cout << pieces[i].poly_x[j] << " ";
+            }
+            for(int j = 0; j < pieces[i].poly_y.size(); j++){
+                std::cout << pieces[i].poly_y[j] << " ";
+            }
+            for(int j = 0; j < pieces[i].poly_z.size(); j++){
+                std::cout << pieces[i].poly_z[j] << " ";
+            }
+            for(int j = 0; j < pieces[i].poly_yaw.size(); j++){
+                std::cout << pieces[i].poly_yaw[j] << " ";
+            }
+            std::cout << std::endl;
+        }
+
+        auto result = client->async_send_request(request).get();
+        RCLCPP_INFO(this->get_logger(), "UploadTrajectory request sent to %d",
+                    drone_namespace_);
+
+        return 0;
+    }
+
+    int start_trajectory(const int& drone_namespace_, float timescale, uint trajectory_id){
+        RCLCPP_INFO(this->get_logger(), "Initialized CrazyflieCommandClient::start_trajectory for namespace: %d", drone_namespace_);
+
+        auto client = this->create_client<crazyflie_interfaces::srv::StartTrajectory>("/cf_" + std::to_string(drone_namespace_) + "/start_trajectory", rmw_qos_profile_services_default, service_cb_group_);
+        auto request = std::make_shared<crazyflie_interfaces::srv::StartTrajectory::Request>();
+         
+        request->group_mask = 0;
+        request->trajectory_id = trajectory_id;
+        request->timescale = 5;
+        request->reversed = false;
+        request->relative = false;
+
+        wait_for_service(client, "/cf_" + std::to_string(drone_namespace_) + "/start_trajectory");
+
+        int i = drone_namespace_ - 1;
+
+        auto result = client->async_send_request(request).get();
+        RCLCPP_INFO(this->get_logger(), "StartTrajectory request sent to %d",
+                    drone_namespace_);
+
+        return 0;
+    }
+
     int go_for_recharge(int v){
         int lca = 0;
         
