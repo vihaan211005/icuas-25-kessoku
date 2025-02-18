@@ -51,6 +51,7 @@ public:
     CrazyflieCommandClient() : 
         Node("crazyflie_command_client"), 
         num_cf(num), 
+        start_positions(num_cf),
         odom_linear(std::vector<geometry_msgs::msg::Point>(num_cf)),
         odom_quat(std::vector<geometry_msgs::msg::Quaternion>(num_cf)),
         pose_subscriptions_(num_cf),
@@ -337,38 +338,10 @@ public:
             // rclcpp::sleep_for(std::chrono::seconds(max_duration)); 
             v = solution_ptr->parent[v];
         }
-
-        // /root/CrazySim/ros2_ws/src/icuas25_competition/launch/drone_spawn_list/positions.txt
-        std::ifstream file("/root/CrazySim/ros2_ws/src/icuas25_competition/launch/drone_spawn_list/positions.txt");
-        std::string line;
-        std::vector<std::vector<double>> positions;
-        while(std::getline(file, line)){
-            std::istringstream iss(line);
-            std::vector<double> position;
-            double x, y, z;
-            if(!(iss >> x >> y >> z)){
-                break;
-            }
-            position.push_back(x);
-            position.push_back(y);
-            position.push_back(z);
-            positions.push_back(position);
-        }
-
-        max_duration = 0;
-        for(int i = 0; i < num_cf; i++){
-            int drone = i + 1;
-            duration = go_to(drone, positions[i][0], positions[i][1], positions[i][2], 0.1);
-            max_duration = std::max(duration, max_duration);
-        }
         while(check()){
             rclcpp::sleep_for(std::chrono::milliseconds(500));
         }
         // rclcpp::sleep_for(std::chrono::seconds(max_duration)); 
-        for(int i = 0; i < num_cf; i++){
-            int drone = i + 1;
-            land(drone);
-        }
 
         while(min_charge < 0.95){
             rclcpp::sleep_for(std::chrono::seconds(1));
@@ -417,14 +390,17 @@ public:
         return 0;
     }
 
-    int go_to_vertex(int drone_namespace_, int v, std::vector<Eigen::Vector3d>& nodes_graph){
+    int go_to_vertex(int drone, int v, std::vector<Eigen::Vector3d>& nodes_graph){
+        if(v == 0){
+            go_to(drone, start_positions[drone-1][0], start_positions[drone-1][1], start_positions[drone-1][2] + 1, 0.0);
+            return 1;
+        }
         auto curr = nodes_graph[v];
-        curr[2] += drone_h[drone_namespace_];
+        curr[2] += drone_h[drone];
         int duration = 0;
-        std::cout << utils::Color::FG_BLUE << "GoTo: [" << drone_namespace_ << "]" << ":" << "(" <<   v << ")" << utils::Color::FG_DEFAULT << std::endl;
-        duration = go_to(drone_namespace_, curr[0], curr[1], curr[2], 0);
-        
-        return duration;
+        std::cout << utils::Color::FG_BLUE << "GoTo: [" << drone << "]" << ":" << "(" <<   v << ")" << utils::Color::FG_DEFAULT << std::endl;
+        duration = go_to(drone, curr[0], curr[1], curr[2], 0);
+        return 0;
     }
 
     int getLca(int u, int v, std::vector<int>& parent){
@@ -480,8 +456,12 @@ public:
 
     int run_mission(){
         if(!flag){
-            solution_ptr = &(solver->solution);
+            // store the start positions
+            for(int i = 0; i < num_cf; i++){
+                start_positions[i] = std::vector<double>({odom_linear[i].x, odom_linear[i].y, odom_linear[i].z});
+            }
 
+            solution_ptr = &(solver->solution);
             visualizeTree();
             // exit(1);
     
@@ -713,6 +693,10 @@ private:
 
             if(drone_status[i].first == false && dist(std::vector<double>({x, y, z}), std::vector<double>({odom_linear[i].x, odom_linear[i].y, odom_linear[i].z})) < EPS){
                 drone_status[i].first = true;
+                
+                if(drone_status[i].second.x() == start_positions[i][0] && drone_status[i].second.y() == start_positions[i][1] && drone_status[i].second.z() == start_positions[i][2] + 1){
+                    land(i+1);
+                }
             }
             if(drone_status[i].first == false){
                 std::cout << "Going to goal: [" << i + 1 << "] " << x << "," << y << "," << z << " odom: " << odom_linear[i].x << "," << odom_linear[i].y << "," << odom_linear[i].z << std::endl;
@@ -755,6 +739,7 @@ private:
     Eigen::Vector4d start;
     Eigen::Vector4d goal;
     std::map<int,double> drone_h;
+    std::vector<std::vector<double>>    ;
 
     std::vector<geometry_msgs::msg::Point> odom_linear;
     std::vector<geometry_msgs::msg::Quaternion> odom_quat;

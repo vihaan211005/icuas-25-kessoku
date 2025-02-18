@@ -19,3 +19,4 @@ windows:
       layout: tiled 
       panes:
         - waitForCfGazebo;ros2 run icuas25_competition crazyflie_client 
+        - while true; do ros2 topic echo /target_found 2>/dev/null | grep .; sleep 1; done
