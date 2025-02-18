@@ -42,7 +42,7 @@
 
 using namespace std::chrono_literals;
                                               
-double EPS = 0.5;
+double EPS = 0.2;
 double land_h = 2;
 int num = 5;
 
@@ -52,7 +52,6 @@ public:
     CrazyflieCommandClient() : 
         Node("crazyflie_command_client"), 
         num_cf(num), 
-        start_positions(num_cf),
         start_positions(num_cf),
         odom_linear(std::vector<geometry_msgs::msg::Point>(num_cf)),
         odom_quat(std::vector<geometry_msgs::msg::Quaternion>(num_cf)),
