@@ -265,8 +265,38 @@ private:
             for (int j = 0; j < n; j++)
                 if (i != j && check2points_octree(nodes_graph[i], nodes_graph[j], radius))
                 {
-                    adjacency_matrix[i][j] = 1;
-                    count++;
+                    Eigen::Vector3i direction = (nodes_graph[j] - nodes_graph[i]).normalized();
+
+                    Eigen::Vector3i arbitrary(1, 0, 0);
+                    if (fabs(direction.dot(arbitrary)) > 0.99)
+                        arbitrary = Eigen::Vector3i(0, 1, 0);
+                    
+                    Eigen::Vector3i perp1 = direction.cross(arbitrary).normalized();
+                    Eigen::Vector3i perp2 = direction.cross(perp1).normalized();
+
+                    Eigen::Vector3i center = nodes_graph[j];
+                    double circle_radius = 1.0;
+                    int num_samples = 10;
+                    
+                    bool valid_edge = true;
+                    for (int k = 0; k < num_samples; k++)
+                    {
+                        double angle = (2 * M_PI * k) / num_samples;
+                        Eigen::Vector3i sample_point = center + ((perp1.cast<double>() * cos(angle) + perp2.cast<double>() * sin(angle)) * circle_radius).cast<int>();
+
+
+                        if (!check2points_octree(nodes_graph[i], sample_point, radius))
+                        {
+                            valid_edge = false;
+                            break;
+                        }
+                    }
+
+                    if (valid_edge)
+                    {
+                        adjacency_matrix[i][j] = 1;
+                        count++;
+                    }
                 }
         std::cout << "Number of edges: " << count << std::endl;
     }
@@ -554,10 +584,9 @@ private:
     }
 };
 
-// int main()
-// {
-//     Solver solver = Solver(Eigen::Vector3d(0, 0, 0), octomap::OcTree("city_1.binvox.bt"), 43, 5);
-//     solver.initialSetup();
-
-//     return 0;
-// }
+int main()
+{
+    Solver solver = Solver(Eigen::Vector3d(0, 0, 0), octomap::OcTree("city_1.binvox.bt"), 43, 5);
+    solver.initialSetup(); 
+    return 0;
+}
