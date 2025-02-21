@@ -87,6 +87,43 @@ public:
 
         saveEdgesToCSV("edges", adjacency_matrix);
         saveToCSV("first");
+	double max = 0;
+
+    vector<double> distances;
+    for(auto i : solution.bfs_order){
+        for(int j = 0; j < i.second.first.size(); j+=2){
+
+            for(int k = 0; k < 3; k++){
+                distances.push_back(std::abs(i.second.first[j][k] - i.second.first[j+1][k]));
+            }
+
+            // std::cout << ("difference =") << i.second.first[j] - i.second.first[j+1] << std::endl;
+
+            if((i.second.first[j] - i.second.first[j+1]).x() > max) max = (i.second.first[j] - i.second.first[j+1]).x();
+            if((i.second.first[j] - i.second.first[j+1]).y() > max) max = (i.second.first[j] - i.second.first[j+1]).y();
+            if((i.second.first[j] - i.second.first[j+1]).z() > max) max = (i.second.first[j] - i.second.first[j+1]).z();
+        }
+        for(int j = 0; j < i.second.second.size(); j+=2){ 
+            
+            for(int k = 0; k < 3; k++){
+                distances.push_back(std::abs(i.second.second[j][k] - i.second.second[j+1][k]));
+            }
+
+            // std::cout << ("difference =") << i.second.second[j] - i.second.second[j+1] << std::endl;
+
+            if((i.second.second[j] - i.second.second[j+1]).x() > max) max = (i.second.second[j] - i.second.second[j+1]).x();
+            if((i.second.second[j] - i.second.second[j+1]).y() > max) max = (i.second.second[j] - i.second.second[j+1]).y();
+            if((i.second.second[j] - i.second.second[j+1]).z() > max) max = (i.second.second[j] - i.second.second[j+1]).z();
+        }
+    }
+
+        std::sort(distances.begin(), distances.end());
+        std::ofstream outfile("sorted_differences.csv");
+        for(const auto &val : distances)
+            outfile << val << "\n";
+        outfile.close();
+
+        std::cout<<max;
     }
 
 private:
@@ -172,7 +209,7 @@ private:
                     break;
                 diry == 1 ? i-- : i++;
             }
-            if (poses.size())
+            if (poses.size() > 1)
                 solution_.first.push_back(poses);
             if ((!i) || !(z + j))
                 break;
@@ -195,7 +232,7 @@ private:
                     break;
                 dirx == 1 ? i-- : i++;
             }
-            if (poses.size())
+            if (poses.size() > 1)
                 solution_.second.push_back(poses);
             if ((!i) || !(z + j))
                 break;
