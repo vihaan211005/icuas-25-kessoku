@@ -714,9 +714,15 @@ private:
 
             auto res = icuas25_msgs::msg::TargetInfo();
             res.id = curr_aruco_id;
-            res.location.x = curr_aruco_position[0];
-            res.location.y = curr_aruco_position[1];
-            res.location.z = curr_aruco_position[2];
+            Eigen::Quaterniond quaternion(odom_quat[0].w, odom_quat[0].x, odom_quat[0].y, odom_quat[0].z); 
+            quaternion.normalize();
+
+            Eigen::Vector3d point(curr_aruco_position[2], -curr_aruco_position[0], -curr_aruco_position[1]);
+
+            Eigen::Vector3d transformed_point = quaternion * point;
+            res.location.x = odom_linear[0].x + transformed_point.x();
+            res.location.y = odom_linear[0].y + transformed_point.y();
+            res.location.z = odom_linear[0].z + transformed_point.z();
 
             res_publisher_->publish(res);
 
