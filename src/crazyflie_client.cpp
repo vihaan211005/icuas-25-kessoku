@@ -348,7 +348,7 @@ public:
         }
         // rclcpp::sleep_for(std::chrono::seconds(max_duration)); 
 
-        while(min_charge > 0.95){
+        while(min_charge > 99){
             rclcpp::sleep_for(std::chrono::seconds(1));
             RCLCPP_INFO(this->get_logger(), "Charging...");
         }
@@ -531,7 +531,7 @@ public:
                     
                     std::cout << "2minimum charge = " << min_charge << "recharge_flag: " << recharge_flag << std::endl;
                     if(recharge_flag){
-                        while(min_charge < 0.95){
+                        while(min_charge < 99){
                             rclcpp::sleep_for(std::chrono::seconds(1));
                             RCLCPP_INFO(this->get_logger(), "Charging...");
                         }
