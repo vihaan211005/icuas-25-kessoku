@@ -159,7 +159,7 @@ public:
         auto request = std::make_shared<crazyflie_interfaces::srv::Land::Request>();
 
         request->group_mask = 0;
-        request->height = land_h_0 + drone_h[drone - 1]; 
+        request->height = land_h_0;
         request->duration.sec = 2; 
         request->duration.nanosec = 0;
 
