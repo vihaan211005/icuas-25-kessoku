@@ -584,9 +584,9 @@ private:
     }
 };
 
-int main()
-{
-    Solver solver = Solver(Eigen::Vector3d(0, 0, 0), octomap::OcTree("city_1.binvox.bt"), 43, 5);
-    solver.initialSetup(); 
-    return 0;
-}
+// int main()
+// {
+//     Solver solver = Solver(Eigen::Vector3d(0, 0, 0), octomap::OcTree("city_1.binvox.bt"), 43, 5);
+//     solver.initialSetup(); 
+//     return 0;
+// }
