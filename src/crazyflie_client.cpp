@@ -159,7 +159,7 @@ public:
         auto request = std::make_shared<crazyflie_interfaces::srv::Land::Request>();
 
         request->group_mask = 0;
-        request->height = land_h_0;
+        request->height = land_h_0; 
         request->duration.sec = 2; 
         request->duration.nanosec = 0;
 
@@ -183,7 +183,7 @@ public:
         request->goal.y = y;
         request->goal.z = z;
         request->yaw = yaw; 
-        request->duration.sec = 1 * dist(std::vector<double>{x, y, z}, std::vector<double>{odom_linear[drone - 1].x, odom_linear[drone - 1].y, odom_linear[drone - 1].z}); 
+        request->duration.sec = 0.98 * dist(std::vector<double>{x, y, z}, std::vector<double>{odom_linear[drone - 1].x, odom_linear[drone - 1].y, odom_linear[drone - 1].z}); 
         request->duration.nanosec = 0;
 
         wait_for_service(client, "/cf_" + std::to_string(drone) + "/go_to");
@@ -205,7 +205,38 @@ public:
         return 0;
     }
 
-    int upload_trajectory(const int& drone, uint trajectory_id, std::string filename){
+    int go_to_traj(int drone, double start_x, double start_y, double start_z, double x, double y, double z, double yaw){
+        std::ofstream file("/wp.csv");
+        file << start_x << "," << start_y << "," << start_z << "," << yaw << std::endl;
+        file << x << "," << y << "," << z << std::endl;
+        file.close();
+        
+        std::system("$TRAJ_GEN -i /wp.csv --v_max 1.0 --a_max 1.0 -o /out.csv");
+        auto duration = upload_trajectory(drone, 0, x, y, z, yaw, "/out.csv");
+        start_trajectory(drone, duration, 0);
+        
+        drone_status[drone - 1] = std::make_pair(false, Eigen::Vector3d(x, y, z));
+
+        return 0;
+    }
+
+    int go_to_traj(int drone, std::vector<double> x, std::vector<double> y, std::vector<double> z, double yaw){
+        std::ofstream file("/wp.csv");
+        for(int i = 0; i < x.size(); i++){
+            file << x[i] << "," << y[i] << "," << z[i] << "," << yaw << std::endl;
+        }
+        file.close();
+        
+        std::system("$TRAJ_GEN -i /wp.csv --v_max 1.0 --a_max 1.0 -o /out.csv");
+        auto duration = upload_trajectory(drone, 0, x.back(), y.back(), z.back(), yaw, "/out.csv");
+        start_trajectory(drone, duration, 0);
+        
+        drone_status[drone - 1] = std::make_pair(false, Eigen::Vector3d(x.back(), y.back(), z.back()));
+        rclcpp::sleep_for(std::chrono::milliseconds(200));
+        return 0;
+    }
+
+    double upload_trajectory(const int& drone, uint trajectory_id, double x, double y, double z, double yaw, std::string filename){
         RCLCPP_INFO(this->get_logger(), "Initialized CrazyflieCommandClient::upload_trajectory for namespace: %d", drone);
 
         auto client = this->create_client<crazyflie_interfaces::srv::UploadTrajectory>("/cf_" + std::to_string(drone) + "/upload_trajectory", rmw_qos_profile_services_default, service_cb_group_);
@@ -222,6 +253,7 @@ public:
         std::string line;
         std::getline(file, line);
         bool startLine = true;
+        double total_d = 0;
 
         while (std::getline(file, line)) {
             if (line.empty() || startLine){
@@ -255,16 +287,41 @@ public:
                 piece.poly_z[i]   = values[1 + 16 + i];
                 piece.poly_yaw[i] = values[1 + 24 + i];
             }
+            // piece.poly_yaw[0] = yaw;
 
             builtin_interfaces::msg::Duration d;
             d.sec = static_cast<int32_t>(duration_value);
             d.nanosec = static_cast<uint32_t>((duration_value - d.sec) * 1e9);
             piece.duration = d;
-
+            total_d = total_d + duration_value;
             pieces.push_back(piece);
         }
-        file.close();
 
+        crazyflie_interfaces::msg::TrajectoryPolynomialPiece piece;
+        piece.poly_x.resize(8);
+        piece.poly_y.resize(8);
+        piece.poly_z.resize(8);
+        piece.poly_yaw.resize(8);
+        float duration_value = 20.0;
+        for (size_t i = 0; i < 8; ++i) {
+            piece.poly_x[i]   = 0.0;
+            piece.poly_y[i]   = 0.0;
+            piece.poly_z[i]   = 0.0;
+            piece.poly_yaw[i] = 0.0;
+        }
+        piece.poly_yaw[0] = yaw;
+        piece.poly_x[0]   = x;
+        piece.poly_y[0]   = y;
+        piece.poly_z[0]   = z;
+
+        builtin_interfaces::msg::Duration d;
+        d.sec = static_cast<int32_t>(duration_value);
+        d.nanosec = static_cast<uint32_t>((duration_value - d.sec) * 1e9);
+        piece.duration = d;
+        total_d = total_d + duration_value;
+        pieces.push_back(piece);
+
+        file.close();
         request->trajectory_id = trajectory_id;
         request->piece_offset = 0;
         request->pieces = pieces;
@@ -291,7 +348,7 @@ public:
         RCLCPP_INFO(this->get_logger(), "UploadTrajectory request sent to %d",
                     drone);
 
-        return 0;
+        return total_d;
     }
 
     int start_trajectory(const int& drone, float timescale, uint trajectory_id){
@@ -302,13 +359,12 @@ public:
          
         request->group_mask = 0;
         request->trajectory_id = trajectory_id;
-        request->timescale = 5;
+        request->timescale = 1;
         request->reversed = false;
         request->relative = false;
 
         wait_for_service(client, "/cf_" + std::to_string(drone) + "/start_trajectory");
 
-        int i = drone - 1;
 
         auto result = client->async_send_request(request).get();
         RCLCPP_INFO(this->get_logger(), "StartTrajectory request sent to %d",
@@ -348,7 +404,8 @@ public:
         }
         // rclcpp::sleep_for(std::chrono::seconds(max_duration)); 
 
-        while(min_charge > 0.95){
+        while(min_charge > 99){
+        while(min_charge > 99){
             rclcpp::sleep_for(std::chrono::seconds(1));
             RCLCPP_INFO(this->get_logger(), "Charging...");
         }
@@ -392,15 +449,22 @@ public:
 
     int go_to_vertex(int drone, int v, std::vector<Eigen::Vector3d>& nodes_graph){
         if(v == 0){
-            go_to(drone, start_positions[drone-1][0], start_positions[drone-1][1], start_positions[drone-1][2] + land_h + drone_h[drone-1], 0.0);
-            rclcpp::sleep_for(std::chrono::milliseconds(800));
+            // go_to(drone, start_positions[drone-1][0], start_positions[drone-1][1], start_positions[drone-1][2] + land_h + drone_h[drone-1], 0.0);
+            go_to_traj(drone, odom_linear[drone-1].x, odom_linear[drone-1].y, odom_linear[drone-1].z, start_positions[drone-1][0], start_positions[drone-1][1], start_positions[drone-1][2] + land_h + drone_h[drone-1], 0.0);
+            // go_to_traj(1, 0, 0, 0, 21, 18, 0.7, 1.57);
+
+            rclcpp::sleep_for(std::chrono::milliseconds(1000));
             return 1;
         }
         auto curr = nodes_graph[v];
         curr[2] += drone_h[drone];
         int duration = 0;
         std::cout << utils::Color::FG_BLUE << "GoTo: [" << drone << "]" << ":" << "(" <<   v << ")" << utils::Color::FG_DEFAULT << std::endl;
-        duration = go_to(drone, curr[0], curr[1], curr[2], 0);
+
+        // duration = go_to(drone, curr[0], curr[1], curr[2], 0);
+        go_to_traj(drone, odom_linear[drone-1].x, odom_linear[drone-1].y, odom_linear[drone-1].z, curr[0], curr[1], curr[2], 0);
+
+        rclcpp::sleep_for(std::chrono::milliseconds(100));
         return 0;
     }
 
@@ -457,6 +521,7 @@ public:
 
     int run_mission(){
         if(!flag){
+            // go_to_traj(1, 0, 0, 0, 21, 18, 0.7, 1.57);
             // store the start positions
             for(int i = 0; i < num_cf; i++){
                 start_positions[i] = std::vector<double>({odom_linear[i].x, odom_linear[i].y, odom_linear[i].z});
@@ -472,7 +537,7 @@ public:
                 curr_h -= 0.15;
             }
 
-            // std::map<int,std::deque<int>> mp;
+            std::map<int,std::deque<int>> mp;
             mp[0] = {1,2,3,4,5};
             
             int prev = 0;
@@ -531,7 +596,8 @@ public:
                     
                     std::cout << "2minimum charge = " << min_charge << "recharge_flag: " << recharge_flag << std::endl;
                     if(recharge_flag){
-                        while(min_charge < 0.95){
+                        while(min_charge < 99){
+                        while(min_charge < 99){
                             rclcpp::sleep_for(std::chrono::seconds(1));
                             RCLCPP_INFO(this->get_logger(), "Charging...");
                         }
@@ -591,70 +657,70 @@ public:
                 Eigen::Vector4d end;
 
 
-                while(!first_face.empty()){
-                    std::cout << "4minimum charge = " << min_charge << "recharge_flag: " << recharge_flag << std::endl;
-                    if(recharge_flag){
-                        duration = go_to_vertex(scan_drone, curr, solution_ptr->nodes_graph);
-                        while(check()){
-                            rclcpp::sleep_for(std::chrono::milliseconds(500));
-                        }
-                        go_for_recharge(curr);
-                    }
+                // while(!first_face.empty()){
+                //     std::cout << "4minimum charge = " << min_charge << "recharge_flag: " << recharge_flag << std::endl;
+                //     if(recharge_flag){
+                //         duration = go_to_vertex(scan_drone, curr, solution_ptr->nodes_graph);
+                //         while(check()){
+                //             rclcpp::sleep_for(std::chrono::milliseconds(500));
+                //         }
+                //         go_for_recharge(curr);
+                //     }
 
-                    end = first_face.back(); first_face.pop_back();
-                    start = first_face.back(); first_face.pop_back();
+                //     end = first_face.back(); first_face.pop_back();
+                //     start = first_face.back(); first_face.pop_back();
 
-                    duration = go_to(scan_drone, start[0], start[1], start[2], start[3]);
-                    std::cout << "GoTo: [" << scan_drone << "]" << ":" << "(" << start[0] << "," << start[1] << "," << start[2] <<  "," << start[3] << ")" << std::endl;
-                    while(check()){
-                        rclcpp::sleep_for(std::chrono::milliseconds(500));
-                    }
-                    //rclcpp::sleep_for(std::chrono::seconds(duration)); 
+                    // duration = go_to(scan_drone, start[0], start[1], start[2], start[3]);
+                //     std::cout << "GoTo: [" << scan_drone << "]" << ":" << "(" << start[0] << "," << start[1] << "," << start[2] <<  "," << start[3] << ")" << std::endl;
+                //     while(check()){
+                //         rclcpp::sleep_for(std::chrono::milliseconds(500));
+                //     }
+                //     //rclcpp::sleep_for(std::chrono::seconds(duration)); 
                     
-                    duration = go_to(scan_drone, end[0], end[1], end[2], end[3]);
-                    std::cout << "GoTo: [" << scan_drone << "]" << ":" << "(" << end[0] << "," << end[1] << "," << end[2] <<  "," << end[3] << ")" << std::endl;
-                    while(check()){
-                        rclcpp::sleep_for(std::chrono::milliseconds(500));
-                    }
-                    //rclcpp::sleep_for(std::chrono::seconds(duration)); 
-                }
-                duration = go_to_vertex(scan_drone, curr, solution_ptr->nodes_graph);
-                while(check()){
-                    rclcpp::sleep_for(std::chrono::milliseconds(500));
-                }
+                //     duration = go_to(scan_drone, end[0], end[1], end[2], end[3]);
+                //     std::cout << "GoTo: [" << scan_drone << "]" << ":" << "(" << end[0] << "," << end[1] << "," << end[2] <<  "," << end[3] << ")" << std::endl;
+                //     while(check()){
+                //         rclcpp::sleep_for(std::chrono::milliseconds(500));
+                //     }
+                //     //rclcpp::sleep_for(std::chrono::seconds(duration)); 
+                // }
+                // duration = go_to_vertex(scan_drone, curr, solution_ptr->nodes_graph);
+                // while(check()){
+                //     rclcpp::sleep_for(std::chrono::milliseconds(500));
+                // }
 
     
-                while(!second_face.empty()){
-                    std::cout << "5minimum charge = " << min_charge << "recharge_flag: " << recharge_flag << std::endl;
-                    if(recharge_flag){
-                        duration = go_to_vertex(scan_drone, curr, solution_ptr->nodes_graph);
-                        while(check()){
-                            rclcpp::sleep_for(std::chrono::milliseconds(500));
-                        }
-                        go_for_recharge(curr);
-                    }
+                // while(!second_face.empty()){
+                //     std::cout << "5minimum charge = " << min_charge << "recharge_flag: " << recharge_flag << std::endl;
+                //     if(recharge_flag){
+                //         duration = go_to_vertex(scan_drone, curr, solution_ptr->nodes_graph);
+                //         while(check()){
+                //             rclcpp::sleep_for(std::chrono::milliseconds(500));
+                //         }
+                //         go_for_recharge(curr);
+                //     }
 
-                    end = second_face.back(); second_face.pop_back();
-                    start = second_face.back(); second_face.pop_back();
+                //     end = second_face.back(); second_face.pop_back();
+                //     start = second_face.back(); second_face.pop_back();
 
-                    duration = go_to(scan_drone, start[0], start[1], start[2], start[3]);
-                    std::cout << "GoTo: [" << scan_drone << "]" << ":" << "(" << start[0] << "," << start[1] << "," << start[2] <<  "," << start[3] << ")" << std::endl;
-                    while(check()){
-                        rclcpp::sleep_for(std::chrono::milliseconds(500));
-                    }
-                    //rclcpp::sleep_for(std::chrono::seconds(duration)); 
+                //     duration = go_to(scan_drone, start[0], start[1], start[2], start[3]);
+                //     std::cout << "GoTo: [" << scan_drone << "]" << ":" << "(" << start[0] << "," << start[1] << "," << start[2] <<  "," << start[3] << ")" << std::endl;
+                //     while(check()){
+                //         rclcpp::sleep_for(std::chrono::milliseconds(500));
+                //     }
+                //     //rclcpp::sleep_for(std::chrono::seconds(duration)); 
                     
-                    duration = go_to(scan_drone, end[0], end[1], end[2], end[3]);
-                    std::cout << "GoTo: [" << scan_drone << "]" << ":" << "(" << end[0] << "," << end[1] << "," << end[2] <<  "," << end[3] << ")" << std::endl;
-                    while(check()){
-                        rclcpp::sleep_for(std::chrono::milliseconds(500));
-                    }
-                    //rclcpp::sleep_for(std::chrono::seconds(duration)); 
-                }
-                duration = go_to_vertex(scan_drone, curr, solution_ptr->nodes_graph);
-                while(check()){
-                    rclcpp::sleep_for(std::chrono::milliseconds(500));
-                }
+                //     duration = go_to(scan_drone, end[0], end[1], end[2], end[3]);
+                //     std::cout << "GoTo: [" << scan_drone << "]" << ":" << "(" << end[0] << "," << end[1] << "," << end[2] <<  "," << end[3] << ")" << std::endl;
+                //     while(check()){
+                //         rclcpp::sleep_for(std::chrono::milliseconds(500));
+                //     }
+                //     //rclcpp::sleep_for(std::chrono::seconds(duration)); 
+                // }
+                // duration = go_to_vertex(scan_drone, curr, solution_ptr->nodes_graph);
+                // while(check()){
+                //     rclcpp::sleep_for(std::chrono::milliseconds(500));
+                // }
     
                 prev = curr;
             }
@@ -714,9 +780,15 @@ private:
 
             auto res = icuas25_msgs::msg::TargetInfo();
             res.id = curr_aruco_id;
-            res.location.x = curr_aruco_position[0];
-            res.location.y = curr_aruco_position[1];
-            res.location.z = curr_aruco_position[2];
+            Eigen::Quaterniond quaternion(odom_quat[0].w, odom_quat[0].x, odom_quat[0].y, odom_quat[0].z); 
+            quaternion.normalize();
+
+            Eigen::Vector3d point(curr_aruco_position[2], -curr_aruco_position[0], -curr_aruco_position[1]);
+
+            Eigen::Vector3d transformed_point = quaternion * point;
+            res.location.x = odom_linear[0].x + transformed_point.x();
+            res.location.y = odom_linear[0].y + transformed_point.y();
+            res.location.z = odom_linear[0].z + transformed_point.z();
 
             res_publisher_->publish(res);
 
