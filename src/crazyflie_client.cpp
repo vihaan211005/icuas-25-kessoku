@@ -374,7 +374,7 @@ public:
     }
 
     int go_for_recharge(int v){
-        std::cout << "inside go_for_recharge, min_charge: " << min_charge << "recharge_flag: " << recharge_flag << std::endl; 
+        std::cout << "inside go_for_recharge, min_charge: " << min_charge << " recharge_flag: " << recharge_flag << std::endl; 
         int lca = 0;
         
         // back to base from curr
@@ -404,9 +404,9 @@ public:
         }
         // rclcpp::sleep_for(std::chrono::seconds(max_duration)); 
 
-        while(min_charge > 99){
+        while(min_charge < 89){
             rclcpp::sleep_for(std::chrono::seconds(1));
-            RCLCPP_INFO(this->get_logger(), "Charging...");
+            std::cout << "Charging..., min_charge: " << min_charge << std::endl;
         }
 
         // back to base from curr (v)
@@ -457,7 +457,7 @@ public:
         auto curr = nodes_graph[v];
         curr[2] += drone_h[drone];
         int duration = 0;
-        std::cout << utils::Color::FG_BLUE << "GoTo: [" << drone << "]" << ":" << "(" <<   v << ")" << utils::Color::FG_DEFAULT << std::endl;
+        std::cout << utils::Color::FG_BLUE << "GoTo: [" << drone << "]" << ":" << "(" <<   v << ")" << " min_charge: " << min_charge << utils::Color::FG_DEFAULT << std::endl;
 
         duration = go_to(drone, curr[0], curr[1], curr[2], 0);
         // go_to_traj(drone, odom_linear[drone-1].x, odom_linear[drone-1].y, odom_linear[drone-1].z, curr[0], curr[1], curr[2], 0);
@@ -535,7 +535,6 @@ public:
                 curr_h -= 0.15;
             }
 
-            std::map<int,std::deque<int>> mp;
             mp[0] = {1,2,3,4,5};
             
             int prev = 0;
@@ -676,9 +675,12 @@ public:
                     // std::cout << "4minimum charge = " << min_charge << "recharge_flag: " << recharge_flag << std::endl;
                     if(recharge_flag){
                         duration = go_to_vertex(scan_drone, curr, solution_ptr->nodes_graph);
+
                         while(check()){
                             rclcpp::sleep_for(std::chrono::milliseconds(500));
                         }
+
+                        std::cout << "number of drones to recall at " << curr << ": " << mp[curr].size() << std::endl;
                         go_for_recharge(curr);
                     }
 
@@ -709,9 +711,11 @@ public:
                     // std::cout << "5minimum charge = " << min_charge << "recharge_flag: " << recharge_flag << std::endl;
                     if(recharge_flag){
                         duration = go_to_vertex(scan_drone, curr, solution_ptr->nodes_graph);
+
                         while(check()){
                             rclcpp::sleep_for(std::chrono::milliseconds(500));
                         }
+                        std::cout << "number of drones to recall at " << curr << ": " << mp[curr].size() << std::endl;
                         go_for_recharge(curr);
                     }
 
@@ -719,14 +723,14 @@ public:
                     start = second_face.back(); second_face.pop_back();
 
                     duration = go_to(scan_drone, start[0], start[1], start[2], start[3]);
-                    std::cout << "GoTo: [" << scan_drone << "]" << ":" << "(" << start[0] << "," << start[1] << "," << start[2] <<  "," << start[3] << ")" << std::endl;
+                    std::cout << "GoTo: [" << scan_drone << "]" << ":" << "(" << start[0] << "," << start[1] << "," << start[2] <<  "," << start[3] << ")" << " min_charge: " << min_charge << std::endl;
                     while(check()){
                         rclcpp::sleep_for(std::chrono::milliseconds(500));
                     }
                     //rclcpp::sleep_for(std::chrono::seconds(duration)); 
                     
                     duration = go_to(scan_drone, end[0], end[1], end[2], end[3]);
-                    std::cout << "GoTo: [" << scan_drone << "]" << ":" << "(" << end[0] << "," << end[1] << "," << end[2] <<  "," << end[3] << ")" << std::endl;
+                    std::cout << "GoTo: [" << scan_drone << "]" << ":" << "(" << end[0] << "," << end[1] << "," << end[2] <<  "," << end[3] << ")" << " min_charge: " << min_charge << std::endl;
                     while(check()){
                         rclcpp::sleep_for(std::chrono::milliseconds(500));
                     }
@@ -780,7 +784,7 @@ private:
         }
         min_charge = curr_min;
 
-        if(min_charge < 40){
+        if(min_charge < 35){
             // std::cout << "Setting recharge flag to TRUE, min_charge: " << min_charge << std::endl;
             recharge_flag = true;
         }

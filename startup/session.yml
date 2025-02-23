@@ -18,5 +18,5 @@ windows:
   - submission:
       layout: tiled 
       panes:
-        - sleep 10; waitForCfGazebo;ros2 run icuas25_competition crazyflie_client 
-        - sleep 10; while true; do ros2 topic echo /target_found 2>/dev/null | grep .; sleep 1; done
+        - waitForCfGazebo; sleep 15; ros2 run icuas25_competition crazyflie_client 
+        - waitForCfGazebo; sleep 15; while true; do ros2 topic echo /target_found 2>/dev/null | grep .; sleep 1; done
