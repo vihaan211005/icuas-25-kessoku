@@ -405,7 +405,6 @@ public:
         // rclcpp::sleep_for(std::chrono::seconds(max_duration)); 
 
         while(min_charge > 99){
-        while(min_charge > 99){
             rclcpp::sleep_for(std::chrono::seconds(1));
             RCLCPP_INFO(this->get_logger(), "Charging...");
         }
@@ -449,9 +448,8 @@ public:
 
     int go_to_vertex(int drone, int v, std::vector<Eigen::Vector3d>& nodes_graph){
         if(v == 0){
-            // go_to(drone, start_positions[drone-1][0], start_positions[drone-1][1], start_positions[drone-1][2] + land_h + drone_h[drone-1], 0.0);
-            go_to_traj(drone, odom_linear[drone-1].x, odom_linear[drone-1].y, odom_linear[drone-1].z, start_positions[drone-1][0], start_positions[drone-1][1], start_positions[drone-1][2] + land_h + drone_h[drone-1], 0.0);
-            // go_to_traj(1, 0, 0, 0, 21, 18, 0.7, 1.57);
+            go_to(drone, start_positions[drone-1][0], start_positions[drone-1][1], start_positions[drone-1][2] + land_h + drone_h[drone-1], 0.0);
+            // go_to_traj(drone, odom_linear[drone-1].x, odom_linear[drone-1].y, odom_linear[drone-1].z, start_positions[drone-1][0], start_positions[drone-1][1], start_positions[drone-1][2] + land_h + drone_h[drone-1], 0.0);
 
             rclcpp::sleep_for(std::chrono::milliseconds(1000));
             return 1;
@@ -461,8 +459,8 @@ public:
         int duration = 0;
         std::cout << utils::Color::FG_BLUE << "GoTo: [" << drone << "]" << ":" << "(" <<   v << ")" << utils::Color::FG_DEFAULT << std::endl;
 
-        // duration = go_to(drone, curr[0], curr[1], curr[2], 0);
-        go_to_traj(drone, odom_linear[drone-1].x, odom_linear[drone-1].y, odom_linear[drone-1].z, curr[0], curr[1], curr[2], 0);
+        duration = go_to(drone, curr[0], curr[1], curr[2], 0);
+        // go_to_traj(drone, odom_linear[drone-1].x, odom_linear[drone-1].y, odom_linear[drone-1].z, curr[0], curr[1], curr[2], 0);
 
         rclcpp::sleep_for(std::chrono::milliseconds(100));
         return 0;
@@ -596,7 +594,6 @@ public:
                     
                     std::cout << "2minimum charge = " << min_charge << "recharge_flag: " << recharge_flag << std::endl;
                     if(recharge_flag){
-                        while(min_charge < 99){
                         while(min_charge < 99){
                             rclcpp::sleep_for(std::chrono::seconds(1));
                             RCLCPP_INFO(this->get_logger(), "Charging...");
@@ -882,8 +879,8 @@ private:
     bool recharge_flag;
     std::map<int,std::deque<int>> mp;
     double min_charge = 100;
-
     std::vector<std::pair<bool, Eigen::Vector3d>> drone_status;
+
 };
 
 int main(int argc, char **argv)

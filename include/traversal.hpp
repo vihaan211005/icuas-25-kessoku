@@ -10,24 +10,6 @@
 
 // Define the structure for a general tree node
 
-namespace tree_viz{
-    struct Node {
-        int data;
-        std::vector<Node*> children;  // General tree: each node can have any number of children
-
-        Node(int value) : data(value) {}
-    };
-}
-
-void generateDot(std::ofstream &dotFile, tree_viz::Node* root) {
-    if (!root) return;
-    for (tree_viz::Node* child : root->children) {
-        dotFile << "    " << root->data << " -> " << child->data << ";" << std::endl;
-        generateDot(dotFile, child);
-    }
-}
-
-
 #define Array3D std::vector<std::vector<std::vector<int>>>
 #define BoolArray3D std::vector<std::vector<std::vector<bool>>>
 
@@ -610,47 +592,6 @@ private:
         return !hits;
     }
 };
-
-int visualizeTree(Solution sol){
-    std::cout << "Visualizing the tree..." << std::endl;
-    std::map<int,tree_viz::Node*> tree_node;
-    
-    for(uint i = 0; i < sol.bfs_order.size(); i++){
-        int curr = sol.bfs_order[i].first;
-        
-        // std::cout << "added: " << curr << std::endl;
-        tree_node[curr] = new tree_viz::Node(curr);
-    }
-    
-    for(uint i = 1; i < sol.bfs_order.size(); i++){
-        int curr = sol.bfs_order[i].first;
-        int parent_curr = sol.parent[curr];
-
-        // std::cout << "curr: " << curr << " parent[curr]: " << parent_curr << std::endl;
-
-        if(tree_node.find(parent_curr) != tree_node.end()){
-            tree_node[parent_curr]->children.push_back(tree_node[curr]);
-        }
-        else{
-            std::cerr << parent_curr << " not in the map" << std::endl;
-            throw std::runtime_error("parent_curr not initialized in the map!");
-        }
-    }
-    auto root = tree_node[0];
-
-    std::ofstream dotFile("tree.dot", std::ios::out);
-    dotFile << "digraph Tree {" << std::endl;
-    dotFile << "    node [shape=circle];" << std::endl;
-
-    generateDot(dotFile, root);
-
-    dotFile << "}" << std::endl;
-    dotFile.close();
-    std::cout << "DOT file 'tree.dot' generated successfully!" << std::endl;
-
-    std::system("dot -Tpng tree.dot -o tree.png");
-    return 0;
-}
 
 // int main()
 // {
