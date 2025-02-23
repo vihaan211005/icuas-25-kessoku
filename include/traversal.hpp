@@ -88,6 +88,8 @@ public:
             addBoundary(0, (mapBounds.min.y() - baseStation.y()) / resolution + 1, 0, 0, 0);
         baseIndex.x() = std::round((baseStation.x() - mapBounds.min.x()) / resolution);
         baseIndex.y() = std::round((baseStation.y() - mapBounds.min.y()) / resolution);
+        baseIndex.z() = std::round((baseStation.z() - mapBounds.min.z()) / resolution);
+        while(binaryArray[baseIndex.x()][baseIndex.y()][baseIndex.z()]) baseIndex.z()++;
         nodes_graph.push_back(baseIndex);
         node_dirs.push_back(std::make_tuple(0, 0, baseIndex));
         markFaces();
