@@ -45,14 +45,14 @@ using namespace std::chrono_literals;
 double EPS = 0.5;
 double land_h = 1;
 double land_h_0 = 0.03;
-int num = 5;
 
 class CrazyflieCommandClient : public rclcpp::Node
 {
 public:
     CrazyflieCommandClient() : 
         Node("crazyflie_command_client"), 
-        num_cf(num), 
+        num_cf(std::getenv("NUM_ROBOTS") ? std::stoi(std::getenv("NUM_ROBOTS")) : 0), 
+        range(std::getenv("COMM_RANGE") ? std::stod(std::getenv("COMM_RANGE")) : 0.0),
         start_positions(num_cf),
         odom_linear(std::vector<geometry_msgs::msg::Point>(num_cf)),
         odom_quat(std::vector<geometry_msgs::msg::Quaternion>(num_cf)),
@@ -65,6 +65,15 @@ public:
         recharge_flag(false),
         drone_status(num_cf, std::make_pair(true, Eigen::Vector3d()))
     {
+        if(range == 0){
+            std::cout << "COMM_RANGE not set!" << std::endl;
+            throw std::runtime_error("COMM_RANGE not set!");
+        }
+        if(num_cf == 0){
+            std::cout << "NUM_ROBOTS not set!" << std::endl;
+            throw std::runtime_error("NUM_ROBOTS not set!");
+        }
+
         aruco_cb_options.callback_group = aruco_cb_group_;
         battery_cb_options.callback_group = battery_cb_group_;
 
@@ -95,7 +104,7 @@ public:
         get_octomap();
 
         RCLCPP_INFO(this->get_logger(), "Initializing Solver object...");
-        solver = std::make_shared<Solver>(Eigen::Vector3d(0, 0, 0), *tree, 43, 5);
+        solver = std::make_shared<Solver>(Eigen::Vector3d(0, 0, 0), *tree, range, 5);
         solver->initialSetup();
 
 
@@ -858,6 +867,7 @@ private:
     std::shared_ptr<Solver> solver;
 
     int num_cf;
+    double range;
     bool flag = false;
     Solution* solution_ptr;
 
