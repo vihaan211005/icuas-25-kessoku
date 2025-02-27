@@ -441,7 +441,7 @@ private:
     // Fills the interior of buildings as occupied
     void markInterior()
     {
-        int x = 0, y = 0, z = 1;
+        int x = 0, y = 0, z = dimArray.z() - 1;
 
         std::queue<Eigen::Vector3i> queue;
         queue.push(Eigen::Vector3i(x, y, z));
