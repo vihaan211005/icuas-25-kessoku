@@ -1,10 +1,6 @@
-#!/usr/bin/python3
-
 import re
 import os
 import shutil
-
-PREFIX_PATH="/root/CrazySim/ros2_ws/src/icuas25_competition/"
 
 def copy_aruco_images(source_dir, target_dir):
     """
@@ -68,30 +64,35 @@ def mkdir(n):
 </model>"""
 
     for i in range(n):
-        copy_aruco_images(f"{PREFIX_PATH}worlds/aruco_markers/aruco_marker_1", f"{PREFIX_PATH}worlds/aruco_markers/aruco_marker_" + str(i+6))
-        with open(f"{PREFIX_PATH}worlds/aruco_markers/aruco_marker_{i+6}/model.sdf", "w") as file:
+        copy_aruco_images("worlds/aruco_markers/aruco_marker_1", "worlds/aruco_markers/aruco_marker_" + str(i+6))
+        with open(f"worlds/aruco_markers/aruco_marker_{i+6}/model.sdf", "w") as file:
             sdf_content = sdf_template.format(i+6, i+6)
             file.writelines(sdf_content)
-        with open(f"{PREFIX_PATH}worlds/aruco_markers/aruco_marker_{i+6}/model.config", "w") as file:
+        with open(f"worlds/aruco_markers/aruco_marker_{i+6}/model.config", "w") as file:
             config_content = config_template.format(i+6)
             file.writelines(config_content)
         print(f"Completed Directory {i+6}")
 
 # File path to your SDF file
-sdf_file = PREFIX_PATH + "worlds/city_1_world.sdf"
+sdf_file = "worlds/city_1_world.sdf"
 
 # Hardcoded ArUco marker poses
 aruco_markers = [
-    (29.16, 49.431, 1.288, 1.5708, 0, 0),
-    (25.233, 73.555, 10.522, 1.5708, 0, 0.807),
-    (45.538, 101.58, 29.429, 1.5708, 0, 4.968),
-    (83.253, 87.747, 0.72931, 1.5708, 0, 3.8275),
-    (63.303, 12.454, 20.22, 1.5708, 0, 5.8486),
-    (48.633, 112.05, 11.207, 1.5708, 0, 2.42),
-    (70.576, 112.46, 2.0234, 1.5708, 0, 3.944),
-    (47.351, 62.635, 15.552, 1.5708, 0, 2.6396),
-    (20.048, 78.774, 6.9019, 1.5708, 0, 3.9954),
-    (22.823, 80.502, 2.7143, 1.5708, 0, 3.1512)
+    [54.262, 28.256, 1.573, 1.571, 0.0, -3.919], 
+    [84.329, 29.798, 1.104, 1.571, -0.0, -2.805], 
+    [112.566, 24.897, 19.027, 1.571, -0.0, -2.302], 
+    [85.993, 69.449, 19.42, 1.571, -0.0, -3.938], 
+    [92.844, 152.132, 2.057, 1.571, -0.0, -3.098], 
+    [45.72, 30.217, 2.137, 1.571, -0.0, -2.349], 
+    [71.415, 26.58, 26.753, 1.571, -0.0, -0.242], 
+    [86.067, 86.665, 11.959, 1.571, -0.0, -0.684], 
+    [62.32, 85.812, 4.32, 1.571, -0.0, -2.251], 
+    [76.627, 125.865, 7.194, 1.571, -0.0, -1.542], 
+    [111.746, 86.69, 3.017, 1.571, -0.0, -0.788], 
+    [98.665, 47.411, 1.162, 1.571, -0.0, -3.121], 
+    [64.77, 66.993, 19.409, 1.571, -0.0, -1.649], 
+    [83.349, 146.149, 4.355, 1.565, 0.0, 0.059], 
+    [56.775, 136.462, 4.971, 1.571, -0.0, -0.782],
 ]
 
 def add_markers():
@@ -125,6 +126,5 @@ def add_markers():
 
     print("ArUco markers added successfully to city_1_world.sdf!")
 
-if __name__ == "__main__":
-    mkdir(5)
-    add_markers()
+mkdir(10)
+add_markers()

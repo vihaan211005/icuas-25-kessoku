@@ -832,7 +832,7 @@ private:
     void wait_to_reach(){
         auto start_time = std::chrono::steady_clock::now();
         while(check()){
-            if (std::chrono::steady_clock::now() - start_time > std::chrono::minutes(1)) {
+            if (std::chrono::steady_clock::now() - start_time > std::chrono::minutes(15)) {
                 std::cout << utils::Color::FG_RED << "Collision happened possibly, exiting..." << utils::Color::FG_DEFAULT << std::endl;
                 exit(1);
             }

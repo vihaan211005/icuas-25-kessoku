@@ -93,7 +93,7 @@ def generate_launch_description():
             namespace='',
             executable='rviz2',
             name='rviz2',
-            arguments=['-d' + os.path.join(get_package_share_directory('icuas25_competition'), 'config', 'config.rviz')],
+            arguments=['-d' + os.path.join(get_package_share_directory('icuas25_competition'), 'config', 'config_my.rviz')],
             parameters=[{
                 "use_sim_time": True,
             }]
