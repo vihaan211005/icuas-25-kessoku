@@ -1,6 +1,10 @@
+#!/bin/python
+
 import re
 import os
 import shutil
+
+ROOT_DIR="/root/CrazySim/ros2_ws/src/icuas25_competition"
 
 def copy_aruco_images(source_dir, target_dir):
     """
@@ -64,17 +68,17 @@ def mkdir(n):
 </model>"""
 
     for i in range(n):
-        copy_aruco_images("worlds/aruco_markers/aruco_marker_1", "worlds/aruco_markers/aruco_marker_" + str(i+6))
-        with open(f"worlds/aruco_markers/aruco_marker_{i+6}/model.sdf", "w") as file:
+        copy_aruco_images(f"{ROOT_DIR}/worlds/aruco_markers/aruco_marker_1", f"{ROOT_DIR}/worlds/aruco_markers/aruco_marker_" + str(i+6))
+        with open(f"{ROOT_DIR}/worlds/aruco_markers/aruco_marker_{i+6}/model.sdf", "w") as file:
             sdf_content = sdf_template.format(i+6, i+6)
             file.writelines(sdf_content)
-        with open(f"worlds/aruco_markers/aruco_marker_{i+6}/model.config", "w") as file:
+        with open(f"{ROOT_DIR}/worlds/aruco_markers/aruco_marker_{i+6}/model.config", "w") as file:
             config_content = config_template.format(i+6)
             file.writelines(config_content)
         print(f"Completed Directory {i+6}")
 
 # File path to your SDF file
-sdf_file = "worlds/city_1_world.sdf"
+sdf_file = f"{ROOT_DIR}/worlds/city_1_world.sdf"
 
 # Hardcoded ArUco marker poses
 aruco_markers = [
