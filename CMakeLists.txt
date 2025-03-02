@@ -65,15 +65,18 @@ install(DIRECTORY
   DESTINATION share/${PROJECT_NAME}/
 )
 # vertex method
-add_executable(crazyflie_client 
-  src/crazyflie_client.cpp include/traversal.hpp 
-)
 
+add_library(solver include/traversal.hpp)
+set_target_properties(solver PROPERTIES LINKER_LANGUAGE CXX)
+target_compile_options(solver PRIVATE -Wall -Wextra -Wpedantic -Ofast -loctomap -locotmath)
+
+
+add_executable(crazyflie_client src/crazyflie_client.cpp)
 target_link_libraries(crazyflie_client 
   ompl
   fcl
+  solver
 )
-
 ament_target_dependencies(crazyflie_client 
   rclcpp 
   crazyflie_interfaces 
@@ -88,7 +91,6 @@ ament_target_dependencies(crazyflie_client
   Eigen3 
   ompl
 )
-
 target_compile_options(crazyflie_client PRIVATE -Wall -Wextra -Wpedantic)
 # target_compile_options(crazyflie_client PRIVATE -g -Wall -Wextra -Wpedantic -fsanitize=undefined)
 # target_link_options(crazyflie_client PRIVATE -fsanitize=undefined)
