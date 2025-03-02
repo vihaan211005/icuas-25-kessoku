@@ -686,15 +686,19 @@ public:
                 }
     
                 std::vector<int> curr_drones;
-                for(int i = 0; i < mp[curr].size(); i++){
+                std::cout << "size: " << mp[curr].size() << std::endl;
+                int temp_size = mp[curr].size();
+                for(int i = 0; i < temp_size; i++){
                     curr_drones.push_back(mp[curr].back());
                     mp[curr].pop_back();
                 }
                 std::sort(curr_drones.begin(), curr_drones.end());
                 for(int i = 0; i < curr_drones.size(); i++){
+                    std::cout << curr_drones[i] << " ";
                     mp[curr].push_back(curr_drones[i]);
                 }
                 int scan_drone = mp[curr].back();
+                std::cout << std::endl;
                 
                 Eigen::Vector4d start;
                 Eigen::Vector4d end;
