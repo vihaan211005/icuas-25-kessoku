@@ -601,7 +601,6 @@ public:
                     while(!mp[prev].empty()){
                         int drone = mp[prev].back(); mp[prev].pop_back();
 
-                        // std::cout << "1minimum charge = " << min_charge << "recharge_flag: " << recharge_flag << std::endl;
                         if(recharge_flag){
                             go_for_recharge(prev);
                         }
@@ -634,7 +633,6 @@ public:
                         mp[lca].push_back(drones_lca[i]);
                     } // TODO: cross-check this logic
                     
-                    // std::cout << "2minimum charge = " << min_charge << "recharge_flag: " << recharge_flag << std::endl;
                     if(recharge_flag){
                         while(min_charge < 88){
                             rclcpp::sleep_for(std::chrono::seconds(1));
@@ -693,7 +691,7 @@ public:
                     mp[curr].pop_back();
                 }
                 std::sort(curr_drones.begin(), curr_drones.end());
-                for(int i = curr_drones.size() - 1; i >= 0; i--){
+                for(int i = 0; i < curr_drones.size(); i++){
                     mp[curr].push_back(curr_drones[i]);
                 }
                 int scan_drone = mp[curr].back();
@@ -703,7 +701,6 @@ public:
 
 
                 while(!first_face.empty()){
-                    // std::cout << "4minimum charge = " << min_charge << "recharge_flag: " << recharge_flag << std::endl;
                     if(recharge_flag){
                         duration = go_to_vertex(scan_drone, curr, solution_ptr->nodes_graph);
                         wait_to_reach();
@@ -733,7 +730,6 @@ public:
 
     
                 while(!second_face.empty()){
-                    // std::cout << "5minimum charge = " << min_charge << "recharge_flag: " << recharge_flag << std::endl;
                     if(recharge_flag){
                         duration = go_to_vertex(scan_drone, curr, solution_ptr->nodes_graph);
                         wait_to_reach();
