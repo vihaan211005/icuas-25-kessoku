@@ -22,9 +22,11 @@ windows:
       panes:
         - waitForCfGazebo; sleep 25; ros2 run icuas25_competition crazyflie_client
         - waitForCfGazebo; sleep 25; while true; do ros2 topic echo /target_found 2>/dev/null | grep .; sleep 1; done
-    
+        - waitForCfGazebo; sleep 25; python3 /root/CrazySim/ros2_ws/src/icuas25_competition/scripts/odom_logger.py
+        - waitForCfGazebo; sleep 25; python3 /root/CrazySim/ros2_ws/src/icuas25_competition/scripts/battery_logger.py
+
   # - logger:
   #     layout: tiled
   #     panes:
-  #       - waitForCfGazebo; sleep 25; ros2 run icuas25_competition odom_logger.py
-  #       - waitForCfGazebo; sleep 25; ros2 run icuas25_competition battery_status.py
+  #       - waitForCfGazebo; sleep 25; python3 /root/CrazySim/ros2_ws/src/icuas25_competition/scripts/odom_logger.py
+  #       - waitForCfGazebo; sleep 25; python3 /root/CrazySim/ros2_ws/src/icuas25_competition/scripts/battery_status.py
