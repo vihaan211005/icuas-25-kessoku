@@ -20,6 +20,7 @@
 #include "icuas25_msgs/msg/target_info.hpp"
 #include "sensor_msgs/msg/battery_state.hpp"
 #include "std_msgs/msg/bool.hpp"
+#include "visualization_msgs/msg/marker.hpp"
 
 #include <boost/functional/hash.hpp>
 #include <boost/thread.hpp>
@@ -112,8 +113,11 @@ public:
         RCLCPP_INFO(this->get_logger(), "Starting search...");
 
         res_publisher_ = this->create_publisher<icuas25_msgs::msg::TargetInfo>("target_found", 10);
+        // publisher_ = this->create_publisher<visualization_msgs::msg::Marker>("visualization_marker", 10);
+
         aruco_timer_ = this->create_wall_timer(500ms, std::bind(&CrazyflieCommandClient::timer_callback, this), aruco_cb_group_);
         run_mission_timer_ = this->create_wall_timer(500ms, std::bind(&CrazyflieCommandClient::run_mission, this), run_mission_cb_group_);
+        // viz_timer_ = this->create_wall_timer(500ms, std::bind(&CrazyflieCommandClient::publish_markers, this), viz_cb_group_);
     }
     
     int get_octomap(const std::string &octomap_topic_ = "/octomap_binary"){
@@ -874,6 +878,29 @@ private:
         }
     }
 
+    // void publish_markers()
+    // {
+    //     auto marker = visualization_msgs::msg::Marker();
+    //     marker.header.frame_id = "map";
+    //     marker.header.stamp = this->now();
+    //     marker.ns = "spheres";
+    //     marker.id = 0;
+    //     marker.type = visualization_msgs::msg::Marker::SPHERE_LIST;
+    //     marker.action = visualization_msgs::msg::Marker::ADD;
+    //     marker.scale.x = 0.1;
+    //     marker.scale.y = 0.1;
+    //     marker.scale.z = 0.1;
+    //     marker.color.a = 1.0;
+    //     marker.color.r = 0.0;
+    //     marker.color.g = 1.0;
+    //     marker.color.b = 0.0;
+
+    //     marker.points = points_;
+
+    //     publisher_->publish(marker);
+    //     RCLCPP_INFO(this->get_logger(), "Published marker with %zu points", points_.size());
+    // }
+
     template <typename T>
     void wait_for_service(typename std::shared_ptr<rclcpp::Client<T>> client, const std::string &service_name)
     {
@@ -909,6 +936,7 @@ private:
     Eigen::Vector4d goal;
     std::map<int,double> drone_h;
     std::vector<std::vector<double>> start_positions;
+    // std::vector<geometry_msgs::msg::Point> points_;
 
     std::vector<geometry_msgs::msg::Point> odom_linear;
     std::vector<geometry_msgs::msg::Quaternion> odom_quat;
@@ -917,18 +945,21 @@ private:
     rclcpp::CallbackGroup::SharedPtr aruco_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
     rclcpp::CallbackGroup::SharedPtr battery_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
     rclcpp::CallbackGroup::SharedPtr run_mission_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+    // rclcpp::CallbackGroup::SharedPtr viz_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
     
     rclcpp::SubscriptionOptions aruco_cb_options;
     rclcpp::SubscriptionOptions battery_cb_options;
 
     rclcpp::TimerBase::SharedPtr aruco_timer_;
     rclcpp::TimerBase::SharedPtr run_mission_timer_;
+    // rclcpp::TimerBase::SharedPtr viz_timer_;
 
     std::vector<rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr> pose_subscriptions_;
     std::vector<rclcpp::Subscription<ros2_aruco_interfaces::msg::ArucoMarkers>::SharedPtr> aruco_subscriptions_;
     std::vector<rclcpp::Subscription<sensor_msgs::msg::BatteryState>::SharedPtr> battery_subscriptions_;
     rclcpp::Publisher<icuas25_msgs::msg::TargetInfo>::SharedPtr res_publisher_;
 
+    // rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr viz_pub_;
     std::vector<rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr> start_charging_pub_;
     std::vector<rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr> stop_charging_pub_;
 
