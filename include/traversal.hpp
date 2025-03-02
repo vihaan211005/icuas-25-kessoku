@@ -159,7 +159,7 @@ private:
             j -= 2;
             if ((!i) || !(z + j))
                 break;
-            if (mapBounds.min.z() + (z + j) * resolution < 1)
+            if (mapBounds.min.z() + (z + j) * resolution < 2)
                 break;
         }
 
@@ -186,7 +186,7 @@ private:
             j -= 2;
             if ((!i) || !(z + j))
                 break;
-            if (mapBounds.min.z() + (z + j) * resolution < 1)
+            if (mapBounds.min.z() + (z + j) * resolution < 2)
                 break;
         }
 
