@@ -489,7 +489,7 @@ public:
         duration = go_to(drone, curr[0], curr[1], curr[2], 0);
         // go_to_traj(drone, odom_linear[drone-1].x, odom_linear[drone-1].y, odom_linear[drone-1].z, get_yaw(drone-1), curr[0], curr[1], curr[2], 0);
 
-        rclcpp::sleep_for(std::chrono::milliseconds(500));
+        // rclcpp::sleep_for(std::chrono::milliseconds(500));
         return 0;
     }
 
@@ -708,15 +708,16 @@ public:
                     start = first_face.back(); first_face.pop_back();
 
                     duration = go_to(scan_drone, start[0], start[1], start[2], start[3]);
-                    std::cout << "GoTo: [" << scan_drone << "]" << ":" << "(" << start[0] << "," << start[1] << "," << start[2] <<  "," << start[3] << ")" << " min_charge: " << min_charge << std::endl;
+                    std::cout << utils::FG_GREEN << "GoTo: [" << scan_drone << "]" << ":" << "(" << start[0] << "," << start[1] << "," << start[2] <<  "," << start[3] << ")" << " min_charge: " << min_charge << utils::FG_GREEN << std::endl;
                     wait_to_reach();
                     //rclcpp::sleep_for(std::chrono::seconds(duration)); 
                     
                     duration = go_to(scan_drone, end[0], end[1], end[2], end[3]);
-                    std::cout << "GoTo: [" << scan_drone << "]" << ":" << "(" << end[0] << "," << end[1] << "," << end[2] <<  "," << end[3] << ")" << " min_charge: " << min_charge << std::endl;
+                    std::cout << utils::FG_GREEN <<"GoTo: [" << scan_drone << "]" << ":" << "(" << end[0] << "," << end[1] << "," << end[2] <<  "," << end[3] << ")" << " min_charge: " << min_charge << utils::FG_GREEN << std::endl;
                     wait_to_reach();
                     //rclcpp::sleep_for(std::chrono::seconds(duration)); 
                 }
+                std::cout << "Returning to vertex from face!" << std::endl;
                 duration = go_to_vertex(scan_drone, curr, solution_ptr->nodes_graph);
                 wait_to_reach();
 
@@ -735,19 +736,22 @@ public:
                     start = second_face.back(); second_face.pop_back();
 
                     duration = go_to(scan_drone, start[0], start[1], start[2], start[3]);
-                    std::cout << "GoTo: [" << scan_drone << "]" << ":" << "(" << start[0] << "," << start[1] << "," << start[2] <<  "," << start[3] << ")" << " min_charge: " << min_charge << std::endl;
+                    std::cout << utils::FG_GREEN << "GoTo: [" << scan_drone << "]" << ":" << "(" << start[0] << "," << start[1] << "," << start[2] <<  "," << start[3] << ")" << " min_charge: " << min_charge << utils::FG_GREEN << std::endl;
                     wait_to_reach();
                     //rclcpp::sleep_for(std::chrono::seconds(duration)); 
                     
                     duration = go_to(scan_drone, end[0], end[1], end[2], end[3]);
-                    std::cout << "GoTo: [" << scan_drone << "]" << ":" << "(" << end[0] << "," << end[1] << "," << end[2] <<  "," << end[3] << ")" << " min_charge: " << min_charge << std::endl;
+                    std::cout << utils::FG_GREEN <<"GoTo: [" << scan_drone << "]" << ":" << "(" << end[0] << "," << end[1] << "," << end[2] <<  "," << end[3] << ")" << " min_charge: " << min_charge << utils::FG_GREEN << std::endl;
                     wait_to_reach();
                     //rclcpp::sleep_for(std::chrono::seconds(duration)); 
                 }
+                std::cout << "Returning to vertex from face!" << std::endl;
                 duration = go_to_vertex(scan_drone, curr, solution_ptr->nodes_graph);
                 wait_to_reach();
     
                 prev = curr;
+
+                std::cout << "Going to next vertex!" << std::endl;
             }
             
             flag = true;
@@ -839,7 +843,7 @@ private:
                 }
             }
             if(drone_status[i].first == false){
-                std::cout << "Going to goal: [" << i + 1 << "] " << x << "," << y << "," << z << " odom: " << odom_linear[i].x << "," << odom_linear[i].y << "," << odom_linear[i].z << std::endl;
+                // std::cout << "Going to goal: [" << i + 1 << "] " << x << "," << y << "," << z << " odom: " << odom_linear[i].x << "," << odom_linear[i].y << "," << odom_linear[i].z << std::endl;
                 return true;
             }
         }
