@@ -224,7 +224,7 @@ public:
         }
         */
         drone_status[drone - 1] = std::make_pair(false, Eigen::Vector3d(x, y, z));
-        rclcpp::sleep_for(std::chrono::milliseconds(500));        
+        // return 2 * dist(std::vector<double>{x, y, z}, std::vector<double>{odom_linear[drone_namespace_ - 1].x, odom_linear[drone_namespace_ - 1].y, odom_linear[drone_namespace_ - 1].z});
         return T;
     }
 
@@ -489,7 +489,7 @@ public:
         duration = go_to(drone, curr[0], curr[1], curr[2], 0);
         // go_to_traj(drone, odom_linear[drone-1].x, odom_linear[drone-1].y, odom_linear[drone-1].z, get_yaw(drone-1), curr[0], curr[1], curr[2], 0);
 
-        rclcpp::sleep_for(std::chrono::milliseconds(500));
+        // rclcpp::sleep_for(std::chrono::milliseconds(500));
         return duration;
     }
 
@@ -547,8 +547,6 @@ public:
     int run_mission(){
         if(!flag){
             // go_to_traj(1, 0, 0, 0, 21, 18, 0.7, 1.57);
-            // exit(1);
-
             // store the start positions
             for(int i = 0; i < num_cf; i++){
                 start_positions[i] = std::vector<double>({odom_linear[i].x, odom_linear[i].y, odom_linear[i].z});
@@ -556,6 +554,7 @@ public:
 
             solution_ptr = &(solver->solution);
             visualizeTree();
+            // exit(1);
     
             double curr_h = 0;
             for(int i = 1; i <= num_cf; i++){
@@ -602,6 +601,7 @@ public:
                     while(!mp[prev].empty()){
                         int drone = mp[prev].back(); mp[prev].pop_back();
 
+                        // std::cout << "1minimum charge = " << min_charge << "recharge_flag: " << recharge_flag << std::endl;
                         if(recharge_flag){
                             go_for_recharge(prev);
                         }
@@ -611,9 +611,8 @@ public:
                         
                         mp[solution_ptr->parent[prev]].push_back(drone);
                     }
-
-                    // wait_to_reach();
-                    rclcpp::sleep_for(std::chrono::seconds(max_duration)); 
+                    wait_to_reach();
+                    // rclcpp::sleep_for(std::chrono::seconds(max_duration)); 
                     prev = solution_ptr->parent[prev];
                 }
 
@@ -633,8 +632,9 @@ public:
 
                     for(uint i = 0; i < drones_lca.size(); i++){
                         mp[lca].push_back(drones_lca[i]);
-                    }
+                    } // TODO: cross-check this logic
                     
+                    // std::cout << "2minimum charge = " << min_charge << "recharge_flag: " << recharge_flag << std::endl;
                     if(recharge_flag){
                         while(min_charge < 88){
                             rclcpp::sleep_for(std::chrono::seconds(1));
@@ -659,7 +659,8 @@ public:
                     for(int itr = 0; itr < n_drones_req; itr++){
                         
                         int drone = mp[k].back(); mp[k].pop_back();
-
+                        
+                        // std::cout << "3minimum charge = " << min_charge << "recharge_flag: " << recharge_flag << std::endl;
                         if(recharge_flag){
                             go_for_recharge(k);
                         }
@@ -674,8 +675,8 @@ public:
                         max_duration = std::max(duration, max_duration);
                     }
                     
-                    // wait_to_reach();
-                    rclcpp::sleep_for(std::chrono::seconds(max_duration)); 
+                    wait_to_reach();
+                    // rclcpp::sleep_for(std::chrono::seconds(max_duration)); 
                     k = lcaToCurrPath[j];
                     n_drones_req--;
 
@@ -693,11 +694,11 @@ public:
 
 
                 while(!first_face.empty()){
+                    // std::cout << "4minimum charge = " << min_charge << "recharge_flag: " << recharge_flag << std::endl;
                     if(recharge_flag){
                         duration = go_to_vertex(scan_drone, curr, solution_ptr->nodes_graph);
-
-                        // wait_to_reach();
-                        rclcpp::sleep_for(std::chrono::seconds(duration)); 
+                        wait_to_reach();
+                        // rclcpp::sleep_for(std::chrono::seconds(duration)); 
 
                         std::cout << "number of drones to recall at " << curr << ": " << mp[curr].size() << std::endl;
                         go_for_recharge(curr);
@@ -708,27 +709,26 @@ public:
 
                     duration = go_to(scan_drone, start[0], start[1], start[2], start[3]);
                     std::cout << utils::FG_GREEN << "GoTo: [" << scan_drone << "]" << ":" << "(" << start[0] << "," << start[1] << "," << start[2] <<  "," << start[3] << ")" << " min_charge: " << min_charge << utils::FG_DEFAULT << std::endl;
-                    // wait_to_reach();
-                    rclcpp::sleep_for(std::chrono::seconds(duration)); 
+                    wait_to_reach();
+                    // rclcpp::sleep_for(std::chrono::seconds(duration)); 
                     
                     duration = go_to(scan_drone, end[0], end[1], end[2], end[3]);
                     std::cout << utils::FG_GREEN <<"GoTo: [" << scan_drone << "]" << ":" << "(" << end[0] << "," << end[1] << "," << end[2] <<  "," << end[3] << ")" << " min_charge: " << min_charge << utils::FG_DEFAULT << std::endl;
-                    // wait_to_reach();
-                    rclcpp::sleep_for(std::chrono::seconds(duration)); 
+                    wait_to_reach();
+                    // rclcpp::sleep_for(std::chrono::seconds(duration)); 
                 }
                 std::cout << "Returning to vertex from face!" << std::endl;
                 duration = go_to_vertex(scan_drone, curr, solution_ptr->nodes_graph);
-
-                // wait_to_reach();
-                rclcpp::sleep_for(std::chrono::seconds(duration)); 
+                wait_to_reach();
+                // rclcpp::sleep_for(std::chrono::seconds(duration)); 
 
     
                 while(!second_face.empty()){
+                    // std::cout << "5minimum charge = " << min_charge << "recharge_flag: " << recharge_flag << std::endl;
                     if(recharge_flag){
                         duration = go_to_vertex(scan_drone, curr, solution_ptr->nodes_graph);
-
-                        // wait_to_reach();
-                        rclcpp::sleep_for(std::chrono::seconds(duration)); 
+                        wait_to_reach();
+                        // rclcpp::sleep_for(std::chrono::seconds(duration)); 
 
                         std::cout << "number of drones to recall at " << curr << ": " << mp[curr].size() << std::endl;
                         go_for_recharge(curr);
@@ -739,20 +739,18 @@ public:
 
                     duration = go_to(scan_drone, start[0], start[1], start[2], start[3]);
                     std::cout << utils::FG_GREEN << "GoTo: [" << scan_drone << "]" << ":" << "(" << start[0] << "," << start[1] << "," << start[2] <<  "," << start[3] << ")" << " min_charge: " << min_charge << utils::FG_DEFAULT << std::endl;
-                    
-                    // wait_to_reach();
-                    rclcpp::sleep_for(std::chrono::seconds(duration)); 
+                    wait_to_reach();
+                    // rclcpp::sleep_for(std::chrono::seconds(duration)); 
                     
                     duration = go_to(scan_drone, end[0], end[1], end[2], end[3]);
                     std::cout << utils::FG_GREEN <<"GoTo: [" << scan_drone << "]" << ":" << "(" << end[0] << "," << end[1] << "," << end[2] <<  "," << end[3] << ")" << " min_charge: " << min_charge << utils::FG_DEFAULT << std::endl;
-                    // wait_to_reach();
-                    rclcpp::sleep_for(std::chrono::seconds(duration)); 
+                    wait_to_reach();
+                    // rclcpp::sleep_for(std::chrono::seconds(duration)); 
                 }
                 std::cout << "Returning to vertex from face!" << std::endl;
                 duration = go_to_vertex(scan_drone, curr, solution_ptr->nodes_graph);
-
-                // wait_to_reach();
-                rclcpp::sleep_for(std::chrono::seconds(duration)); 
+                wait_to_reach();
+                // rclcpp::sleep_for(std::chrono::seconds(duration)); 
     
                 prev = curr;
 
@@ -848,7 +846,7 @@ private:
                 }
             }
             if(drone_status[i].first == false){
-                // std::cout << "Going to goal: [" << i + 1 << "] " << x << "," << y << "," << z << " odom: " << odom_linear[i].x << "," << odom_linear[i].y << "," << odom_linear[i].z << std::endl;
+                std::cout << "Going to goal: [" << i + 1 << "] " << x << "," << y << "," << z << " odom: " << odom_linear[i].x << "," << odom_linear[i].y << "," << odom_linear[i].z << std::endl;
                 return true;
             }
         }

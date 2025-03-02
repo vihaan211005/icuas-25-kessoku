@@ -43,7 +43,7 @@ public:
     std::vector<int> distance;
     std::vector<Eigen::Vector3d> nodes_graph;
 
-    std::vector<std::pair<int, std::pair<std::vector<Eigen::Vector4d>, std::vector<Eigen::Vector4d>>>> bfs_order;
+    std::vector<std::pair<int, std::pair<std::deque<Eigen::Vector4d>, std::deque<Eigen::Vector4d>>>> bfs_order;
 };
 
 class Solver
@@ -143,9 +143,9 @@ private:
             std::vector<DronePos> poses;
             while (1)
             {
-                if (check2points_octree(Eigen::Vector3i(x + 2 * dirx, y + i, z + j), nodes_graph[node], radius) && binaryArray[x][y + i][z + j] == 2 && (!visited[x][y + i][z + j] || !i))
+                if (check2points_octree(Eigen::Vector3i(x + dirx, y + i, z + j), nodes_graph[node], radius) && binaryArray[x][y + i][z + j] == 2 && (!visited[x][y + i][z + j] || !i))
                 {
-                    poses.push_back(DronePos(Eigen::Vector3i(x + 2 * dirx, y + i, z + j), (dirx + 1) >> 1));
+                    poses.push_back(DronePos(Eigen::Vector3i(x + dirx, y + i, z + j), (dirx + 1) >> 1));
                     visited[x][y + i][z + j] = true;
                 }
                 else
@@ -170,9 +170,9 @@ private:
             std::vector<DronePos> poses;
             while (1)
             {
-                if (check2points_octree(Eigen::Vector3i(x + i, y + 2 * diry, z + j), nodes_graph[node], radius) && binaryArray[x + i][y][z + j] == 2 && (!visited[x + i][y][z + j] || !i))
+                if (check2points_octree(Eigen::Vector3i(x + i, y + diry, z + j), nodes_graph[node], radius) && binaryArray[x + i][y][z + j] == 2 && (!visited[x + i][y][z + j] || !i))
                 {
-                    poses.push_back(DronePos(Eigen::Vector3i(x + i, y + 2 * diry, z + j), (diry + 5) >> 1));
+                    poses.push_back(DronePos(Eigen::Vector3i(x + i, y + diry, z + j), (diry + 5) >> 1));
                     visited[x + i][y][z + j] = true;
                 }
                 else
@@ -217,8 +217,8 @@ private:
 
             // solution.bfs_order.push_back(std::make_pair(node, std::make_pair(std::vector<Eigen::Vector3d>, std::vector<Eigen::Vector3d>)));
             std::pair<std::vector<std::vector<DronePos>>, std::vector<std::vector<DronePos>>> faces = getAdjacentFace(node);
-            std::vector<Eigen::Vector4d> pehla;
-            std::vector<Eigen::Vector4d> dusra;
+            std::deque<Eigen::Vector4d> pehla;
+            std::deque<Eigen::Vector4d> dusra;
             if (faces.first.size() || faces.second.size())
                 binaryArray[nodes_graph[node].x()][nodes_graph[node].y()][nodes_graph[node].z()] = 4;
 
