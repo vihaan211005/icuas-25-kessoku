@@ -60,7 +60,9 @@ public:
         octreeToBinaryArray();
         std::cout << "mapBounds: " << mapBounds << std::endl;
         std::cout << "Resolution: " << resolution << std::endl;
-        reduceResolution(4);
+        int factor = std::max(1, static_cast<int>(std::round(1.0 / resolution)));
+        if (factor - 1)
+            reduceResolution(factor);
         markInterior();
         for (int i = 0; i < 2; ++i)
             addBoundary();
@@ -71,7 +73,11 @@ public:
         baseIndex.x() = std::round((baseStation.x() - mapBounds.min.x()) / resolution);
         baseIndex.y() = std::round((baseStation.y() - mapBounds.min.y()) / resolution);
         baseIndex.z() = std::round((baseStation.z() - mapBounds.min.z()) / resolution);
-        while(binaryArray[baseIndex.x()][baseIndex.y()][baseIndex.z()]) baseIndex.z()++;
+        while (binaryArray[baseIndex.x()][baseIndex.y()][baseIndex.z()])
+            baseIndex.z()++;
+        std::cout << "Base Index: " << baseIndex << std::endl;
+        std::cout << "Base Station: " << baseStation << std::endl;
+        std::cout << "Base Point: " << indexToPoint(baseIndex) << std::endl;
         nodes_graph.push_back(baseIndex);
         node_dirs.push_back(std::make_tuple(0, 0, baseIndex));
         markFaces();
@@ -137,20 +143,22 @@ private:
             std::vector<DronePos> poses;
             while (1)
             {
-                if (check2points_octree(Eigen::Vector3i(x + dirx, y + i, z + j), nodes_graph[node], radius) && binaryArray[x][y + i][z + j] == 2 && (!visited[x][y + i][z + j] || !i))
+                if (check2points_octree(Eigen::Vector3i(x + 2 * dirx, y + i, z + j), nodes_graph[node], radius) && binaryArray[x][y + i][z + j] == 2 && (!visited[x][y + i][z + j] || !i))
                 {
-                    poses.push_back(DronePos(Eigen::Vector3i(x + dirx, y + i, z + j), (dirx + 1) >> 1));
+                    poses.push_back(DronePos(Eigen::Vector3i(x + 2 * dirx, y + i, z + j), (dirx + 1) >> 1));
                     visited[x][y + i][z + j] = true;
                 }
                 else
                     break;
                 diry == 1 ? i-- : i++;
             }
-            if (poses.size())
+            if (poses.size() > 1)
                 solution_.first.push_back(poses);
+            else
+                break;
+            j-=2;
             if ((!i) || !(z + j))
                 break;
-            j--;
             if (mapBounds.min.z() + (z + j) * resolution < 1)
                 break;
         }
@@ -162,20 +170,22 @@ private:
             std::vector<DronePos> poses;
             while (1)
             {
-                if (check2points_octree(Eigen::Vector3i(x + i, y + diry, z + j), nodes_graph[node], radius) && binaryArray[x + i][y][z + j] == 2 && (!visited[x + i][y][z + j] || !i))
+                if (check2points_octree(Eigen::Vector3i(x + i, y + 2 * diry, z + j), nodes_graph[node], radius) && binaryArray[x + i][y][z + j] == 2 && (!visited[x + i][y][z + j] || !i))
                 {
-                    poses.push_back(DronePos(Eigen::Vector3i(x + i, y + diry, z + j), (diry + 5) >> 1));
+                    poses.push_back(DronePos(Eigen::Vector3i(x + i, y + 2 * diry, z + j), (diry + 5) >> 1));
                     visited[x + i][y][z + j] = true;
                 }
                 else
                     break;
                 dirx == 1 ? i-- : i++;
             }
-            if (poses.size())
+            if (poses.size() > 1)
                 solution_.second.push_back(poses);
+            else
+                break;
+            j-=2;
             if ((!i) || !(z + j))
                 break;
-            j--;
             if (mapBounds.min.z() + (z + j) * resolution < 1)
                 break;
         }
@@ -209,6 +219,8 @@ private:
             std::pair<std::vector<std::vector<DronePos>>, std::vector<std::vector<DronePos>>> faces = getAdjacentFace(node);
             std::vector<Eigen::Vector4d> pehla;
             std::vector<Eigen::Vector4d> dusra;
+            if (faces.first.size() || faces.second.size())
+                binaryArray[nodes_graph[node].x()][nodes_graph[node].y()][nodes_graph[node].z()] = 4;
 
             for (auto face : faces.first)
             {
@@ -238,8 +250,8 @@ private:
                 dusra.push_back(Eigen::Vector4d(p1.x(), p1.y(), p1.z(), yaw1));
                 dusra.push_back(Eigen::Vector4d(p2.x(), p2.y(), p2.z(), yaw2));
             }
-            // if (node)
-            solution.bfs_order.push_back(std::make_pair(node, std::make_pair(pehla, dusra)));
+            if(pehla.size() || dusra.size())
+                solution.bfs_order.push_back(std::make_pair(node, std::make_pair(pehla, dusra)));
 
             if (distance[node] == num_drones - 1)
                 continue;
@@ -261,6 +273,7 @@ private:
         adjacency_matrix = adjacency_matrix_new;
 
         std::cout << "Number of edges: " << count << std::endl;
+        std::cout << "Number of edges: " << solution.bfs_order.size() << std::endl;
     }
 
     void makeAdjacency()
@@ -277,20 +290,19 @@ private:
                     Eigen::Vector3i arbitrary(1, 0, 0);
                     if (fabs(direction.dot(arbitrary)) > 0.99)
                         arbitrary = Eigen::Vector3i(0, 1, 0);
-                    
+
                     Eigen::Vector3i perp1 = direction.cross(arbitrary).normalized();
                     Eigen::Vector3i perp2 = direction.cross(perp1).normalized();
 
                     Eigen::Vector3i center = nodes_graph[j];
                     double circle_radius = 1.0;
                     int num_samples = 10;
-                    
+
                     bool valid_edge = true;
                     for (int k = 0; k < num_samples; k++)
                     {
                         double angle = (2 * M_PI * k) / num_samples;
                         Eigen::Vector3i sample_point = center + ((perp1.cast<double>() * cos(angle) + perp2.cast<double>() * sin(angle)) * circle_radius).cast<int>();
-
 
                         if (!check2points_octree(nodes_graph[i], sample_point, radius))
                         {
@@ -348,7 +360,7 @@ private:
                         if (k < dimArray.z() - 1)
                             adjacent[5] = binaryArray[i][j][k + 1];
 
-                        int dirx, diry;
+                        int dirx = 0, diry = 0;
                         adjacent[1] ? dirx = -1 : dirx = 1;
                         adjacent[3] ? diry = -1 : diry = 1;
 
@@ -431,10 +443,11 @@ private:
 
                 for (int i = start_idx.x(); i <= end_idx.x(); ++i)
                     for (int j = start_idx.y(); j <= end_idx.y(); ++j)
-                        for (int k = start_idx.z(); k <= end_idx.z(); ++k){
+                        for (int k = start_idx.z(); k <= end_idx.z(); ++k)
+                        {
                             binaryArray[i][j][k] = 1;
-                        }                            
-            } 
+                        }
+            }
         }
     }
 
@@ -474,7 +487,6 @@ private:
                         binaryArray[i][j][k] = 0;
                 }
     }
-
 
     // Reduce resolution by factor
     void reduceResolution(int factor)
@@ -527,8 +539,6 @@ private:
 
         binaryArray = newArray;
     }
-
-   
 
     // Mark Horizontal faces as 3 and Verical as 2. Call after adding x,y buffer and above z
     void markFaces()
@@ -597,7 +607,7 @@ private:
 
 // int main()
 // {
-//     Solver solver = Solver(Eigen::Vector3d(-2.5, -2.5, 1), octomap::OcTree("city_1.binvox.bt"), 70, 5);
-//     solver.initialSetup();     
+//     Solver solver = Solver(Eigen::Vector3d(0, 0, 1), octomap::OcTree("city_1.binvox.bt"), 70, 5);
+//     solver.initialSetup();
 //     return 0;
 // }
