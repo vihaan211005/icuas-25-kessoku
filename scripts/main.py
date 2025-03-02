@@ -183,7 +183,7 @@ def case1(c, tau, dist, distance_tau, p0, pf):
         plt.grid()
         plt.show()
     
-    # plot_piecewise()
+    plot_piecewise()
 
 def case2(dist, direction, p0, pf):
     tau = (84/5)**(1/2)/5**(1/4)
@@ -247,6 +247,19 @@ def case2(dist, direction, p0, pf):
 
     # plot()
 
+def straight_path(p0, pf, file_path):
+    dist = np.linalg.norm(pf[:3] - p0[:3])
+    direction = (pf[:3] - p0[:3]) / dist
+    T = dist/v_max
+    with open(file_path, mode='w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(header)
+        coeff_x = [p0[0]] + [v_max*direction[0]] + [0]*6
+        coeff_y = [p0[1]] + [v_max*direction[1]] + [0]*6
+        coeff_z = [p0[2]] + [v_max*direction[2]] + [0]*6
+        writer.writerow([T] + coeff_x + coeff_y + coeff_z)
+    print(f"Coefficients saved to {file_path}")
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Compute and save trajectory coefficients and plot trajectory.")
     
@@ -266,8 +279,9 @@ if __name__ == '__main__':
     dist = np.linalg.norm(pf[:3] - p0[:3])
     direction = (pf[:3] - p0[:3]) / dist
 
-    if dist < 2*distance_tau:
-        case2(dist, direction, p0, pf)
-    else:
-        case1(c, tau, dist, distance_tau, p0, pf)
+    # if dist < 2*distance_tau:
+    #     case2(dist, direction, p0, pf)
+    # else:
+    #     case1(c, tau, dist, distance_tau, p0, pf)
+    straight_path(p0, pf, file_path)
 

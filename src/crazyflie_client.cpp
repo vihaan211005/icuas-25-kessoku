@@ -35,6 +35,7 @@
 #include <deque>
 #include <cstdlib>  
 #include <fstream>
+#include "math.h"
 
 #include "traversal.hpp"
 #include "viz_tree.hpp"
@@ -186,14 +187,27 @@ public:
         auto client = this->create_client<crazyflie_interfaces::srv::GoTo>("/cf_" + std::to_string(drone) + "/go_to", rmw_qos_profile_services_default, service_cb_group_);
         auto request = std::make_shared<crazyflie_interfaces::srv::GoTo::Request>();
 
+        double v_max = 1.0;
         request->group_mask = 0;
         request->relative = false;
         request->goal.x = x;
         request->goal.y = y;
         request->goal.z = z;
         request->yaw = yaw; 
-        request->duration.sec = 0.98 * dist(std::vector<double>{x, y, z}, std::vector<double>{odom_linear[drone - 1].x, odom_linear[drone - 1].y, odom_linear[drone - 1].z}); 
-        request->duration.nanosec = 0;
+
+        double distance = dist(std::vector<double>{x, y, z}, std::vector<double>{odom_linear[drone - 1].x, odom_linear[drone - 1].y, odom_linear[drone - 1].z}); 
+        double tau = 30/16.0;
+        double c = 30/pow(tau, 5);
+        double distance_tau = c*pow(tau,6)/60;
+        double T;
+        if(distance < 2*distance_tau){
+            T = pow(84/5.0,0.5)/pow(5.0,0.25);
+        }
+        else{
+            T = 2 * tau + (distance - 2 * distance_tau) * v_max;
+        }
+        request->duration.sec = static_cast<int32_t>(T);
+        request->duration.nanosec = static_cast<uint32_t>((T - request->duration.sec) * 1e9);
 
         wait_for_service(client, "/cf_" + std::to_string(drone) + "/go_to");
 
@@ -214,10 +228,10 @@ public:
         return 0;
     }
 
-    int go_to_traj(int drone, double start_x, double start_y, double start_z, double x, double y, double z, double yaw){
+    int go_to_traj(int drone, double start_x, double start_y, double start_z, double start_yaw, double x, double y, double z, double yaw){
         std::ofstream file("/wp.csv");
-        file << start_x << "," << start_y << "," << start_z << "," << yaw << std::endl;
-        file << x << "," << y << "," << z << std::endl;
+        file << start_x << "," << start_y << "," << start_z << "," << start_yaw << std::endl;
+        file << x << "," << y << "," << z << "," << yaw << std::endl;
         file.close();
         
         std::system("$TRAJ_GEN -i /wp.csv --v_max 1.0 --a_max 1.0 -o /out.csv");
@@ -277,7 +291,7 @@ public:
                 values.push_back(std::stof(token));
             }
 
-            if (values.size() != 33) {
+            if (values.size() < 33) {
                 std::cerr << "Unexpected token count: " << values.size() << std::endl;
                 continue;
             }
@@ -306,29 +320,29 @@ public:
             pieces.push_back(piece);
         }
 
-        crazyflie_interfaces::msg::TrajectoryPolynomialPiece piece;
-        piece.poly_x.resize(8);
-        piece.poly_y.resize(8);
-        piece.poly_z.resize(8);
-        piece.poly_yaw.resize(8);
-        float duration_value = 20.0;
-        for (size_t i = 0; i < 8; ++i) {
-            piece.poly_x[i]   = 0.0;
-            piece.poly_y[i]   = 0.0;
-            piece.poly_z[i]   = 0.0;
-            piece.poly_yaw[i] = 0.0;
-        }
-        piece.poly_yaw[0] = yaw;
-        piece.poly_x[0]   = x;
-        piece.poly_y[0]   = y;
-        piece.poly_z[0]   = z;
+        // crazyflie_interfaces::msg::TrajectoryPolynomialPiece piece;
+        // piece.poly_x.resize(8);
+        // piece.poly_y.resize(8);
+        // piece.poly_z.resize(8);
+        // piece.poly_yaw.resize(8);
+        // float duration_value = 20.0;
+        // for (size_t i = 0; i < 8; ++i) {
+        //     piece.poly_x[i]   = 0.0;
+        //     piece.poly_y[i]   = 0.0;
+        //     piece.poly_z[i]   = 0.0;
+        //     piece.poly_yaw[i] = 0.0;
+        // }
+        // piece.poly_yaw[0] = yaw;
+        // piece.poly_x[0]   = x;
+        // piece.poly_y[0]   = y;
+        // piece.poly_z[0]   = z;
 
-        builtin_interfaces::msg::Duration d;
-        d.sec = static_cast<int32_t>(duration_value);
-        d.nanosec = static_cast<uint32_t>((duration_value - d.sec) * 1e9);
-        piece.duration = d;
-        total_d = total_d + duration_value;
-        pieces.push_back(piece);
+        // builtin_interfaces::msg::Duration d;
+        // d.sec = static_cast<int32_t>(duration_value);
+        // d.nanosec = static_cast<uint32_t>((duration_value - d.sec) * 1e9);
+        // piece.duration = d;
+        // total_d = total_d + duration_value;
+        // pieces.push_back(piece);
 
         file.close();
         request->trajectory_id = trajectory_id;
@@ -462,7 +476,7 @@ public:
         if(v == 0){
             std::cout << utils::Color::FG_BLUE << "GoTo: [" << drone << "]" << ":" << "(" <<   0 << ")" << " min_charge: " << min_charge << utils::Color::FG_DEFAULT << std::endl;
             go_to(drone, start_positions[drone-1][0], start_positions[drone-1][1], start_positions[drone-1][2] + land_h + drone_h[drone-1], 0.0);
-            // go_to_traj(drone, odom_linear[drone-1].x, odom_linear[drone-1].y, odom_linear[drone-1].z, start_positions[drone-1][0], start_positions[drone-1][1], start_positions[drone-1][2] + land_h + drone_h[drone-1], 0.0);
+            // go_to_traj(drone, odom_linear[drone-1].x, odom_linear[drone-1].y, odom_linear[drone-1].z, get_yaw(drone-1),start_positions[drone-1][0], start_positions[drone-1][1], start_positions[drone-1][2] + land_h + drone_h[drone-1], 0.0);
 
             rclcpp::sleep_for(std::chrono::milliseconds(1000));
             return 1;
@@ -473,7 +487,7 @@ public:
         std::cout << utils::Color::FG_BLUE << "GoTo: [" << drone << "]" << ":" << "(" <<   v << ")" << " min_charge: " << min_charge << utils::Color::FG_DEFAULT << std::endl;
 
         duration = go_to(drone, curr[0], curr[1], curr[2], 0);
-        // go_to_traj(drone, odom_linear[drone-1].x, odom_linear[drone-1].y, odom_linear[drone-1].z, curr[0], curr[1], curr[2], 0);
+        // go_to_traj(drone, odom_linear[drone-1].x, odom_linear[drone-1].y, odom_linear[drone-1].z, get_yaw(drone-1), curr[0], curr[1], curr[2], 0);
 
         rclcpp::sleep_for(std::chrono::milliseconds(500));
         return 0;
@@ -593,7 +607,7 @@ public:
                         }
 
                         duration = go_to_vertex(drone, solution_ptr->parent[prev], solution_ptr->nodes_graph);
-                        max_duration = std::max(duration, max_duration);
+                        // max_duration = std::max(duration, max_duration);
                         
                         mp[solution_ptr->parent[prev]].push_back(drone);
                     }
@@ -658,8 +672,7 @@ public:
                         }
                         
                         mp[lcaToCurrPath[j]].push_back(drone);
-                        
-                        max_duration = std::max(duration, max_duration);
+                        // max_duration = std::max(duration, max_duration);
                     }
                     
                     wait_to_reach();
@@ -743,6 +756,10 @@ public:
     }
 
 private:
+    double get_yaw(int drone){
+        return atan2(2*(odom_quat[drone].w*odom_quat[drone].z + odom_quat[drone].x*odom_quat[drone].y), 1 - 2*(odom_quat[drone].y*odom_quat[drone].y + odom_quat[drone].z*odom_quat[drone].z));
+    }
+
     void pose_callback(const geometry_msgs::msg::PoseStamped & msg, const int drone_namespace_){
         int i = drone_namespace_ - 1; //cf_1 -> 0
         odom_linear[i] = geometry_msgs::msg::Point(msg.pose.position);
