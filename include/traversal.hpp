@@ -120,6 +120,8 @@ private:
     std::vector<int> parent;
     std::vector<std::vector<bool>> adjacency_matrix;
 
+    bool nhi_hua = true;
+
     std::pair<std::vector<std::vector<DronePos>>, std::vector<std::vector<DronePos>>> getAdjacentFace(int node)
     {
         int dirx = std::get<0>(node_dirs[node]);
@@ -250,7 +252,38 @@ private:
                 dusra.push_back(Eigen::Vector4d(p1.x(), p1.y(), p1.z(), yaw1));
                 dusra.push_back(Eigen::Vector4d(p2.x(), p2.y(), p2.z(), yaw2));
             }
-            // if(pehla.size() || dusra.size())
+            if (nhi_hua && distance[node] == 2)
+            {
+                nhi_hua = false;
+                std::sort(solution.bfs_order.begin() + 1, solution.bfs_order.end(), [](const auto &a, const auto &b) { //fic edge case
+                    double a_ka = 0;
+                    double b_ka = 0;
+                    const auto& pehla_a = a.second.first;
+                    const auto& dusra_a = a.second.second;
+                    const auto& pehla_b = b.second.first;
+                    const auto& dusra_b = b.second.second;
+                
+                    auto compute_norm = [](const std::deque<Eigen::Vector4d>& dq) {
+                        double sum = 0;
+                        for (auto it = dq.begin(); std::distance(it, dq.end()) > 1; std::advance(it, 2))
+                            sum += (Eigen::Vector3d((it + 1)->x(), (it + 1)->y(), (it + 1)->z()) -
+                                    Eigen::Vector3d(it->x(), it->y(), it->z()))
+                                       .norm();
+                        return sum;
+                    };
+                
+                    a_ka += compute_norm(pehla_a);
+                    a_ka += compute_norm(dusra_a);
+                    b_ka += compute_norm(pehla_b);
+                    b_ka += compute_norm(dusra_b);
+                
+                    return a_ka > b_ka;
+                });
+            }
+            if(node == 10){
+                std::cout<<"pehla: "<<pehla.size()<<std::endl;
+                std::cout<<"dusra: "<<dusra.size()<<std::endl;
+            }
             solution.bfs_order.push_back(std::make_pair(node, std::make_pair(pehla, dusra)));
 
             if (distance[node] == num_drones - 1)
@@ -607,7 +640,7 @@ private:
 
 // int main()
 // {
-//     Solver solver = Solver(Eigen::Vector3d(0, 0, 1), octomap::OcTree("city_1.binvox.bt"), 70, 5);
+//     Solver solver = Solver(Eigen::Vector3d(0, 0, 1), octomap::OcTree("city_1_small.binvox.bt"), 70, 5);
 //     solver.initialSetup();
 //     return 0;
 // }
