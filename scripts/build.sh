@@ -1,4 +1,3 @@
-#!/usr/bin/bash
 
 build(){
     cd /root/CrazySim/ros2_ws

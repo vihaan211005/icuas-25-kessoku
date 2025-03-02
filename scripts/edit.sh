@@ -10,6 +10,7 @@ FILES_TO_REPLACE_1000_500=(
 WORLD_FILES=(
     "/root/CrazySim/ros2_ws/src/icuas25_competition/worlds/empty.sdf"
     "/root/CrazySim/ros2_ws/src/icuas25_competition/worlds/city_1_world.sdf"
+    "/root/CrazySim/ros2_ws/src/icuas25_competition/worlds/city_1_small_world.sdf"
 )
 
 # Replace "1000" with "500" in the specified files
