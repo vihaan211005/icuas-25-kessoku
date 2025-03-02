@@ -230,6 +230,8 @@ RUN echo "export ROS_DOMAIN_ID=$(shuf -i 1-101 -n 1)" >> $HOME/.bashrc
 WORKDIR $HOME/CrazySim/ros2_ws
 
 COPY scripts $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts
+COPY worlds $HOME/CrazySim/ros2_ws/src/icuas25_competition/worlds
+
 # Reduce IMU refresh rate, and increase the gazebo timestep (to run on potato pcs), add arucos
 RUN bash -c "chmod +x $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/edit.sh && $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/edit.sh"
 RUN bash -c "chmod +x $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/add_markers.py && $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/add_markers.py"
