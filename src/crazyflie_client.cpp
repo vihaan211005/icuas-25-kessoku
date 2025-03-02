@@ -106,7 +106,7 @@ public:
         get_octomap();
 
         RCLCPP_INFO(this->get_logger(), "Initializing Solver object...");
-        solver = std::make_shared<Solver>(Eigen::Vector3d(0, 0, 0), *tree, range, 5);
+        solver = std::make_shared<Solver>(Eigen::Vector3d(0, 0, 1), *tree, range, 5);
         solver->initialSetup();
 
 
