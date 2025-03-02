@@ -687,6 +687,15 @@ public:
                     throw std::runtime_error("size of mp[curr] is less than 2, at last node less than two drones?");
                 }
     
+                std::vector<int> curr_drones;
+                for(int i = 0; i < mp[curr].size(); i++){
+                    curr_drones.push_back(mp[curr].back());
+                    mp[curr].pop_back();
+                }
+                std::sort(curr_drones.begin(), curr_drones.end());
+                for(int i = curr_drones.size() - 1; i >= 0; i--){
+                    mp[curr].push_back(curr_drones[i]);
+                }
                 int scan_drone = mp[curr].back();
                 
                 Eigen::Vector4d start;
