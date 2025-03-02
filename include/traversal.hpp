@@ -156,7 +156,7 @@ private:
                 solution_.first.push_back(poses);
             else
                 break;
-            j-=2;
+            j -= 2;
             if ((!i) || !(z + j))
                 break;
             if (mapBounds.min.z() + (z + j) * resolution < 1)
@@ -183,7 +183,7 @@ private:
                 solution_.second.push_back(poses);
             else
                 break;
-            j-=2;
+            j -= 2;
             if ((!i) || !(z + j))
                 break;
             if (mapBounds.min.z() + (z + j) * resolution < 1)
@@ -250,8 +250,8 @@ private:
                 dusra.push_back(Eigen::Vector4d(p1.x(), p1.y(), p1.z(), yaw1));
                 dusra.push_back(Eigen::Vector4d(p2.x(), p2.y(), p2.z(), yaw2));
             }
-            if(pehla.size() || dusra.size())
-                solution.bfs_order.push_back(std::make_pair(node, std::make_pair(pehla, dusra)));
+            // if(pehla.size() || dusra.size())
+            solution.bfs_order.push_back(std::make_pair(node, std::make_pair(pehla, dusra)));
 
             if (distance[node] == num_drones - 1)
                 continue;
