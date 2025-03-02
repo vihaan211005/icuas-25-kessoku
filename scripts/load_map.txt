@@ -1,0 +1,3 @@
+ros2 run tf2_ros static_transform_publisher 0 0 0 0 0 0 world map
+ros2 run octomap_server octomap_server_node --ros-args --params-file worlds/params.yaml
+topic is /occupied_cells_via_array
