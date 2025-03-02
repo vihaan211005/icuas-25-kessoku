@@ -11,7 +11,7 @@ def angle_between_vectors(v1, v2):
     v2_u = v2 / np.linalg.norm(v2)
     return np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))
 
-def combine_coplanar_triangles(stl_file, angle_tolerance_degrees=1.0):
+def combine_coplanar_triangles(stl_file, angle_tolerance_degrees=0.5):
     """
     Combines coplanar triangles from an STL file into quadrilaterals.
 
@@ -44,26 +44,26 @@ def combine_coplanar_triangles(stl_file, angle_tolerance_degrees=1.0):
             if angle_between_vectors(normals[i], normals[j]) <= angle_tolerance_radians:
                 # Check for shared edge
                 shared_vertices = 0
-                shared_edge = None
+                shared_edges = []
                 for k in range(3):
                     for l in range(3):
                         if np.all(triangles[i][k] == triangles[j][l]):
                             shared_vertices += 1
-                            if shared_edge is None:
-                                shared_edge = (k, l)
-                            elif shared_edge != None:
-                                shared_edge2 = (k,l)
+                            shared_edges.append((k,l))
 
                 if shared_vertices == 2:
-                    # Combine triangles into a quadrilateral
                     quad_vertices = []
-                    for k in range(3):
-                        if k != shared_edge[0] and k != ((shared_edge[0]+1)%3) and k!=((shared_edge[0]-1)%3):
+                    # Append non-shared vertices based on shared_edges
+                    for edge in shared_edges:
+                        k, l = edge
+                        quad_vertices.append(triangles[i][k])
+                        quad_vertices.append(triangles[j][l])
+                        # Append non-shared vertices from the first triangle
+                        if k != shared_edges[0][0] and k != ((shared_edges[0][0] + 1) % 3) and k != ((shared_edges[0][0] - 1) % 3):
                             quad_vertices.append(triangles[i][k])
-                    for l in range(3):
-                        if l != shared_edge[1] and l!=((shared_edge[1]+1)%3) and l!=((shared_edge[1]-1)%3):
+                        # Append non-shared vertices from the second triangle
+                        if l != shared_edges[1][1] and l != ((shared_edges[1][1] + 1) % 3) and l != ((shared_edges[1][1] - 1) % 3):
                             quad_vertices.append(triangles[j][l])
-
                     quadrilaterals.append(quad_vertices)
                     processed[i] = True
                     processed[j] = True
@@ -78,7 +78,7 @@ def combine_coplanar_triangles(stl_file, angle_tolerance_degrees=1.0):
 
     return quadrilaterals, len(triangles), uncombined
 
-def plot_vertices_from_csv(stl_file_path, csv_file_path, axis_scale_factor=0.5):
+def plot_vertices_from_csv(stl_file_path, csv_file_path, axis_scale_factor=0.75):
     """
     Plots the vertices from a CSV file and the original STL mesh.
 
@@ -129,10 +129,46 @@ def plot_vertices_from_csv(stl_file_path, csv_file_path, axis_scale_factor=0.5):
     plt.title("STL Mesh and CSV Vertices (Adjusted Axis Limits)")
     plt.show()
 
+def plot_stl(stl_file_path, axis_scale_factor=0.25):
+    # Load STL mesh
+    your_mesh = mesh.Mesh.from_file(stl_file_path)
+    triangles = your_mesh.vectors
+    vertices = []
+
+    for t in triangles:
+        for v in t:
+            vertices.append(v)
+    vertices = np.array(vertices)
+
+    fig = plt.figure(figsize=(14, 14))
+    ax = fig.add_subplot(111, projection='3d')
+
+    # Plot STL mesh
+    ax.add_collection3d(mplot3d.art3d.Poly3DCollection(your_mesh.vectors, alpha=0.25))
+    ax.scatter(vertices[:, 0], vertices[:, 1], vertices[:, 2], c='r', marker='o', s = 0.1)
+
+    scale = your_mesh.points.flatten()
+    ax.auto_scale_xyz(scale, scale, scale)  # Initial auto-scaling
+
+    # Adjust axis limits
+    xlim = ax.get_xlim()
+    ylim = ax.get_ylim()
+    zlim = ax.get_zlim()
+    ax.set_xlim(xlim[0] * axis_scale_factor, xlim[1] * axis_scale_factor)
+    ax.set_ylim(ylim[0] * axis_scale_factor, ylim[1] * axis_scale_factor)
+    ax.set_zlim(zlim[0] * axis_scale_factor, zlim[1] * axis_scale_factor)
+
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+    plt.title("STL Mesh and CSV Vertices (Adjusted Axis Limits)")
+    plt.show()
+
 # Example usage
 stl_file_path = 'worlds/city_1_small/meshes/city_1_small.stl'  # Replace with your STL file
 csv_file_path = 'worlds/quadrilateral_vertices.csv' # output csv
 # combined_quads, initial_triangle_count, uncombined = combine_coplanar_triangles(stl_file_path)
+
 
 # print(f"Initial number of triangles: {initial_triangle_count}")
 # print(f"Final number of shapes: {len(combined_quads)}")
@@ -148,4 +184,25 @@ csv_file_path = 'worlds/quadrilateral_vertices.csv' # output csv
 
 # print(f"All vertices written to {csv_file_path}")
 
+# csv_file_path1 = "worlds/vertices.csv"
+# # Write vertices to CSV 
+# with open(csv_file_path1, 'w', newline='') as csvfile: 
+#     writer = csv.writer(csvfile) 
+#     writer.writerow(['Vertex1_x', 'Vertex1_y', 'Vertex1_z', 'Vertex2_x', 'Vertex2_y', 'Vertex2_z', 'Vertex3_x', 'Vertex3_y', 'Vertex3_z', 'Vertex4_x', 'Vertex4_y', 'Vertex4_z']) #header 
+#     for quad in combined_quads: 
+#         if len(quad) == 4: #writes only quadrilaterals. 
+#             row = [] 
+#             for vertex in quad: 
+#                 row.extend(vertex) 
+#             writer.writerow(row) 
+#         elif len(quad) == 3: #writes the triangles. 
+#             row = [] 
+#             for vertex in quad: 
+#                 row.extend(vertex) 
+#             writer.writerow(row + [0,0,0]) # Add 0,0,0 to triangles to make them same length.
+
+# print(f"All vertices written to {csv_file_path1}")
+
 plot_vertices_from_csv(stl_file_path, csv_file_path)
+
+# plot_stl(stl_file_path)
