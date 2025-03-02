@@ -583,6 +583,7 @@ public:
                 auto& second_face = (solution_ptr->bfs_order[i].second).second; 
 
                 if(first_face.empty() && second_face.empty()) continue; //dont visit nodes with nothing to visit
+                if(first_face.size() + second_face.size() <= 6) continue; // dont visit trivial nodes (waste of time) 
                 if(curr == solution_ptr->bfs_order[i].first) continue; // if already there, dont need to go there again (initialized at base itself)
 
                 curr = solution_ptr->bfs_order[i].first;
