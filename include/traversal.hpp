@@ -318,26 +318,26 @@ private:
             for (int j = 0; j < n; j++)
                 if (i != j && check2points_octree(nodes_graph[i], nodes_graph[j], radius))
                 {
-                    Eigen::Vector3i direction = (nodes_graph[j] - nodes_graph[i]).normalized();
+                    Eigen::Vector3d direction = (indexToPoint(nodes_graph[j]) - indexToPoint(nodes_graph[i])).normalized();
 
-                    Eigen::Vector3i arbitrary(1, 0, 0);
+                    Eigen::Vector3d arbitrary(1, 0, 0);
                     if (fabs(direction.dot(arbitrary)) > 0.99)
-                        arbitrary = Eigen::Vector3i(0, 1, 0);
+                        arbitrary = Eigen::Vector3d(0, 1, 0);
 
-                    Eigen::Vector3i perp1 = direction.cross(arbitrary).normalized();
-                    Eigen::Vector3i perp2 = direction.cross(perp1).normalized();
+                    Eigen::Vector3d perp1 = direction.cross(arbitrary).normalized();
+                    Eigen::Vector3d perp2 = direction.cross(perp1).normalized();
 
-                    Eigen::Vector3i center = nodes_graph[j];
-                    double circle_radius = 1.0;
+                    Eigen::Vector3d center = indexToPoint(nodes_graph[j]);
+                    double circle_radius = 0.5;
                     int num_samples = 10;
 
                     bool valid_edge = true;
-                    for (int k = 0; k < num_samples; k++)
+                    for (int k = 0; k < num_samples; k++) //fix agar start invalid hojae
                     {
                         double angle = (2 * M_PI * k) / num_samples;
-                        Eigen::Vector3i sample_point = center + ((perp1.cast<double>() * cos(angle) + perp2.cast<double>() * sin(angle)) * circle_radius).cast<int>();
+                        Eigen::Vector3d sample_point = center + ((perp1 * cos(angle) + perp2 * sin(angle)) * circle_radius);
 
-                        if (!check2points_octree(nodes_graph[i], sample_point, radius))
+                        if (!check2points_octree(indexToPoint(nodes_graph[i]), sample_point, radius))
                         {
                             valid_edge = false;
                             break;
@@ -632,6 +632,18 @@ private:
             return false;
         octomap::point3d start(startidx.x(), startidx.y(), startidx.z());
         octomap::point3d end(endidx.x(), endidx.y(), endidx.z());
+        octomap::point3d hit;
+        bool hits = octree.castRay(start, end - start, hit, true, (end - start).norm());
+        return !hits;
+    }
+    bool check2points_octree(Eigen::Vector3d p1, Eigen::Vector3d p2, double radius = 10000)
+    {
+        if (p1 == p2)
+            return true;
+        if ((p1 - p2).norm() > radius)
+            return false;
+        octomap::point3d start(p1.x(), p1.y(), p1.z());
+        octomap::point3d end(p2.x(), p2.y(), p2.z());
         octomap::point3d hit;
         bool hits = octree.castRay(start, end - start, hit, true, (end - start).norm());
         return !hits;
