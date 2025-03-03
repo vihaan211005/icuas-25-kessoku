@@ -16,6 +16,8 @@
 
 #include "geometry_msgs/msg/point.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
+#include "geometry_msgs/msg/vector3.hpp"
+#include "nav_msgs/msg/odometry.hpp"
 #include "std_msgs/msg/string.hpp"
 #include "icuas25_msgs/msg/target_info.hpp"
 #include "sensor_msgs/msg/battery_state.hpp"
@@ -55,9 +57,12 @@ public:
         Node("crazyflie_command_client"), 
         num_cf(std::getenv("NUM_ROBOTS") ? std::stoi(std::getenv("NUM_ROBOTS")) : 0), 
         range(std::getenv("COMM_RANGE") ? std::stod(std::getenv("COMM_RANGE")) : 0.0),
-        start_positions(num_cf),
+        start_positions(num_cf),    
         odom_linear(std::vector<geometry_msgs::msg::Point>(num_cf)),
+        odom_linear_vel(std::vector<geometry_msgs::msg::Vector3>(num_cf)),
+        odom_angular_vel(std::vector<geometry_msgs::msg::Vector3>(num_cf)),
         odom_quat(std::vector<geometry_msgs::msg::Quaternion>(num_cf)),
+        odom_subscriptions_(num_cf),
         pose_subscriptions_(num_cf),
         aruco_subscriptions_(num_cf),
         battery_subscriptions_(num_cf),
@@ -87,6 +92,13 @@ public:
                                                 this->pose_callback(*msg, i + 1);  // to match ROS2 expected fn signature
                                             });
 
+            odom_subscriptions_[i] = this->create_subscription<nav_msgs::msg::Odometry>(
+                                                "/cf_" + std::to_string(i+1) + "/odom", 
+                                                10, 
+                                                [this, i](const nav_msgs::msg::Odometry::SharedPtr msg) {
+                                                    this->odom_callback(*msg, i + 1);  // to match ROS2 expected fn signature
+                                                }); 
+
             aruco_subscriptions_[i] = this->create_subscription<ros2_aruco_interfaces::msg::ArucoMarkers>(
                                             "/cf_" + std::to_string(i+1) + "/aruco_markers", 
                                             10,
@@ -113,7 +125,7 @@ public:
         RCLCPP_INFO(this->get_logger(), "Starting search...");
 
         res_publisher_ = this->create_publisher<icuas25_msgs::msg::TargetInfo>("target_found", 10);
-        // publisher_ = this->create_publisher<visualization_msgs::msg::Marker>("visualization_marker", 10);
+        // rviz_publisher_ = this->create_publisher<visualization_msgs::msg::Marker>("visualization_marker", 10);
 
         aruco_timer_ = this->create_wall_timer(500ms, std::bind(&CrazyflieCommandClient::timer_callback, this), aruco_cb_group_);
         run_mission_timer_ = this->create_wall_timer(500ms, std::bind(&CrazyflieCommandClient::run_mission, this), run_mission_cb_group_);
@@ -478,12 +490,13 @@ public:
 
     double go_to_vertex(int drone, int v, std::vector<Eigen::Vector3d>& nodes_graph){
         if(v == 0){
+            int duration = 0;
             std::cout << utils::Color::FG_BLUE << "GoTo: [" << drone << "]" << ":" << "(" <<   0 << ")" << " min_charge: " << min_charge << utils::Color::FG_DEFAULT << std::endl;
-            // int duration = go_to(drone, start_positions[drone-1][0], start_positions[drone-1][1], start_positions[drone-1][2] + land_h + drone_h[drone-1], 0.0);
-            go_to_traj(drone, start_positions[drone-1][0], start_positions[drone-1][1], start_positions[drone-1][2] + land_h + drone_h[drone-1], 0.0);
+            duration = go_to(drone, start_positions[drone-1][0], start_positions[drone-1][1], start_positions[drone-1][2] + land_h + drone_h[drone-1], 0.0);
+            // go_to_traj(drone, start_positions[drone-1][0], start_positions[drone-1][1], start_positions[drone-1][2] + land_h + drone_h[drone-1], 0.0);
 
             rclcpp::sleep_for(std::chrono::milliseconds(1000));
-            return 1;
+            return duration;
         }
         auto curr = nodes_graph[v];
         curr[2] += drone_h[drone];
@@ -751,13 +764,13 @@ public:
                     end = second_face.back(); second_face.pop_back();
                     start = second_face.back(); second_face.pop_back();
 
-                    go_to_traj(scan_drone, start[0], start[1], start[2], start[3]);
+                    // go_to_traj(scan_drone, start[0], start[1], start[2], start[3]);
                     duration = go_to(scan_drone, start[0], start[1], start[2], start[3]);
                     std::cout << utils::FG_GREEN << "GoTo: [" << scan_drone << "]" << ":" << "(" << start[0] << "," << start[1] << "," << start[2] <<  "," << start[3] << ")" << " min_charge: " << min_charge << utils::FG_DEFAULT << std::endl;
                     wait_to_reach();
                     // rclcpp::sleep_for(std::chrono::seconds(duration)); 
                     
-                    go_to_traj(scan_drone, end[0], end[1], end[2], end[3]);
+                    // go_to_traj(scan_drone, end[0], end[1], end[2], end[3]);
                     duration = go_to(scan_drone, end[0], end[1], end[2], end[3]);
                     std::cout << utils::FG_GREEN <<"GoTo: [" << scan_drone << "]" << ":" << "(" << end[0] << "," << end[1] << "," << end[2] <<  "," << end[3] << ")" << " min_charge: " << min_charge << utils::FG_DEFAULT << std::endl;
                     wait_to_reach();
@@ -787,6 +800,12 @@ private:
         int i = drone_namespace_ - 1; //cf_1 -> 0
         odom_linear[i] = geometry_msgs::msg::Point(msg.pose.position);
         odom_quat[i] = geometry_msgs::msg::Quaternion(msg.pose.orientation);
+    }
+
+    void odom_callback(const nav_msgs::msg::Odometry & msg, const int drone_namespace_){
+        int i = drone_namespace_ - 1; //cf_1 -> 0
+        odom_linear_vel[i] = geometry_msgs::msg::Vector3(msg.twist.twist.linear);
+        odom_angular_vel[i] = geometry_msgs::msg::Vector3(msg.twist.twist.angular);
     }
 
     void aruco_callback(const ros2_aruco_interfaces::msg::ArucoMarkers & msg, const int drone_namespace_){
@@ -896,10 +915,17 @@ private:
     //     marker.color.r = 0.0;
     //     marker.color.g = 1.0;
     //     marker.color.b = 0.0;
-
+    //     for(int i = 0;i<num_cf;i++){
+    //         geometry_msgs::msg::Point p;
+    //         p.x = drone_status[i].second.x();
+    //         p.y = drone_status[i].second.y();
+    //         p.z = drone_status[i].second.z();
+    //         points_.push_back(p);
+    //     }
+        
     //     marker.points = points_;
 
-    //     publisher_->publish(marker);
+    //     rviz_publisher_->publish(marker);
     //     RCLCPP_INFO(this->get_logger(), "Published marker with %zu points", points_.size());
     // }
 
@@ -942,6 +968,8 @@ private:
 
     std::vector<geometry_msgs::msg::Point> odom_linear;
     std::vector<geometry_msgs::msg::Quaternion> odom_quat;
+    std::vector<geometry_msgs::msg::Vector3> odom_linear_vel;
+    std::vector<geometry_msgs::msg::Vector3> odom_angular_vel;
 
     rclcpp::CallbackGroup::SharedPtr service_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
     rclcpp::CallbackGroup::SharedPtr aruco_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
@@ -957,9 +985,11 @@ private:
     // rclcpp::TimerBase::SharedPtr viz_timer_;
 
     std::vector<rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr> pose_subscriptions_;
+    std::vector<rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr> odom_subscriptions_;
     std::vector<rclcpp::Subscription<ros2_aruco_interfaces::msg::ArucoMarkers>::SharedPtr> aruco_subscriptions_;
     std::vector<rclcpp::Subscription<sensor_msgs::msg::BatteryState>::SharedPtr> battery_subscriptions_;
     rclcpp::Publisher<icuas25_msgs::msg::TargetInfo>::SharedPtr res_publisher_;
+    // rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr rviz_publisher_;
 
     // rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr viz_pub_;
     std::vector<rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr> start_charging_pub_;

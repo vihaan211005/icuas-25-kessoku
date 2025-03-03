@@ -19,6 +19,7 @@ find_package(geometry_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(octomap_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
 find_package(visualization_msgs REQUIRED)
 find_package(octomap REQUIRED)
 find_package(icuas25_msgs REQUIRED)
@@ -80,6 +81,7 @@ ament_target_dependencies(crazyflie_client
   builtin_interfaces 
   ros2_aruco_interfaces 
   octomap_msgs 
+  nav_msgs
   icuas25_msgs 
   octomap 
   Boost 
