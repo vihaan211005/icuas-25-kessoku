@@ -47,6 +47,7 @@
 using namespace std::chrono_literals;
                                               
 double EPS = 0.1;
+double ARUCO_EPS = 0.5;
 double land_h = 1;
 double land_h_0 = 0.03;
 
@@ -127,7 +128,7 @@ public:
         res_publisher_ = this->create_publisher<icuas25_msgs::msg::TargetInfo>("target_found", 10);
         // rviz_publisher_ = this->create_publisher<visualization_msgs::msg::Marker>("visualization_marker", 10);
 
-        aruco_timer_ = this->create_wall_timer(500ms, std::bind(&CrazyflieCommandClient::timer_callback, this), aruco_cb_group_);
+        // aruco_timer_ = this->create_wall_timer(500ms, std::bind(&CrazyflieCommandClient::timer_callback, this), aruco_cb_group_);
         run_mission_timer_ = this->create_wall_timer(500ms, std::bind(&CrazyflieCommandClient::run_mission, this), run_mission_cb_group_);
         // viz_timer_ = this->create_wall_timer(500ms, std::bind(&CrazyflieCommandClient::publish_markers, this), viz_cb_group_);
     }
@@ -813,13 +814,34 @@ private:
 
         if (!msg.marker_ids.empty()) { 
             for(uint i = 0; i < msg.marker_ids.size(); i++){
-                if(dist(prev_aruco_position, {msg.poses[k].position.x, msg.poses[k].position.y, msg.poses[k].position.z}) > EPS){
-                    RCLCPP_INFO(this->get_logger(), "AruCo spotted at {%.2f, %.2f, %.2f}", msg.poses[k].position.x, msg.poses[k].position.y, msg.poses[k].position.z);
-                    
-                    curr_aruco_position = {msg.poses[k].position.x, msg.poses[k].position.y, msg.poses[k].position.z};
-                    curr_aruco_id = msg.marker_ids[k];
+                double x = msg.poses[i].position.x;
+                double y = msg.poses[i].position.y;
+                double z = msg.poses[i].position.z;
 
-                    prev_aruco_position = {msg.poses[k].position.x, msg.poses[k].position.y, msg.poses[k].position.z};
+                if(dist(prev_aruco_position, {x, y, z}) > ARUCO_EPS){
+                    RCLCPP_INFO(this->get_logger(), "AruCo spotted at {%.2f, %.2f, %.2f}", x, y, z);
+                    
+                    curr_aruco_position = {x, y, z};
+                    curr_aruco_id = msg.marker_ids[i];
+                    
+                    RCLCPP_INFO(this->get_logger(), "Publishing to /target_found!");
+                    auto res = icuas25_msgs::msg::TargetInfo();
+
+                    res.id = curr_aruco_id;
+                    
+                    Eigen::Quaterniond quaternion(odom_quat[k].w, odom_quat[k].x, odom_quat[k].y, odom_quat[k].z); 
+                    quaternion.normalize();
+                    
+                    Eigen::Vector3d point(curr_aruco_position[2], -curr_aruco_position[0], -curr_aruco_position[1]);
+                    
+                    Eigen::Vector3d transformed_point = quaternion * point;
+                    res.location.x = odom_linear[k].x + transformed_point.x();
+                    res.location.y = odom_linear[k].y + transformed_point.y();
+                    res.location.z = odom_linear[k].z + transformed_point.z();
+                    
+                    res_publisher_->publish(res);
+
+                    prev_aruco_position = curr_aruco_position;
                 }
             }
         }
@@ -842,28 +864,6 @@ private:
         }
         else{
             // std::cout << "Recharge flag not set" << std::endl;
-        }
-    }
-
-    void timer_callback(){
-        if(curr_aruco_position[0] != -1e8){
-            RCLCPP_INFO(this->get_logger(), "Publishing to /target_found!");
-
-            auto res = icuas25_msgs::msg::TargetInfo();
-            res.id = curr_aruco_id;
-            Eigen::Quaterniond quaternion(odom_quat[0].w, odom_quat[0].x, odom_quat[0].y, odom_quat[0].z); 
-            quaternion.normalize();
-
-            Eigen::Vector3d point(curr_aruco_position[2], -curr_aruco_position[0], -curr_aruco_position[1]);
-
-            Eigen::Vector3d transformed_point = quaternion * point;
-            res.location.x = odom_linear[0].x + transformed_point.x();
-            res.location.y = odom_linear[0].y + transformed_point.y();
-            res.location.z = odom_linear[0].z + transformed_point.z();
-
-            res_publisher_->publish(res);
-
-            curr_aruco_position = {-1e8, -1e8, -1e8};
         }
     }
 
