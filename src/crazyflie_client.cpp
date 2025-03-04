@@ -10,6 +10,8 @@
 #include "crazyflie_interfaces/srv/start_trajectory.hpp"
 #include "crazyflie_interfaces/msg/trajectory_polynomial_piece.hpp"
 
+#include "fcl/fcl.h"
+
 #include <octomap/octomap.h>
 #include "octomap_msgs/conversions.h"
 #include "octomap_msgs/srv/get_octomap.hpp"
@@ -71,7 +73,9 @@ public:
         stop_charging_pub_(num_cf),
         battery_status_(num_cf, 100),
         recharge_flag(false),
-        drone_status(num_cf, std::make_pair(true, Eigen::Vector3d()))
+        drone_status(num_cf, std::make_pair(true, Eigen::Vector3d())),
+        quad_obj(num_cf),
+        requestType(1, false, 1, false)
     {
         if(range == 0){
             std::cout << "COMM_RANGE not set!" << std::endl;
@@ -118,6 +122,19 @@ public:
         RCLCPP_INFO(this->get_logger(), "Getting Octomap...");
         get_octomap();
 
+        // init fcl collision geometries
+        fcl::OcTree<double>* fcl_tree = new fcl::OcTree<double>(std::shared_ptr<const octomap::OcTree>(tree));
+		auto tree_obj = std::shared_ptr<fcl::CollisionGeometry<double>>(fcl_tree);
+        tree_collision_object = std::make_shared<fcl::CollisionObject<double>>(tree_obj);
+
+        for(int i = 0; i < num_cf; i++){
+            quad_obj[i] = std::shared_ptr<fcl::CollisionGeometry<double>>(new fcl::Box(0.10, 0.10, 0.03));
+        }
+        for(int i = 0; i < num_cf; i++){
+            collision_objects.push_back(fcl::CollisionObject<double> (quad_obj[i]));
+        }
+
+        // init planner
         RCLCPP_INFO(this->get_logger(), "Initializing Solver object...");
         solver = std::make_shared<Solver>(Eigen::Vector3d(0, 0, 1), *tree, range, 5);
         solver->initialSetup();
@@ -793,6 +810,32 @@ public:
     }
 
 private:
+    void check_collision() {
+        for(int i = 0; i < num_cf; i++){
+            fcl::Vector3d translation(odom_linear[i].x, odom_linear[i].y, odom_linear[i].z);
+            fcl::Quaterniond rotation(odom_quat[i].w, odom_quat[i].x, odom_quat[i].y, odom_quat[i].z);
+            collision_objects[i].setTransform(rotation, translation);
+        }
+
+        for(int i = 0; i < num_cf; i++){
+            for(int j = i + 1; j < num_cf; j++){
+                fcl::CollisionResult<double> collisionResult;
+                fcl::collide(&collision_objects[i], &collision_objects[j], requestType, collisionResult);
+                if (collisionResult.isCollision()){
+                    std::cout << utils::Color::FG_RED << "Collision happened between " << i + 1 << " and " << j + 1 << utils::Color::FG_DEFAULT << std::endl;
+                }
+            }
+        }
+
+        for(int i = 0; i < num_cf; i++){
+            fcl::CollisionResult<double> collisionResult;
+            fcl::collide(&collision_objects[i], &(*tree_collision_object), requestType, collisionResult);
+            if (collisionResult.isCollision()){
+                std::cout << utils::Color::FG_RED << "Collision happened between " << i << " and building" << utils::Color::FG_DEFAULT << std::endl;
+            }
+        }
+    }
+
     double get_yaw(int drone){
         return atan2(2*(odom_quat[drone].w*odom_quat[drone].z + odom_quat[drone].x*odom_quat[drone].y), 1 - 2*(odom_quat[drone].y*odom_quat[drone].y + odom_quat[drone].z*odom_quat[drone].z));
     }
@@ -1014,6 +1057,11 @@ private:
     double min_charge = 100;
     std::vector<std::pair<bool, Eigen::Vector3d>> drone_status;
 
+    // std::shared_ptr<fcl::CollisionGeometry<double>> tree_obj;
+    std::vector<std::shared_ptr<fcl::CollisionGeometry<double>>> quad_obj;
+    std::shared_ptr<fcl::CollisionObject<double>> tree_collision_object;
+    std::vector<fcl::CollisionObject<double>> collision_objects;
+    fcl::CollisionRequest<double> requestType;
 };
 
 int main(int argc, char **argv)

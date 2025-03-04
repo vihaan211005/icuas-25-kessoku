@@ -1,0 +1,93 @@
+> [stage-0 65/72] RUN bash -c "source /opt/ros/humble/setup.bash;source /root/CrazySim/ros2_ws/install/setup.bash;colcon build --symlink-install --merge-install --cmake-args=-DCMAKE_EXPORT_COMPILE_COMMANDS=ON --packages-select icuas25_competition":
+0.971 Starting >>> icuas25_competition
+13.24 --- stderr: icuas25_competition
+13.24 /root/CrazySim/ros2_ws/src/icuas25_competition/src/crazyflie_client.cpp:1032:37: error: type/value mismatch at argument 1 in template parameter list for ‘template<class _Tp, class _Alloc> class std::vector’
+13.24  1032 |     std::vector<fcl::CollisionObject> collision_objects;
+13.24       |                                     ^
+13.24 /root/CrazySim/ros2_ws/src/icuas25_competition/src/crazyflie_client.cpp:1032:37: note:   expected a type, got ‘CollisionObject’
+13.24 /root/CrazySim/ros2_ws/src/icuas25_competition/src/crazyflie_client.cpp:1032:37: error: template argument 2 is invalid
+13.24 /root/CrazySim/ros2_ws/src/icuas25_competition/src/crazyflie_client.cpp: In constructor ‘CrazyflieCommandClient::CrazyflieCommandClient()’:
+13.24 /root/CrazySim/ros2_ws/src/icuas25_competition/src/crazyflie_client.cpp:994:46: warning: ‘CrazyflieCommandClient::odom_angular_vel’ will be initialized after [-Wreorder]
+13.24   994 |     std::vector<geometry_msgs::msg::Vector3> odom_angular_vel;
+13.24       |                                              ^~~~~~~~~~~~~~~~
+13.24 /root/CrazySim/ros2_ws/src/icuas25_competition/src/crazyflie_client.cpp:992:49: warning:   ‘std::vector<geometry_msgs::msg::Quaternion_<std::allocator<void> > > CrazyflieCommandClient::odom_quat’ [-Wreorder]
+13.24   992 |     std::vector<geometry_msgs::msg::Quaternion> odom_quat;
+13.24       |                                                 ^~~~~~~~~
+13.24 /root/CrazySim/ros2_ws/src/icuas25_competition/src/crazyflie_client.cpp:59:5: warning:   when initialized here [-Wreorder]
+13.24    59 |     CrazyflieCommandClient() :
+13.24       |     ^~~~~~~~~~~~~~~~~~~~~~
+13.24 /root/CrazySim/ros2_ws/src/icuas25_competition/src/crazyflie_client.cpp:1010:75: warning: ‘CrazyflieCommandClient::odom_subscriptions_’ will be initialized after [-Wreorder]
+13.24  1010 |     std::vector<rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr> odom_subscriptions_;
+13.24       |                                                                           ^~~~~~~~~~~~~~~~~~~
+13.24 /root/CrazySim/ros2_ws/src/icuas25_competition/src/crazyflie_client.cpp:1009:83: warning:   ‘std::vector<std::shared_ptr<rclcpp::Subscription<geometry_msgs::msg::PoseStamped_<std::allocator<void> > > > > CrazyflieCommandClient::pose_subscriptions_’ [-Wreorder]
+13.24  1009 |     std::vector<rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr> pose_subscriptions_;
+13.24       |                                                                                   ^~~~~~~~~~~~~~~~~~~
+13.24 /root/CrazySim/ros2_ws/src/icuas25_competition/src/crazyflie_client.cpp:59:5: warning:   when initialized here [-Wreorder]
+13.24    59 |     CrazyflieCommandClient() :
+13.24       |     ^~~~~~~~~~~~~~~~~~~~~~
+13.24 /root/CrazySim/ros2_ws/src/icuas25_competition/src/crazyflie_client.cpp: In member function ‘double CrazyflieCommandClient::upload_trajectory(const int&, uint, double, double, double, double, std::string)’:
+13.24 /root/CrazySim/ros2_ws/src/icuas25_competition/src/crazyflie_client.cpp:384:26: warning: comparison of integer expressions of different signedness: ‘int’ and ‘std::vector<crazyflie_interfaces::msg::TrajectoryPolynomialPiece_<std::allocator<void> >, std::allocator<crazyflie_interfaces::msg::TrajectoryPolynomialPiece_<std::allocator<void> > > >::size_type’ {aka ‘long unsigned int’} [-Wsign-compare]
+13.24   384 |         for(int i = 0; i < pieces.size(); i++){
+13.24       |                        ~~^~~~~~~~~~~~~~~
+13.24 /root/CrazySim/ros2_ws/src/icuas25_competition/src/crazyflie_client.cpp:385:30: warning: comparison of integer expressions of different signedness: ‘int’ and ‘std::vector<float>::size_type’ {aka ‘long unsigned int’} [-Wsign-compare]
+13.24   385 |             for(int j = 0; j < pieces[i].poly_x.size(); j++){
+13.24       |                            ~~^~~~~~~~~~~~~~~~~~~~~~~~~
+13.24 /root/CrazySim/ros2_ws/src/icuas25_competition/src/crazyflie_client.cpp:388:30: warning: comparison of integer expressions of different signedness: ‘int’ and ‘std::vector<float>::size_type’ {aka ‘long unsigned int’} [-Wsign-compare]
+13.24   388 |             for(int j = 0; j < pieces[i].poly_y.size(); j++){
+13.24       |                            ~~^~~~~~~~~~~~~~~~~~~~~~~~~
+13.24 /root/CrazySim/ros2_ws/src/icuas25_competition/src/crazyflie_client.cpp:391:30: warning: comparison of integer expressions of different signedness: ‘int’ and ‘std::vector<float>::size_type’ {aka ‘long unsigned int’} [-Wsign-compare]
+13.24   391 |             for(int j = 0; j < pieces[i].poly_z.size(); j++){
+13.24       |                            ~~^~~~~~~~~~~~~~~~~~~~~~~~~
+13.24 /root/CrazySim/ros2_ws/src/icuas25_competition/src/crazyflie_client.cpp:394:30: warning: comparison of integer expressions of different signedness: ‘int’ and ‘std::vector<float>::size_type’ {aka ‘long unsigned int’} [-Wsign-compare]
+13.24   394 |             for(int j = 0; j < pieces[i].poly_yaw.size(); j++){
+13.24       |                            ~~^~~~~~~~~~~~~~~~~~~~~~~~~~~
+13.24 /root/CrazySim/ros2_ws/src/icuas25_competition/src/crazyflie_client.cpp:292:75: warning: unused parameter ‘x’ [-Wunused-parameter]
+13.24   292 |     double upload_trajectory(const int& drone, uint trajectory_id, double x, double y, double z, double yaw, std::string filename){
+13.24       |                                                                    ~~~~~~~^
+13.24 /root/CrazySim/ros2_ws/src/icuas25_competition/src/crazyflie_client.cpp:292:85: warning: unused parameter ‘y’ [-Wunused-parameter]
+13.24   292 |     double upload_trajectory(const int& drone, uint trajectory_id, double x, double y, double z, double yaw, std::string filename){
+13.24       |                                                                              ~~~~~~~^
+13.24 /root/CrazySim/ros2_ws/src/icuas25_competition/src/crazyflie_client.cpp:292:95: warning: unused parameter ‘z’ [-Wunused-parameter]
+13.24   292 |     double upload_trajectory(const int& drone, uint trajectory_id, double x, double y, double z, double yaw, std::string filename){
+13.24       |                                                                                        ~~~~~~~^
+13.24 /root/CrazySim/ros2_ws/src/icuas25_competition/src/crazyflie_client.cpp:292:105: warning: unused parameter ‘yaw’ [-Wunused-parameter]
+13.24   292 |     double upload_trajectory(const int& drone, uint trajectory_id, double x, double y, double z, double yaw, std::string filename){
+13.24       |                                                                                                  ~~~~~~~^~~
+13.24 /root/CrazySim/ros2_ws/src/icuas25_competition/src/crazyflie_client.cpp: In member function ‘int CrazyflieCommandClient::start_trajectory(const int&, float, uint)’:
+13.24 /root/CrazySim/ros2_ws/src/icuas25_competition/src/crazyflie_client.cpp:407:50: warning: unused parameter ‘timescale’ [-Wunused-parameter]
+13.24   407 |     int start_trajectory(const int& drone, float timescale, uint trajectory_id){
+13.24       |                                            ~~~~~~^~~~~~~~~
+13.24 /root/CrazySim/ros2_ws/src/icuas25_competition/src/crazyflie_client.cpp: In member function ‘int CrazyflieCommandClient::go_for_recharge(int)’:
+13.24 /root/CrazySim/ros2_ws/src/icuas25_competition/src/crazyflie_client.cpp:473:26: warning: comparison of integer expressions of different signedness: ‘int’ and ‘std::vector<int>::size_type’ {aka ‘long unsigned int’} [-Wsign-compare]
+13.24   473 |         for(int i = 0; i < lcaToCurrPath.size(); i++){
+13.24       |                        ~~^~~~~~~~~~~~~~~~~~~~~~
+13.24 /root/CrazySim/ros2_ws/src/icuas25_competition/src/crazyflie_client.cpp: In member function ‘int CrazyflieCommandClient::run_mission()’:
+13.24 /root/CrazySim/ros2_ws/src/icuas25_competition/src/crazyflie_client.cpp:726:34: warning: comparison of integer expressions of different signedness: ‘int’ and ‘std::vector<int>::size_type’ {aka ‘long unsigned int’} [-Wsign-compare]
+13.24   726 |                 for(int i = 0; i < curr_drones.size(); i++){
+13.24       |                                ~~^~~~~~~~~~~~~~~~~~~~
+13.24 /root/CrazySim/ros2_ws/src/icuas25_competition/src/crazyflie_client.cpp: In member function ‘int CrazyflieCommandClient::visualizeTree()’:
+13.24 /root/CrazySim/ros2_ws/src/icuas25_competition/src/crazyflie_client.cpp:574:20: warning: ignoring return value of ‘int system(const char*)’ declared with attribute ‘warn_unused_result’ [-Wunused-result]
+13.24   574 |         std::system("dot -Tpng tree.dot -o tree.png");
+13.24       |         ~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+13.24 gmake[2]: *** [CMakeFiles/crazyflie_client.dir/build.make:76: CMakeFiles/crazyflie_client.dir/src/crazyflie_client.cpp.o] Error 1
+13.24 gmake[1]: *** [CMakeFiles/Makefile2:192: CMakeFiles/crazyflie_client.dir/all] Error 2
+13.24 gmake: *** [Makefile:146: all] Error 2
+13.24 ---
+13.24 Failed   <<< icuas25_competition [12.3s, exited with code 2]
+13.26 
+13.26 Summary: 0 packages finished [12.6s]
+13.26   1 package failed: icuas25_competition
+13.26   1 package had stderr output: icuas25_competition
+------
+Dockerfile:260
+--------------------
+ 258 |     # Build packages
+ 259 |     RUN bash -c "source /opt/ros/${ROS2_DISTRO}/setup.bash;colcon build --symlink-install --merge-install --cmake-args=-DCMAKE_EXPORT_COMPILE_COMMANDS=ON --packages-skip icuas25_competition"
+ 260 | >>> RUN bash -c "source /opt/ros/${ROS2_DISTRO}/setup.bash;source $HOME/CrazySim/ros2_ws/install/setup.bash;colcon build --symlink-install --merge-install --cmake-args=-DCMAKE_EXPORT_COMPILE_COMMANDS=ON --packages-select icuas25_competition"
+ 261 |     RUN echo "ros2_ws" >> $HOME/.bashrc && \
+ 262 |     echo "source_ros2" >> $HOME/.bashrc
+--------------------
+ERROR: failed to solve: process "/bin/sh -c bash -c \"source /opt/ros/${ROS2_DISTRO}/setup.bash;source $HOME/CrazySim/ros2_ws/install/setup.bash;colcon build --symlink-install --merge-install --cmake-args=-DCMAKE_EXPORT_COMPILE_COMMANDS=ON --packages-select icuas25_competition\"" did not complete successfully: exit code: 2
+vihaan@lappy:~/ICUAS/icuas$ 
+
+
