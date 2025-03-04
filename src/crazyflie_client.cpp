@@ -818,7 +818,7 @@ private:
                 double y = msg.poses[i].position.y;
                 double z = msg.poses[i].position.z;
 
-                if(dist(prev_aruco_position, {x, y, z}) > ARUCO_EPS){
+                if(check_distance(prev_aruco_positions, {x, y, z}, ARUCO_EPS)){
                     RCLCPP_INFO(this->get_logger(), "AruCo spotted at {%.2f, %.2f, %.2f}", x, y, z);
                     
                     curr_aruco_position = {x, y, z};
@@ -841,7 +841,7 @@ private:
                     
                     res_publisher_->publish(res);
 
-                    prev_aruco_position = curr_aruco_position;
+                    prev_aruco_positions.push_back(curr_aruco_position);
                 }
             }
         }
@@ -897,6 +897,15 @@ private:
             }
             rclcpp::sleep_for(std::chrono::milliseconds(500));
         }
+    }
+
+    bool check_distance(const std::vector<std::vector<double>>& prev_aruco_positions, const std::vector<double>& new_point, double ARUCO_EPS) {
+        for (const auto& prev_point : prev_aruco_positions) {
+            if (dist(prev_point, new_point) <= ARUCO_EPS) {
+                return false; // Found a point where the distance is too small, return false
+            }
+        }
+        return true; // All distances are greater than ARUCO_EPS
     }
 
     // void publish_markers()
@@ -997,7 +1006,7 @@ private:
 
     double curr_aruco_id;
     std::vector<double> curr_aruco_position = {-1e8, -1e8, -1e8};
-    std::vector<double> prev_aruco_position = {-1e8, -1e8, -1e8};
+    std::vector<std::vector<double>> prev_aruco_positions = {{-1e8, -1e8, -1e8}};
 
     std::vector<float> battery_status_;
     bool recharge_flag;
