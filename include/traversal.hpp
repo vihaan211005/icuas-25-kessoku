@@ -1,5 +1,4 @@
 #pragma once
-
 #include <octomap/octomap.h>
 #include <vector>
 #include <iostream>
@@ -104,6 +103,9 @@ public:
     }
 
 private:
+    int stepHeight = 2;
+    double minThreshold = 1.2;
+
     Eigen::Vector3d baseStation;
     Eigen::Vector3i baseIndex = Eigen::Vector3i(0, 0, 0);
     octomap::OcTree octree;
@@ -124,6 +126,21 @@ private:
 
     bool nhi_hua = true;
 
+    // double calculateTotalDistance(const std::vector<std::vector<DronePos>>& temp) {
+    //     double totalDistance = 0.0;
+    //     for (const auto& segment : temp) {
+    //         for (size_t i = 1; i < segment.size(); ++i) {
+    //             Eigen::Vector3i p1 = segment[i - 1].pos;
+    //             Eigen::Vector3i p2 = segment[i].pos;
+    
+    //             totalDistance += std::sqrt(std::pow(p2.x() - p1.x(), 2) +
+    //                                        std::pow(p2.y() - p1.y(), 2) +
+    //                                        std::pow(p2.z() - p1.z(), 2));
+    //         }
+    //     }
+    //     return totalDistance;
+    // }    
+
     std::pair<std::vector<std::vector<DronePos>>, std::vector<std::vector<DronePos>>> getAdjacentFace(int node)
     {
         int dirx = std::get<0>(node_dirs[node]);
@@ -131,6 +148,11 @@ private:
 
         std::pair<std::vector<std::vector<DronePos>>, std::vector<std::vector<DronePos>>> solution_;
 
+        std::vector<std::vector<DronePos>> temp1;
+        std::vector<std::vector<DronePos>> temp2;
+        // double dist1;
+        // double dist2;
+    
         if (!dirx && !diry)
             return solution_;
 
@@ -150,22 +172,56 @@ private:
                 if (check2points_octree(Eigen::Vector3i(x + dirx, y + i, z + j), nodes_graph[node], radius) && binaryArray[x][y + i][z + j] == 2 && (!visited[x][y + i][z + j] || !i))
                 {
                     poses.push_back(DronePos(Eigen::Vector3i(x + dirx, y + i, z + j), (dirx + 1) >> 1));
-                    visited[x][y + i][z + j] = true;
                 }
                 else
                     break;
                 diry == 1 ? i-- : i++;
             }
             if (poses.size() > 1)
-                solution_.first.push_back(poses);
+                temp1.push_back(poses);
             else
                 break;
-            j -= 2;
-            if ((!i) || !(z + j))
+            j--;
+            if (z + j < 0)
                 break;
-            if (mapBounds.min.z() + (z + j) * resolution < 1.2)
+            if (mapBounds.min.z() + (z + j) * resolution < minThreshold)
                 break;
         }
+
+        i = 0;
+        while (1)
+        {
+            j = 0;
+            std::vector<DronePos> poses;
+            while (1)
+            {
+                if (check2points_octree(Eigen::Vector3i(x + dirx, y + i, z + j), nodes_graph[node], radius) && binaryArray[x][y + i][z + j] == 2 && (!visited[x][y + i][z + j] || !i))
+                {
+                    poses.push_back(DronePos(Eigen::Vector3i(x + dirx, y + i, z + j), (dirx + 1) >> 1));
+                    visited[x][y + i][z + j] = true;
+                }
+                else
+                    break;
+                j--;
+
+                if (mapBounds.min.z() + (z + j) * resolution < minThreshold || (z + j) < 0)
+                    break;
+            }
+            if (poses.size() > 1)
+                temp2.push_back(poses);
+            else
+                break;
+            diry == 1 ? i-- : i++;
+            if (y + i < 0 || y + i >= dimArray.y())
+                break;
+        }        
+        
+        if (temp1.size() > temp2.size())
+            solution_.first = temp1;
+        else 
+            solution_.first = temp2;
+        temp1.clear();
+        temp2.clear();
 
         j = 0;
         while (1)
@@ -177,22 +233,56 @@ private:
                 if (check2points_octree(Eigen::Vector3i(x + i, y + diry, z + j), nodes_graph[node], radius) && binaryArray[x + i][y][z + j] == 2 && (!visited[x + i][y][z + j] || !i))
                 {
                     poses.push_back(DronePos(Eigen::Vector3i(x + i, y + diry, z + j), (diry + 5) >> 1));
-                    visited[x + i][y][z + j] = true;
                 }
                 else
                     break;
                 dirx == 1 ? i-- : i++;
             }
             if (poses.size() > 1)
-                solution_.second.push_back(poses);
+                temp1.push_back(poses);
             else
                 break;
-            j -= 2;
-            if ((!i) || !(z + j))
+            j--;
+            if (z + j < 0)
                 break;
-            if (mapBounds.min.z() + (z + j) * resolution < 1.2)
+            if (mapBounds.min.z() + (z + j) * resolution < minThreshold)
                 break;
         }
+
+        i = 0;
+        while (1)
+        {
+            j = 0;
+            std::vector<DronePos> poses;
+            while (1)
+            {
+                if (check2points_octree(Eigen::Vector3i(x + i, y + diry, z + j), nodes_graph[node], radius) && binaryArray[x + i][y][z + j] == 2 && (!visited[x + i][y][z + j] || !i))
+                {
+                    poses.push_back(DronePos(Eigen::Vector3i(x + i, y + diry, z + j), (diry + 5) >> 1));
+                    visited[x + i][y][z + j] = true;
+                }
+                else
+                    break;
+                j--;
+                
+                if (mapBounds.min.z() + (z + j) * resolution < minThreshold || (z + j) < 0)
+                    break;
+            }
+            if (poses.size() > 1)
+                temp2.push_back(poses);
+            else
+                break;
+            dirx == 1 ? i-- : i++;
+            if (x + i < 0 || x + i > dimArray.x())
+                break;
+        }
+        if(temp1.size() > temp2.size())
+            solution_.second = temp2;
+        else
+            solution_.second = temp1;
+
+        temp1.clear();
+        temp2.clear();
 
         return solution_;
     }
@@ -225,9 +315,11 @@ private:
             std::deque<Eigen::Vector4d> dusra;
             if (faces.first.size() || faces.second.size())
                 binaryArray[nodes_graph[node].x()][nodes_graph[node].y()][nodes_graph[node].z()] = 4;
-
+            
+            int count = 0;
             for (auto face : faces.first)
             {
+                if((count++)%stepHeight) continue;
                 for (auto l : face)
                 {
                     binaryArray[l.pos.x()][l.pos.y()][l.pos.z()] = 5;
@@ -237,11 +329,20 @@ private:
                 Eigen::Vector3d p2 = indexToPoint(face[face.size() - 1].pos);
                 double yaw2 = (face[face.size() - 1].yaw * M_PI) + (M_PI / 2) * (face[face.size() - 1].yaw > 1);
                 // std::cout << "yaw1: " << yaw1 << ", yaw2: " << yaw2 << std::endl;
-                pehla.push_back(Eigen::Vector4d(p1.x(), p1.y(), p1.z(), yaw1));
-                pehla.push_back(Eigen::Vector4d(p2.x(), p2.y(), p2.z(), yaw2));
+                if(p1.z() - p2.z() > 0.01 || p1.z() - p2.z() < -0.01)
+                {
+                    pehla.push_back(Eigen::Vector4d(p2.x(), p2.y(), p2.z(), yaw2));
+                    pehla.push_back(Eigen::Vector4d(p1.x(), p1.y(), p1.z(), yaw1));
+                }else
+                {
+                    pehla.push_back(Eigen::Vector4d(p1.x(), p1.y(), p1.z(), yaw1));
+                    pehla.push_back(Eigen::Vector4d(p2.x(), p2.y(), p2.z(), yaw2));
+                }
             }
+            count = 0;
             for (auto face : faces.second)
             {
+                if((count++)%stepHeight) continue;
                 for (auto l : face)
                 {
                     binaryArray[l.pos.x()][l.pos.y()][l.pos.z()] = 5;
@@ -251,8 +352,15 @@ private:
                 Eigen::Vector3d p2 = indexToPoint(face[face.size() - 1].pos);
                 double yaw2 = (face[face.size() - 1].yaw * M_PI) + (M_PI / 2) * (face[face.size() - 1].yaw > 1);
                 // std::cout << "yaw1: " << yaw1 << ", yaw2: " << yaw2 << std::endl;
-                dusra.push_back(Eigen::Vector4d(p1.x(), p1.y(), p1.z(), yaw1));
-                dusra.push_back(Eigen::Vector4d(p2.x(), p2.y(), p2.z(), yaw2));
+                if(p1.z() - p2.z() > 0.01 || p1.z() - p2.z() < -0.01)
+                {
+                    dusra.push_back(Eigen::Vector4d(p2.x(), p2.y(), p2.z(), yaw2));
+                    dusra.push_back(Eigen::Vector4d(p1.x(), p1.y(), p1.z(), yaw1));
+                }else
+                {
+                    dusra.push_back(Eigen::Vector4d(p1.x(), p1.y(), p1.z(), yaw1));
+                    dusra.push_back(Eigen::Vector4d(p2.x(), p2.y(), p2.z(), yaw2));
+                }
             }
             if (nhi_hua && distance[node] == 2)
             {
