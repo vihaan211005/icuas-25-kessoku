@@ -47,6 +47,12 @@
 #include "viz_tree.hpp"
 #include "utils.hpp"
 
+#ifndef M_PI_F
+#define M_PI_F   (3.14159265358979323846f)
+#define M_1_PI_F (0.31830988618379067154f)
+#define M_PI_2_F (1.57079632679f)
+#endif
+
 using namespace std::chrono_literals;
                                               
 double EPS = 0.1;
@@ -219,10 +225,14 @@ public:
         return 0;
     }
 
-    double go_to(int drone, double x, double y, double z, double yaw)
+    double go_to(int drone, double x, double y, double z, double yaw, bool traj = true)
     {
         RCLCPP_INFO(this->get_logger(), "Initialized CrazyflieCommandClient::go_to for namespace: %d", drone);
 
+        if(traj){
+            auto duration = go_to_traj(drone, x, y, z, yaw);
+            return duration;
+        }
         auto client = this->create_client<crazyflie_interfaces::srv::GoTo>("/cf_" + std::to_string(drone) + "/go_to", rmw_qos_profile_services_default, service_cb_group_);
         auto request = std::make_shared<crazyflie_interfaces::srv::GoTo::Request>();
 
@@ -267,19 +277,92 @@ public:
         return T;
     }
 
-    int go_to_traj(int drone, double x, double y, double z, double yaw){
-        std::ofstream file("/wp.csv");
-        file << odom_linear[drone-1].x << "," << odom_linear[drone-1].y << "," << odom_linear[drone-1].z << "," << get_yaw(drone-1) << std::endl;
-        file << x << "," << y << "," << z << "," << yaw << std::endl;
-        file.close();
+    double upload_hack_trajectory(int drone, int trajectory_id, double start_x, double start_y, double start_z, double start_yaw, double x, double y, double z, double yaw, double v_max){
+        RCLCPP_INFO(this->get_logger(), "Initialized CrazyflieCommandClient::upload_trajectory for namespace: %d", drone);
+
+        auto client = this->create_client<crazyflie_interfaces::srv::UploadTrajectory>("/cf_" + std::to_string(drone) + "/upload_trajectory", rmw_qos_profile_services_default, service_cb_group_);
+        auto request = std::make_shared<crazyflie_interfaces::srv::UploadTrajectory::Request>();
         
-        std::system("$TRAJ_GEN -i /wp.csv --v_max 1.0 --a_max 1.0 -o /out.csv");
-        auto duration = upload_trajectory(drone, 0, x, y, z, yaw, "/out.csv");
+        std::vector<crazyflie_interfaces::msg::TrajectoryPolynomialPiece> pieces;
+
+        double dist_total = dist(std::vector<double>{start_x,start_y,start_z},std::vector<double>{x,y,z});
+        double total_d = dist_total / v_max;
+
+        double delta_yaw = shortest_signed_angle_radians(start_yaw, yaw);
+
+        crazyflie_interfaces::msg::TrajectoryPolynomialPiece piece;
+        piece.poly_x.resize(8);
+        piece.poly_y.resize(8);
+        piece.poly_z.resize(8);
+        piece.poly_yaw.resize(8);
+        
+        piece.poly_x[0] = start_x;
+        piece.poly_y[0] = start_y;
+        piece.poly_z[0] = start_z;
+        piece.poly_yaw[0] = start_yaw;
+        
+        piece.poly_x[1] = (x - start_x) / total_d;
+        piece.poly_y[1] = (y - start_y) / total_d;
+        piece.poly_z[1] = (z - start_z) / total_d;
+        piece.poly_yaw[1] = delta_yaw / total_d;
+        for (size_t i = 2; i < 8; ++i) {
+            piece.poly_x[i]   = 0;
+            piece.poly_y[i]   = 0;
+            piece.poly_z[i]   = 0;
+            piece.poly_yaw[i] = 0;
+        }
+        // piece.poly_yaw[0] = yaw;
+
+        builtin_interfaces::msg::Duration d;
+        d.sec = static_cast<int32_t>(total_d);
+        d.nanosec = static_cast<uint32_t>((total_d - d.sec) * 1e9);
+        piece.duration = d;
+        pieces.push_back(piece);
+
+        request->trajectory_id = trajectory_id;
+        request->piece_offset = 0;
+        request->pieces = pieces;
+
+        wait_for_service(client, "/cf_" + std::to_string(drone) + "/upload_trajectory");
+
+        for(int i = 0; i < pieces.size(); i++){
+            for(int j = 0; j < pieces[i].poly_x.size(); j++){
+                std::cout << pieces[i].poly_x[j] << " ";
+            }
+            for(int j = 0; j < pieces[i].poly_y.size(); j++){
+                std::cout << pieces[i].poly_y[j] << " ";
+            }
+            for(int j = 0; j < pieces[i].poly_z.size(); j++){
+                std::cout << pieces[i].poly_z[j] << " ";
+            }
+            for(int j = 0; j < pieces[i].poly_yaw.size(); j++){
+                std::cout << pieces[i].poly_yaw[j] << " ";
+            }
+            std::cout << std::endl;
+        }
+
+        auto result = client->async_send_request(request).get();
+        RCLCPP_INFO(this->get_logger(), "UploadTrajectory request sent to %d",
+                    drone);
+
+        return total_d;
+    }
+
+    double go_to_traj(int drone, double x, double y, double z, double yaw){
+
+
+        // std::ofstream file("/wp.csv");
+        // file << odom_linear[drone-1].x << "," << odom_linear[drone-1].y << "," << odom_linear[drone-1].z << "," << get_yaw(drone-1) << std::endl;
+        // file << x << "," << y << "," << z << "," << yaw << std::endl;
+        // file.close();
+        
+        // std::system("$TRAJ_GEN -i /wp.csv --v_max 1.0 --a_max 1.0 -o /out.csv");
+        auto duration = upload_hack_trajectory(drone, 0, odom_linear[drone - 1].x, odom_linear[drone - 1].y, odom_linear[drone - 1].z, get_yaw(drone - 1), x, y, z, yaw, 1.0);
         start_trajectory(drone, duration, 0);
         
         drone_status[drone - 1] = std::make_pair(false, Eigen::Vector3d(x, y, z));
 
-        return 0;
+        return duration;
     }
 
     // int go_to_traj(int drone, std::vector<double> x, std::vector<double> y, std::vector<double> z, double yaw){
@@ -526,8 +609,8 @@ public:
         int duration = 0;
         std::cout << utils::Color::FG_BLUE << "GoTo: [" << drone << "]" << ":" << "(" <<   v << ")" << " min_charge: " << min_charge << utils::Color::FG_DEFAULT << std::endl;
 
-        duration = go_to(drone, curr[0], curr[1], curr[2], 0);
-        // go_to_traj(drone, curr[0], curr[1], curr[2], 0);
+        // duration = go_to(drone, curr[0], curr[1], curr[2], 0);
+        duration = go_to_traj(drone, curr[0], curr[1], curr[2], 0);
 
         // rclcpp::sleep_for(std::chrono::milliseconds(500));
         return duration;
@@ -586,7 +669,7 @@ public:
 
     int run_mission(){
         if(!flag){
-            // go_to_traj(1, 21, 18, 0.7, 1.57);
+            // go_to_traj(1, 0, 10, 20, 0);
             // store the start positions
             for(int i = 0; i < num_cf; i++){
                 start_positions[i] = std::vector<double>({odom_linear[i].x, odom_linear[i].y, odom_linear[i].z});
@@ -884,6 +967,17 @@ private:
     double get_yaw(int drone){
         return atan2(2*(odom_quat[drone].w*odom_quat[drone].z + odom_quat[drone].x*odom_quat[drone].y), 1 - 2*(odom_quat[drone].y*odom_quat[drone].y + odom_quat[drone].z*odom_quat[drone].z));
     }
+
+    float fmodf_floored(float x, float n){
+        return x - floorf(x / n) * n;
+    }
+
+    float shortest_signed_angle_radians(float start, float goal) {
+        float diff = goal - start;
+        float signed_diff = fmodf_floored(diff + M_PI_F, 2 * M_PI_F) - M_PI_F;
+        return signed_diff;
+    }
+
 
     void pose_callback(const geometry_msgs::msg::PoseStamped & msg, const int drone_namespace_){
         int i = drone_namespace_ - 1; //cf_1 -> 0
