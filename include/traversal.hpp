@@ -217,9 +217,9 @@ private:
         }        
         
         if (temp1.size() > temp2.size())
-            solution_.first = temp1;
-        else 
             solution_.first = temp2;
+        else 
+            solution_.first = temp1;
         temp1.clear();
         temp2.clear();
 
@@ -316,10 +316,10 @@ private:
             if (faces.first.size() || faces.second.size())
                 binaryArray[nodes_graph[node].x()][nodes_graph[node].y()][nodes_graph[node].z()] = 4;
             
-            int count = 0;
+            int cnt = 0;
             for (auto face : faces.first)
             {
-                if((count++)%stepHeight) continue;
+                if((cnt++)%stepHeight) continue;
                 for (auto l : face)
                 {
                     binaryArray[l.pos.x()][l.pos.y()][l.pos.z()] = 5;
@@ -331,18 +331,18 @@ private:
                 // std::cout << "yaw1: " << yaw1 << ", yaw2: " << yaw2 << std::endl;
                 if(p1.z() - p2.z() > 0.01 || p1.z() - p2.z() < -0.01)
                 {
-                    pehla.push_front(Eigen::Vector4d(p2.x(), p2.y(), p2.z(), yaw2));
                     pehla.push_front(Eigen::Vector4d(p1.x(), p1.y(), p1.z(), yaw1));
+                    pehla.push_front(Eigen::Vector4d(p2.x(), p2.y(), p2.z(), yaw2));
                 }else
                 {
                     pehla.push_back(Eigen::Vector4d(p1.x(), p1.y(), p1.z(), yaw1));
                     pehla.push_back(Eigen::Vector4d(p2.x(), p2.y(), p2.z(), yaw2));
                 }
             }
-            count = 0;
+            cnt = 0;
             for (auto face : faces.second)
             {
-                if((count++)%stepHeight) continue;
+                if((cnt++)%stepHeight) continue;
                 for (auto l : face)
                 {
                     binaryArray[l.pos.x()][l.pos.y()][l.pos.z()] = 5;
@@ -354,8 +354,8 @@ private:
                 // std::cout << "yaw1: " << yaw1 << ", yaw2: " << yaw2 << std::endl;
                 if(p1.z() - p2.z() > 0.01 || p1.z() - p2.z() < -0.01)
                 {
-                    dusra.push_front(Eigen::Vector4d(p2.x(), p2.y(), p2.z(), yaw2));
                     dusra.push_front(Eigen::Vector4d(p1.x(), p1.y(), p1.z(), yaw1));
+                    dusra.push_front(Eigen::Vector4d(p2.x(), p2.y(), p2.z(), yaw2));
                 }else
                 {
                     dusra.push_back(Eigen::Vector4d(p1.x(), p1.y(), p1.z(), yaw1));
@@ -438,7 +438,9 @@ private:
                     Eigen::Vector3d perp2 = direction.cross(perp1).normalized();
 
                     Eigen::Vector3d center = indexToPoint(nodes_graph[j]);
-                    double circle_radius = 0.5;
+                    Eigen::Vector3d center_start = indexToPoint(nodes_graph[i]);
+                    double circle_radius = 1.0;
+                    double circle_radius_start = 0;
                     int num_samples = 10;
 
                     bool valid_edge = true;
@@ -446,8 +448,9 @@ private:
                     {
                         double angle = (2 * M_PI * k) / num_samples;
                         Eigen::Vector3d sample_point = center + ((perp1 * cos(angle) + perp2 * sin(angle)) * circle_radius);
+                        Eigen::Vector3d sample_point_start = center_start + ((perp1 * cos(angle) + perp2 * sin(angle)) * circle_radius_start);
 
-                        if (!check2points_octree(indexToPoint(nodes_graph[i]), sample_point, radius))
+                        if (!check2points_octree(sample_point_start, sample_point, radius))
                         {
                             valid_edge = false;
                             break;
