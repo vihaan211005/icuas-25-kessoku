@@ -1,3 +1,5 @@
+#pragma once
+
 #include <octomap/octomap.h>
 #include <vector>
 #include <iostream>

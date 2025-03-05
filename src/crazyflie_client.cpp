@@ -43,6 +43,7 @@
 #include "math.h"
 
 #include "traversal.hpp"
+#include "planner.hpp"
 #include "viz_tree.hpp"
 #include "utils.hpp"
 
@@ -134,10 +135,14 @@ public:
             collision_objects.push_back(fcl::CollisionObject<double> (quad_obj[i]));
         }
 
-        // init planner
+        // init solver
         RCLCPP_INFO(this->get_logger(), "Initializing Solver object...");
         solver = std::make_shared<Solver>(Eigen::Vector3d(0, 0, 1), *tree, range, 5);
         solver->initialSetup();
+
+        //init planner
+        RCLCPP_INFO(this->get_logger(), "Initializing Path Planner object...");
+        planner = std::make_shared<Planner>(Planner(tree, solver->mapBounds, this->get_logger()));
 
 
         RCLCPP_INFO(this->get_logger(), "Starting search...");
@@ -517,7 +522,7 @@ public:
             return duration;
         }
         auto curr = nodes_graph[v];
-        curr[2] += drone_h[drone];
+        curr[2] += drone_h[drone-1];
         int duration = 0;
         std::cout << utils::Color::FG_BLUE << "GoTo: [" << drone << "]" << ":" << "(" <<   v << ")" << " min_charge: " << min_charge << utils::Color::FG_DEFAULT << std::endl;
 
@@ -592,15 +597,18 @@ public:
             // exit(1);
     
             double curr_h = 0;
-            for(int i = 1; i <= num_cf; i++){
+            for(int i = 0; i < num_cf; i++){
                 drone_h[i] = curr_h;
                 curr_h -= 0.15;
             }
 
             mp[0] = {1,2,3,4,5};
             
+            bool use_planner = false;
             int prev = 0;
             int curr = 0;   
+            int lca = 0;
+            int prev_lca = 0;
             int duration = 0;
             int max_duration = 0;
             std::cout << solution_ptr->bfs_order.size() << std::endl;
@@ -622,7 +630,44 @@ public:
                 if(curr == solution_ptr->bfs_order[i].first) continue; // if already there, dont need to go there again (initialized at base itself)
 
                 curr = solution_ptr->bfs_order[i].first;
-                int lca = getLca(prev, curr, solution_ptr->parent);
+                lca = getLca(prev, curr, solution_ptr->parent);
+
+                // if reachable from current vertex directly
+                if(use_planner && prev != 0 && lca != prev_lca && solution_ptr->distance[prev] == solution_ptr->distance[curr]){
+                    std::cout << utils::Color::FG_BLUE << "going DIRECTLY from prev:" << prev << " -> curr:" << curr << utils::Color::FG_DEFAULT << std::endl;
+
+                    if(inLoS(prev, curr)){
+                        std::cout << curr << " is in LOS of " << prev;
+                        for(int i = 0; i < num_cf; i++){
+                            go_to(curr, solution_ptr->nodes_graph[curr][0], solution_ptr->nodes_graph[curr][1], solution_ptr->nodes_graph[curr][2], 0.0);
+                        }
+                        wait_to_reach();
+                    }
+                    else{
+                        std::cout << curr << " is NOT in LOS of " << prev << " running planner!";
+                        auto start = solution_ptr->nodes_graph[prev];
+                        auto goal = solution_ptr->nodes_graph[curr];
+                        auto center = solution_ptr->nodes_graph[lca];
+
+                        auto center_los = octomap::point3d(center.x(), center.y(), center.z());
+                        std::vector<Eigen::Vector4d> pathArray;
+
+                        run_planner(center_los, goal, start, pathArray);
+
+                        for(int i = 0; i < pathArray.size(); i++){
+                            for(int curr : mp[prev]){
+                                go_to(curr, pathArray[i][0], pathArray[i][1], pathArray[i][2], 0.0);
+                            }
+                            wait_to_reach();
+                        }
+
+                        while(!mp[prev].empty()){
+                            int drone = mp[prev].back(); mp[prev].pop_back();
+                            mp[curr].push_back(drone);
+                        }
+                    }
+                    continue;
+                }
                 
                 if (elapsed_time >= 2) {
                     std::cout << "Mission time greater than 2 hr, going back to base" << std::endl;
@@ -950,6 +995,36 @@ private:
         }
         return true; // All distances are greater than ARUCO_EPS
     }
+    
+    void run_planner(octomap::point3d center, Eigen::Vector3d goal, Eigen::Vector3d start, std::vector<Eigen::Vector4d>& pathArray)
+    {
+        planner->setCenter(center);
+
+        std::vector<Eigen::Vector3d> start_points;
+        for(int i = 0; i < num_cf; i++){
+            start_points.push_back(Eigen::Vector3d(odom_linear[i].x, odom_linear[i].y, odom_linear[i].z));
+        }
+        planner->setPosition(start_points);
+
+        Eigen::Vector4d start_ = start.homogeneous();
+        start[3] = 0;
+        Eigen::Vector4d goal_ = goal.homogeneous();
+        goal[3] = 0;
+
+        planner->runPlanner(start_, goal_, pathArray);
+    }
+
+    bool inLoS(int prev_v, int curr_v) const {
+        octomap::point3d prev(solution_ptr->nodes_graph[prev_v].x(), solution_ptr->nodes_graph[prev_v].y(), solution_ptr->nodes_graph[prev_v].z());
+        octomap::point3d curr(solution_ptr->nodes_graph[curr_v].x(), solution_ptr->nodes_graph[curr_v].y(), solution_ptr->nodes_graph[curr_v].z());
+        octomap::point3d hit;
+
+        bool collision = octree_->castRay(prev, curr - prev, hit, true, (curr - prev).norm() - 0.01);
+        if(collision){
+            return false;
+        }
+        return true;
+    }
 
     // void publish_markers()
     // {
@@ -1011,6 +1086,7 @@ private:
     double range;
     bool flag = false;
     Solution* solution_ptr;
+    std::shared_ptr<Planner> planner;
 
     Eigen::Vector4d start;
     Eigen::Vector4d goal;
