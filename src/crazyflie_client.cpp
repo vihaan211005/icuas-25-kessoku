@@ -237,6 +237,7 @@ public:
         auto request = std::make_shared<crazyflie_interfaces::srv::GoTo::Request>();
 
         double v_max = 1.0;
+        double a_max = 1.0;
         request->group_mask = 0;
         request->relative = false;
         request->goal.x = x;
@@ -245,15 +246,16 @@ public:
         request->yaw = yaw; 
 
         double distance = dist(std::vector<double>{x, y, z}, std::vector<double>{odom_linear[drone - 1].x, odom_linear[drone - 1].y, odom_linear[drone - 1].z}); 
-        double tau = 30/16.0;
-        double c = 30/pow(tau, 5);
-        double distance_tau = c*pow(tau,6)/60;
+        double tau = 30 * v_max/(16.0 * a_max);
+        double c = 30 * v_max /pow(tau, 5);
+        double distance_tau = c * pow(tau,6)/60;
         double T;
+
         if(distance < 2*distance_tau){
             T = pow(84/5.0,0.5)/pow(5.0,0.25);
         }
         else{
-            T = 2 * tau + (distance - 2 * distance_tau) * v_max;
+            T = 2 * tau + (distance - 2 * distance_tau) / v_max;
         }
         request->duration.sec = static_cast<int32_t>(T);
         request->duration.nanosec = static_cast<uint32_t>((T - request->duration.sec) * 1e9);
@@ -277,7 +279,7 @@ public:
         return T;
     }
 
-    double upload_hack_trajectory(int drone, int trajectory_id, double start_x, double start_y, double start_z, double start_yaw, double x, double y, double z, double yaw, double v_max = 1.0, double a_max = 1.0){
+    double upload_hack_trajectory(int drone, int trajectory_id, double start_x, double start_y, double start_z, double start_yaw, double x, double y, double z, double yaw, double v_max = 2.0, double a_max = 1.0){
         RCLCPP_INFO(this->get_logger(), "Initialized CrazyflieCommandClient::upload_trajectory for namespace: %d", drone);
 
         auto client = this->create_client<crazyflie_interfaces::srv::UploadTrajectory>("/cf_" + std::to_string(drone) + "/upload_trajectory", rmw_qos_profile_services_default, service_cb_group_);
@@ -286,7 +288,7 @@ public:
         std::vector<crazyflie_interfaces::msg::TrajectoryPolynomialPiece> pieces;
 
         double dist_total = dist(std::vector<double>{start_x,start_y,start_z},std::vector<double>{x,y,z});
-        double slope_dist = v_max*v_max/a_max;
+        double slope_dist = v_max*v_max/a_max
         double slope_time = v_max / a_max;
         double straight_time = (dist_total - slope_dist) / v_max;
         double total_d = 2 * slope_time + straight_time;
@@ -379,8 +381,55 @@ public:
             pieces.push_back(piece);
 
         }else{
-            exit(1);
+            slope_time = 2 * pow((dist_total / a_max), 0.5);
+            slope_dist = dist_total * 0.5
+
+            //start
+            piece.poly_x[0] = start_x;
+            piece.poly_y[0] = start_y;
+            piece.poly_z[0] = start_z;
+            piece.poly_yaw[0] = start_yaw;
+
+            piece.poly_x[1] = 0;
+            piece.poly_y[1] = 0;
+            piece.poly_z[1] = 0;
+            piece.poly_yaw[2] = 0;
+            
+            piece.poly_x[2] = (a_max / 2)*x_comp;
+            piece.poly_y[2] = (a_max / 2)*y_comp;
+            piece.poly_z[2] = (a_max / 2)*z_comp;
+            piece.poly_yaw[1] = delta_yaw / slope_time;
+
+
+            builtin_interfaces::msg::Duration d;
+            d.sec = static_cast<int32_t>(slope_time/2);
+            d.nanosec = static_cast<uint32_t>((0.5 * slope_time - d.sec) * 1e9);
+            piece.duration = d;
+            pieces.push_back(piece);
+
+            //end
+            piece.poly_x[0] = slope_dist * x_comp;
+            piece.poly_y[0] = slope_dist * y_comp;
+            piece.poly_z[0] = slope_dist * z_comp;
+            piece.poly_yaw[0] = delta_yaw / 2;
+
+
+            piece.poly_x[1] = a_max * slope_time * 0.5 * x_comp;
+            piece.poly_y[1] = a_max * slope_time * 0.5 * y_comp;
+            piece.poly_z[1] = a_max * slope_time * 0.5 * z_comp;
+            piece.poly_yaw[2] = 0;
+            
+            piece.poly_x[2] = -(a_max / 2)*x_comp;
+            piece.poly_y[2] = -(a_max / 2)*y_comp;
+            piece.poly_z[2] = -(a_max / 2)*z_comp;
+            piece.poly_yaw[1] = delta_yaw / total_d;
+
+            d.sec = static_cast<int32_t>(slope_time * 0.5);
+            d.nanosec = static_cast<uint32_t>((slope_time * 0.5 - d.sec) * 1e9);
+            piece.duration = d;
+            pieces.push_back(piece);
         }
+
         // piece.poly_yaw[0] = yaw;
         request->trajectory_id = trajectory_id;
         request->piece_offset = 0;
