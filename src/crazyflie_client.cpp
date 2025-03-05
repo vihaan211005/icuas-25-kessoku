@@ -159,6 +159,7 @@ public:
         // aruco_timer_ = this->create_wall_timer(500ms, std::bind(&CrazyflieCommandClient::timer_callback, this), aruco_cb_group_);
         run_mission_timer_ = this->create_wall_timer(500ms, std::bind(&CrazyflieCommandClient::run_mission, this), run_mission_cb_group_);
         // viz_timer_ = this->create_wall_timer(500ms, std::bind(&CrazyflieCommandClient::publish_markers, this), viz_cb_group_);
+        check_collision_timer_ = this->create_wall_timer(500ms, std::bind(&CrazyflieCommandClient::check_collision, this), check_collision_cb_group_);
     }
     
     int get_octomap(const std::string &octomap_topic_ = "/octomap_binary"){
@@ -1068,10 +1069,11 @@ private:
         }
 
         for(int i = 0; i < num_cf; i++){
+            if(odom_linear[i].z < 0.5) continue;
             fcl::CollisionResult<double> collisionResult;
             fcl::collide(&collision_objects[i], &(*tree_collision_object), requestType, collisionResult);
             if (collisionResult.isCollision()){
-                std::cout << utils::Color::FG_RED << "Collision happened between " << i << " and building" << utils::Color::FG_DEFAULT << std::endl;
+                std::cout << utils::Color::FG_RED << "Collision happened between " << i + 1 << " and building" << utils::Color::FG_DEFAULT << std::endl;
             }
         }
     }
@@ -1310,6 +1312,7 @@ private:
     rclcpp::CallbackGroup::SharedPtr battery_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
     rclcpp::CallbackGroup::SharedPtr run_mission_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
     // rclcpp::CallbackGroup::SharedPtr viz_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+    rclcpp::CallbackGroup::SharedPtr check_collision_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
     
     rclcpp::SubscriptionOptions aruco_cb_options;
     rclcpp::SubscriptionOptions battery_cb_options;
@@ -1317,6 +1320,7 @@ private:
     rclcpp::TimerBase::SharedPtr aruco_timer_;
     rclcpp::TimerBase::SharedPtr run_mission_timer_;
     // rclcpp::TimerBase::SharedPtr viz_timer_;
+    rclcpp::TimerBase::SharedPtr check_collision_timer_;
 
     std::vector<rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr> pose_subscriptions_;
     std::vector<rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr> odom_subscriptions_;
