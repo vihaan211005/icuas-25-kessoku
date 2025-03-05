@@ -56,7 +56,7 @@
 using namespace std::chrono_literals;
                                               
 double EPS = 0.1;
-double ARUCO_EPS = 0.5;
+double ARUCO_EPS = 1.0;
 double land_h = 1;
 double land_h_0 = 0.03;
 
@@ -288,7 +288,7 @@ public:
         std::vector<crazyflie_interfaces::msg::TrajectoryPolynomialPiece> pieces;
 
         double dist_total = dist(std::vector<double>{start_x,start_y,start_z},std::vector<double>{x,y,z});
-        double slope_dist = v_max*v_max/a_max
+        double slope_dist = v_max*v_max/a_max;
         double slope_time = v_max / a_max;
         double straight_time = (dist_total - slope_dist) / v_max;
         double total_d = 2 * slope_time + straight_time;
@@ -313,7 +313,7 @@ public:
         }
 
         if(straight_time >= 0){
-
+	    std::cout << "Case 1" << std::endl;
             //start
             piece.poly_x[0] = start_x;
             piece.poly_y[0] = start_y;
@@ -382,8 +382,8 @@ public:
 
         }else{
             slope_time = 2 * pow((dist_total / a_max), 0.5);
-            slope_dist = dist_total * 0.5
-
+            slope_dist = dist_total * 0.5;
+	    std::cout << "Case 2" << std::endl;	
             //start
             piece.poly_x[0] = start_x;
             piece.poly_y[0] = start_y;
@@ -408,10 +408,10 @@ public:
             pieces.push_back(piece);
 
             //end
-            piece.poly_x[0] = slope_dist * x_comp;
-            piece.poly_y[0] = slope_dist * y_comp;
-            piece.poly_z[0] = slope_dist * z_comp;
-            piece.poly_yaw[0] = delta_yaw / 2;
+            piece.poly_x[0] = start_x + slope_dist * x_comp;
+            piece.poly_y[0] = start_y + slope_dist * y_comp;
+            piece.poly_z[0] = start_z + slope_dist * z_comp;
+            piece.poly_yaw[0] = start_yaw + delta_yaw / 2;
 
 
             piece.poly_x[1] = a_max * slope_time * 0.5 * x_comp;
@@ -422,7 +422,7 @@ public:
             piece.poly_x[2] = -(a_max / 2)*x_comp;
             piece.poly_y[2] = -(a_max / 2)*y_comp;
             piece.poly_z[2] = -(a_max / 2)*z_comp;
-            piece.poly_yaw[1] = delta_yaw / total_d;
+            piece.poly_yaw[1] = delta_yaw / slope_time;
 
             d.sec = static_cast<int32_t>(slope_time * 0.5);
             d.nanosec = static_cast<uint32_t>((slope_time * 0.5 - d.sec) * 1e9);
@@ -713,7 +713,7 @@ public:
             duration = go_to(drone, start_positions[drone-1][0], start_positions[drone-1][1], start_positions[drone-1][2] + land_h + drone_h[drone-1], 0.0);
             // go_to_traj(drone, start_positions[drone-1][0], start_positions[drone-1][1], start_positions[drone-1][2] + land_h + drone_h[drone-1], 0.0);
 
-            rclcpp::sleep_for(std::chrono::milliseconds(1000));
+           // rclcpp::sleep_for(std::chrono::milliseconds(1000));
             return duration;
         }
         auto curr = nodes_graph[v];
@@ -1189,7 +1189,7 @@ private:
                 std::cout << utils::Color::FG_RED << "Collision happened possibly, exiting..." << utils::Color::FG_DEFAULT << std::endl;
                 exit(1);
             }
-            rclcpp::sleep_for(std::chrono::milliseconds(500));
+            rclcpp::sleep_for(std::chrono::milliseconds(100));
         }
     }
 
