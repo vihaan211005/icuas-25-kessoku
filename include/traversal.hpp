@@ -331,8 +331,8 @@ private:
                 // std::cout << "yaw1: " << yaw1 << ", yaw2: " << yaw2 << std::endl;
                 if(p1.z() - p2.z() > 0.01 || p1.z() - p2.z() < -0.01)
                 {
-                    pehla.push_back(Eigen::Vector4d(p2.x(), p2.y(), p2.z(), yaw2));
-                    pehla.push_back(Eigen::Vector4d(p1.x(), p1.y(), p1.z(), yaw1));
+                    pehla.push_front(Eigen::Vector4d(p2.x(), p2.y(), p2.z(), yaw2));
+                    pehla.push_front(Eigen::Vector4d(p1.x(), p1.y(), p1.z(), yaw1));
                 }else
                 {
                     pehla.push_back(Eigen::Vector4d(p1.x(), p1.y(), p1.z(), yaw1));
@@ -354,8 +354,8 @@ private:
                 // std::cout << "yaw1: " << yaw1 << ", yaw2: " << yaw2 << std::endl;
                 if(p1.z() - p2.z() > 0.01 || p1.z() - p2.z() < -0.01)
                 {
-                    dusra.push_back(Eigen::Vector4d(p2.x(), p2.y(), p2.z(), yaw2));
-                    dusra.push_back(Eigen::Vector4d(p1.x(), p1.y(), p1.z(), yaw1));
+                    dusra.push_front(Eigen::Vector4d(p2.x(), p2.y(), p2.z(), yaw2));
+                    dusra.push_front(Eigen::Vector4d(p1.x(), p1.y(), p1.z(), yaw1));
                 }else
                 {
                     dusra.push_back(Eigen::Vector4d(p1.x(), p1.y(), p1.z(), yaw1));
