@@ -277,7 +277,7 @@ public:
         return T;
     }
 
-    double upload_hack_trajectory(int drone, int trajectory_id, double start_x, double start_y, double start_z, double start_yaw, double x, double y, double z, double yaw, double v_max){
+    double upload_hack_trajectory(int drone, int trajectory_id, double start_x, double start_y, double start_z, double start_yaw, double x, double y, double z, double yaw, double v_max = 1.0, double a_max = 1.0){
         RCLCPP_INFO(this->get_logger(), "Initialized CrazyflieCommandClient::upload_trajectory for namespace: %d", drone);
 
         auto client = this->create_client<crazyflie_interfaces::srv::UploadTrajectory>("/cf_" + std::to_string(drone) + "/upload_trajectory", rmw_qos_profile_services_default, service_cb_group_);
@@ -286,39 +286,102 @@ public:
         std::vector<crazyflie_interfaces::msg::TrajectoryPolynomialPiece> pieces;
 
         double dist_total = dist(std::vector<double>{start_x,start_y,start_z},std::vector<double>{x,y,z});
-        double total_d = dist_total / v_max;
-
+        double slope_dist = v_max*v_max/a_max;
+        double slope_time = v_max / a_max;
+        double straight_time = (dist_total - slope_dist) / v_max;
+        double total_d = 2 * slope_time + straight_time;
         double delta_yaw = shortest_signed_angle_radians(start_yaw, yaw);
+        double delta_x = x - start_x;
+        double delta_y = y - start_y;
+        double delta_z = z - start_z;
+        double x_comp = delta_x/dist_total;
+        double y_comp = delta_y/dist_total;
+        double z_comp = delta_z/dist_total;
 
         crazyflie_interfaces::msg::TrajectoryPolynomialPiece piece;
         piece.poly_x.resize(8);
         piece.poly_y.resize(8);
         piece.poly_z.resize(8);
         piece.poly_yaw.resize(8);
-        
-        piece.poly_x[0] = start_x;
-        piece.poly_y[0] = start_y;
-        piece.poly_z[0] = start_z;
-        piece.poly_yaw[0] = start_yaw;
-        
-        piece.poly_x[1] = (x - start_x) / total_d;
-        piece.poly_y[1] = (y - start_y) / total_d;
-        piece.poly_z[1] = (z - start_z) / total_d;
-        piece.poly_yaw[1] = delta_yaw / total_d;
-        for (size_t i = 2; i < 8; ++i) {
-            piece.poly_x[i]   = 0;
-            piece.poly_y[i]   = 0;
-            piece.poly_z[i]   = 0;
+        for(int i = 0; i < 8; ++i){
+            piece.poly_x[i] = 0;
+            piece.poly_y[i] = 0;
+            piece.poly_z[i] = 0;
             piece.poly_yaw[i] = 0;
         }
+
+        if(straight_time >= 0){
+
+            //start
+            piece.poly_x[0] = start_x;
+            piece.poly_y[0] = start_y;
+            piece.poly_z[0] = start_z;
+            piece.poly_yaw[0] = start_yaw;
+
+            piece.poly_x[1] = 0;
+            piece.poly_y[1] = 0;
+            piece.poly_z[1] = 0;
+            piece.poly_yaw[2] = 0;
+            
+            piece.poly_x[2] = (a_max / 2)*x_comp;
+            piece.poly_y[2] = (a_max / 2)*y_comp;
+            piece.poly_z[2] = (a_max / 2)*z_comp;
+            piece.poly_yaw[1] = delta_yaw / total_d;
+
+
+            builtin_interfaces::msg::Duration d;
+            d.sec = static_cast<int32_t>(slope_time);
+            d.nanosec = static_cast<uint32_t>((slope_time - d.sec) * 1e9);
+            piece.duration = d;
+            pieces.push_back(piece);
+
+            //mid
+            piece.poly_x[0] = start_x + ((slope_dist / 2) * x_comp);
+            piece.poly_y[0] = start_y + ((slope_dist / 2) * y_comp);
+            piece.poly_z[0] = start_z + ((slope_dist / 2) * z_comp);
+            piece.poly_yaw[0] = start_yaw + (delta_yaw * (slope_time / total_d));
+
+            piece.poly_x[1] = v_max * x_comp;
+            piece.poly_y[1] = v_max * y_comp;
+            piece.poly_z[1] = v_max * z_comp;
+            piece.poly_yaw[2] = 0;
+            
+            piece.poly_x[2] = 0;
+            piece.poly_y[2] = 0;
+            piece.poly_z[2] = 0;
+            piece.poly_yaw[1] = delta_yaw / total_d;
+
+            d.sec = static_cast<int32_t>(straight_time);
+            d.nanosec = static_cast<uint32_t>((straight_time - d.sec) * 1e9);
+            piece.duration = d;
+            pieces.push_back(piece);
+
+            //end
+            piece.poly_x[0] = x - ((slope_dist / 2) * x_comp);
+            piece.poly_y[0] = y - ((slope_dist / 2) * y_comp);
+            piece.poly_z[0] = z - ((slope_dist / 2) * z_comp);
+            piece.poly_yaw[0] = yaw - (delta_yaw * (slope_time / total_d));
+
+
+            piece.poly_x[1] = v_max * x_comp;
+            piece.poly_y[1] = v_max * y_comp;
+            piece.poly_z[1] = v_max * z_comp;
+            piece.poly_yaw[2] = 0;
+            
+            piece.poly_x[2] = -(a_max / 2)*x_comp;
+            piece.poly_y[2] = -(a_max / 2)*y_comp;
+            piece.poly_z[2] = -(a_max / 2)*z_comp;
+            piece.poly_yaw[1] = delta_yaw / total_d;
+
+            d.sec = static_cast<int32_t>(slope_time);
+            d.nanosec = static_cast<uint32_t>((slope_time - d.sec) * 1e9);
+            piece.duration = d;
+            pieces.push_back(piece);
+
+        }else{
+            exit(1);
+        }
         // piece.poly_yaw[0] = yaw;
-
-        builtin_interfaces::msg::Duration d;
-        d.sec = static_cast<int32_t>(total_d);
-        d.nanosec = static_cast<uint32_t>((total_d - d.sec) * 1e9);
-        piece.duration = d;
-        pieces.push_back(piece);
-
         request->trajectory_id = trajectory_id;
         request->piece_offset = 0;
         request->pieces = pieces;
@@ -357,7 +420,7 @@ public:
         // file.close();
         
         // std::system("$TRAJ_GEN -i /wp.csv --v_max 1.0 --a_max 1.0 -o /out.csv");
-        auto duration = upload_hack_trajectory(drone, 0, odom_linear[drone - 1].x, odom_linear[drone - 1].y, odom_linear[drone - 1].z, get_yaw(drone - 1), x, y, z, yaw, 1.0);
+        auto duration = upload_hack_trajectory(drone, 0, odom_linear[drone - 1].x, odom_linear[drone - 1].y, odom_linear[drone - 1].z, get_yaw(drone - 1), x, y, z, yaw);
         start_trajectory(drone, duration, 0);
         
         drone_status[drone - 1] = std::make_pair(false, Eigen::Vector3d(x, y, z));
