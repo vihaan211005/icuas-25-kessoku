@@ -247,9 +247,14 @@ all:
   firmware_params:
     commander:
       enHighLevel: 1
+    colAv:
+      enable: 1
+      ellipsoidX: 0.15
+      ellipsoidY: 0.15
+      ellipsoidZ: 0.15
     stabilizer:
       estimator: 2 # 1: complementary, 2: kalman
-      controller: 2 # 1: PID, 2: mellinger
+      controller: 1 # 1: PID, 2: mellinger
     # pid_attitude:
     #   roll_kp: 10
     #   roll_ki: 0
