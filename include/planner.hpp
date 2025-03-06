@@ -116,7 +116,7 @@ public:
         plan->setup();
         
         RCLCPP_INFO(logger_, "Solver running now!");
-        ob::PlannerStatus solved = plan->solve(2);
+        ob::PlannerStatus solved = plan->solve(1);
         RCLCPP_INFO(logger_, "Solver successfully ran!");
         
         if (solved) {
@@ -188,25 +188,25 @@ private:
         fcl::Quaterniond rotation(rot->w, rot->x, rot->y, rot->z);
         quadcopterObject.setTransform(rotation, translation);
 
-        fcl::CollisionObject quad1Object(quad_obj[0]);
-        fcl::Vector3d translation1(pos_[0].x(), pos_[0].y(), pos_[0].z());
-        fcl::Quaterniond rotation1(1, 0, 0, 0);
-        quad1Object.setTransform(rotation1, translation1);
+        // fcl::CollisionObject quad1Object(quad_obj[0]);
+        // fcl::Vector3d translation1(pos_[0].x(), pos_[0].y(), pos_[0].z());
+        // fcl::Quaterniond rotation1(1, 0, 0, 0);
+        // quad1Object.setTransform(rotation1, translation1);
 
-        fcl::CollisionObject quad2Object(quad_obj[1]);
-        fcl::Vector3d translation2(pos_[1].x(), pos_[1].y(), pos_[1].z());
-        fcl::Quaterniond rotation2(1, 0, 0, 0);
-        quad2Object.setTransform(rotation2, translation2);
+        // fcl::CollisionObject quad2Object(quad_obj[1]);
+        // fcl::Vector3d translation2(pos_[1].x(), pos_[1].y(), pos_[1].z());
+        // fcl::Quaterniond rotation2(1, 0, 0, 0);
+        // quad2Object.setTransform(rotation2, translation2);
 
-        fcl::CollisionObject quad3Object(quad_obj[2]);
-        fcl::Vector3d translation3(pos_[2].x(), pos_[2].y(), pos_[2].z());
-        fcl::Quaterniond rotation3(1, 0, 0, 0);
-        quad3Object.setTransform(rotation3, translation3);
+        // fcl::CollisionObject quad3Object(quad_obj[2]);
+        // fcl::Vector3d translation3(pos_[2].x(), pos_[2].y(), pos_[2].z());
+        // fcl::Quaterniond rotation3(1, 0, 0, 0);
+        // quad3Object.setTransform(rotation3, translation3);
 
-        fcl::CollisionObject quad4Object(quad_obj[3]);
-        fcl::Vector3d translation4(pos_[3].x(), pos_[3].y(), pos_[3].z());
-        fcl::Quaterniond rotation4(1, 0, 0, 0);
-        quad4Object.setTransform(rotation4, translation4);
+        // fcl::CollisionObject quad4Object(quad_obj[3]);
+        // fcl::Vector3d translation4(pos_[3].x(), pos_[3].y(), pos_[3].z());
+        // fcl::Quaterniond rotation4(1, 0, 0, 0);
+        // quad4Object.setTransform(rotation4, translation4);
 
         fcl::CollisionObject<double> treeObj((tree_obj));
 
@@ -217,29 +217,29 @@ private:
         if (collisionResultTree.isCollision()){
             return false;}
 
-        fcl::CollisionResult<double> collisionResultQuad1;
-        fcl::collide(&quadcopterObject, &quad1Object, requestType, collisionResultQuad1);
-        if (collisionResultQuad1.isCollision()){;
-            return false;
-        }
+        // fcl::CollisionResult<double> collisionResultQuad1;
+        // fcl::collide(&quadcopterObject, &quad1Object, requestType, collisionResultQuad1);
+        // if (collisionResultQuad1.isCollision()){;
+        //     return false;
+        // }
         
-        fcl::CollisionResult<double> collisionResultQuad2;
-        fcl::collide(&quadcopterObject, &quad2Object, requestType, collisionResultQuad2);
-        if (collisionResultQuad2.isCollision()){;
-            return false;
-        }
+        // fcl::CollisionResult<double> collisionResultQuad2;
+        // fcl::collide(&quadcopterObject, &quad2Object, requestType, collisionResultQuad2);
+        // if (collisionResultQuad2.isCollision()){;
+        //     return false;
+        // }
 
-        fcl::CollisionResult<double> collisionResultQuad3;
-        fcl::collide(&quadcopterObject, &quad3Object, requestType, collisionResultQuad3);
-        if (collisionResultQuad3.isCollision()){;
-            return false;
-        }
+        // fcl::CollisionResult<double> collisionResultQuad3;
+        // fcl::collide(&quadcopterObject, &quad3Object, requestType, collisionResultQuad3);
+        // if (collisionResultQuad3.isCollision()){;
+        //     return false;
+        // }
 
-        fcl::CollisionResult<double> collisionResultQuad4;
-        fcl::collide(&quadcopterObject, &quad4Object, requestType, collisionResultQuad4);
-        if (collisionResultQuad4.isCollision()){
-            return false;
-        }
+        // fcl::CollisionResult<double> collisionResultQuad4;
+        // fcl::collide(&quadcopterObject, &quad4Object, requestType, collisionResultQuad4);
+        // if (collisionResultQuad4.isCollision()){
+        //     return false;
+        // }
 
         return true;
     }
