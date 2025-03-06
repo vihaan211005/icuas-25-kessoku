@@ -50,6 +50,10 @@ public:
 class Solver
 {
 public:
+    double dist_down = 2.0;
+    int stepHeight = 2;
+    double minThreshold = 1.2;
+
     Solution solution;
     Bounds mapBounds;
 
@@ -103,9 +107,6 @@ public:
     }
 
 private:
-    int stepHeight = 2;
-    double minThreshold = 1.2;
-
     Eigen::Vector3d baseStation;
     Eigen::Vector3i baseIndex = Eigen::Vector3i(0, 0, 0);
     octomap::OcTree octree;
@@ -440,7 +441,8 @@ private:
                     Eigen::Vector3d center = indexToPoint(nodes_graph[j]);
                     Eigen::Vector3d center_start = indexToPoint(nodes_graph[i]);
                     double circle_radius = 1.0;
-                    double circle_radius_start = 0;
+                    double circle_radius_start = 1.0;
+                    if(center_start.z() < minThreshold || !i) circle_radius_start = 0.0;
                     int num_samples = 10;
 
                     bool valid_edge = true;
@@ -515,7 +517,7 @@ private:
                             if (adjacent[x] == 1)
                                 total++;
 
-                        if (total == 3 && !adjacent[5] && adjacent[4] && !binaryArray[i + dirx][j + diry][k + 1])
+                        if (total == 3 && !adjacent[5] && adjacent[4] && !binaryArray[i + dirx][j + diry][k + 1] && !binaryArray[i + dirx][j + diry][k - (int)(dist_down / resolution)])
                         {
                             nodes_graph.push_back(Eigen::Vector3i(i + dirx, j + diry, k + 1));
                             node_dirs.push_back(std::make_tuple(dirx, diry, Eigen::Vector3i(i, j, k)));
