@@ -835,11 +835,33 @@ public:
         }
         // wait_to_reach();
         // rclcpp::sleep_for(std::chrono::seconds(max_duration)); 
-
-        while(min_charge < 60){
-            rclcpp::sleep_for(std::chrono::seconds(1));
-            std::cout << "Charging..., min_charge: " << min_charge << " target_charge: " << 59 << std::endl;
+        std::cout << "Number of drones at lca(base) for charging: " << mp[lca].size() << std::endl;
+        int n_drones_charged = 0;
+        for(int drone_ : mp[lca]){
+            if(battery_status_[drone_-1] > 60) n_drones_charged++;
         }
+        if(n_drones_charged >= n_drones_curr){
+            std::cout << "Number of drones charged: " << n_drones_charged << std::endl;
+            std::cout << "Going with requisite drones back after reordering!" << std::endl;
+            std::vector<int> drones_lca;
+
+            while(!mp[lca].empty()){
+                drones_lca.push_back(mp[lca].back());
+                mp[lca].pop_back();
+            }
+            std::sort(drones_lca.begin(), drones_lca.end(), [&](int a, int b){ return battery_status_[a-1] < battery_status_[b-1]; });
+
+            for(uint k = 0; k < drones_lca.size(); k++){
+                mp[lca].push_back(drones_lca[k]);
+            }   
+        }
+        else{
+            while(min_charge < 60){
+                rclcpp::sleep_for(std::chrono::seconds(1));
+                std::cout << "Charging..., min_charge: " << min_charge << " target_charge: " << 59 << std::endl;
+            }
+        }
+        
 
         // back to base from curr (v)
 
@@ -942,6 +964,14 @@ public:
             }
             wait_to_reach();
         }
+        if(curr == 0){
+            for(int drone_ : drones){
+                std::cout << utils::Color::FG_BLUE << "GoTo: [" << drone_ << "]" << ":" << "(" << "base" << ")" << " min_charge: " << min_charge << utils::Color::FG_DEFAULT << std::endl;
+                go_to(drone_, start_positions[drone_-1][0], start_positions[drone_-1][1], start_positions[drone_-1][2] + land_h + drone_h[drone_-1], 0.0);
+                rclcpp::sleep_for(std::chrono::milliseconds(1000));
+            }
+        }
+
         return 0;
     }
 

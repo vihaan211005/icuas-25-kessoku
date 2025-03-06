@@ -39,7 +39,7 @@ public:
         for(int i = 0; i < 4; i++){
             quad_obj.push_back(std::shared_ptr<fcl::CollisionGeometry<double>>(new fcl::Box(0.10, 0.10, 0.03)));
         }
-        quadcopter = std::shared_ptr<fcl::CollisionGeometry<double>>(new fcl::Box(0.10, 0.10, 0.03));
+        quadcopter = std::shared_ptr<fcl::CollisionGeometry<double>>(new fcl::Box(0.60, 0.60, 0.60));
 
         space = std::make_shared<ob::SE3StateSpace>();
         ob::RealVectorBounds bounds(3);
