@@ -1,0 +1,24 @@
+camera_info:
+  image_width: 324
+  image_height: 244  
+  camera_name: crazyflie
+  distortion_model: plumb_bob
+  camera_matrix:
+    data: [181.87, 0.0, 162.52, 0.0, 182.58, 160.79, 0.0, 0.0, 1.0]
+  distortion_coefficients:
+    data: [-0.07, -0.006, -0.002, -0.001, 0.0]
+  rectification_matrix:
+    data: [1., 0., 0., 0., 1., 0., 0., 0., 1.]
+  projection_matrix:
+    data: [169.24, 0.0, 161.54, 0.0, 0.0, 169.97, 159.07, 0.0, 0.0, 0.0, 1.0, 0.0]
+
+cameras:
+  cf_1:
+    deck_ip: "192.168.1.139"
+    deck_port: 5000
+  cf_2:
+    deck_ip: "192.168.1.124"
+    deck_port: 5000
+  cf_3:
+    deck_ip: "192.168.1.144"
+    deck_port: 5000
