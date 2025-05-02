@@ -44,5 +44,5 @@ docker run -it \
     --net=host \
     --privileged \
     --gpus all \
-    --name icuas_competition_cont_1 \
-    icuas_competition_img_1
+    --name icuas_competition_cont \
+    icuas_competition_img
