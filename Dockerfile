@@ -170,7 +170,8 @@ RUN mkdir -p $HOME/ros2_ws/src && cd $HOME/ros2_ws/src \
   && cd motion_capture_tracking && git checkout feature_jazzy
 
 RUN cd $HOME/ros2_ws/src \
-    && git clone https://github.com/JMU-ROBOTICS-VIVA/ros2_aruco.git
+    && git clone https://github.com/JMU-ROBOTICS-VIVA/ros2_aruco.git \
+    && git clone https://github.com/larics/icuas25_msgs.git
 
 
 RUN echo "alias cd_icuas25_competition='cd /root/ros2_ws/src/icuas25_competition'" >> $HOME/.bashrc
