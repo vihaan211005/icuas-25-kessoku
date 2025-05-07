@@ -61,7 +61,7 @@ def get_angle(x, y, r, angle, building):
 
 def get_arc(x, y, r, building):
     bx, by = building
-    dx, dy = bx -x, by - y
+    dx, dy = bx - x, by - y
     d = np.hypot(dx, dy)
     center_angle = np.arctan2(dy, dx)
     theta = np.arcsin(r / d)
@@ -69,15 +69,28 @@ def get_arc(x, y, r, building):
     arc_end = center_angle + theta
     return normalize_arc(arc_start, arc_end)
 
-def update_building_arc(unoccluded_segments, existing_arcs, x, y, building, r):
+def update_building_arc(unoccluded_segments, existing_arcs, x, y, building, r, theta):
     existing_arcs_copy = existing_arcs.copy()
     total = 0.0
+    bx, by = building
+    dy, dx = y - by, x - bx
+    center_angle = np.arctan2(dy, dx)
+    start_range = (center_angle - theta) % (2 * np.pi)
+    end_range = (center_angle + theta) % (2 * np.pi)
+    if(start_range < end_range):
+        existing_arcs_copy.append((end_range, 2 * np.pi))
+        existing_arcs_copy.append((0, start_range))
+        extra = 2
+    else:
+        existing_arcs_copy.append((end_range, start_range))
+        extra = 1
     for seg_start, seg_end in unoccluded_segments:
         start = get_angle(x, y, r, seg_end, building)
         end = get_angle(x, y, r, seg_start, building)
         new_arc = normalize_arc(start, end)
-        new_ones = get_unoccluded_segments(new_arc, existing_arcs)
+        new_ones = get_unoccluded_segments(new_arc, existing_arcs_copy)
         for s, e in new_ones:
             total += arc_diff(s, e) * r
-        existing_arcs_copy += new_ones
+        existing_arcs_copy = new_ones + existing_arcs_copy
+    existing_arcs_copy = existing_arcs_copy[:-extra]
     return existing_arcs_copy, total

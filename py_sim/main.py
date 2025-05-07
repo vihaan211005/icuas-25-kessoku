@@ -7,13 +7,14 @@ import los
 WORLD_WIDTH = 5.4
 WORLD_HEIGHT = 7.2
 BUILDING_RADIUS = 0.05
-NUM_BUILDINGS = 50
+NUM_BUILDINGS = 7
 OBS_RADIUS = 0.7
 EDGE = 0.3
 CLEARANCE = 0.1
 NUM_DRONES = 4
 M = (int)(WORLD_HEIGHT / EDGE) + 1
 N = (int)(WORLD_WIDTH / EDGE) + 1
+THETA = np.pi / 9
 np.random.seed(0)
 
 buildings = generator.generate(NUM_BUILDINGS, BUILDING_RADIUS, WORLD_WIDTH, WORLD_HEIGHT, NUM_DRONES, EDGE)
@@ -47,7 +48,7 @@ for i in range(NUM_DRONES):
         arc = arc_utils.get_arc(obs_x, obs_y, BUILDING_RADIUS, (bx, by))
         unoccluded_segments = arc_utils.get_unoccluded_segments(arc, visible_arcs)
         visible_arcs += unoccluded_segments
-        visible_arcs_building[idx], _ = arc_utils.update_building_arc(unoccluded_segments, visible_arcs_building[idx], obs_x, obs_y, (bx, by), BUILDING_RADIUS)
+        visible_arcs_building[idx], _ = arc_utils.update_building_arc(unoccluded_segments, visible_arcs_building[idx], obs_x, obs_y, (bx, by), BUILDING_RADIUS, THETA)
 plot.plotter(WORLD_WIDTH, WORLD_HEIGHT, BUILDING_RADIUS, buildings, visible_arcs_building, poses, EDGE, matrix)
 
 counter = 0
@@ -128,7 +129,7 @@ while(1):
                 arc = arc_utils.get_arc(obs_x, obs_y, BUILDING_RADIUS, (bx, by))
                 unoccluded_segments = arc_utils.get_unoccluded_segments(arc, visible_arcs)
                 visible_arcs += unoccluded_segments
-                visible_arcs_building_copy[idx], new = arc_utils.update_building_arc(unoccluded_segments, visible_arcs_building_copy[idx], obs_x, obs_y, (bx, by), BUILDING_RADIUS)
+                visible_arcs_building_copy[idx], new = arc_utils.update_building_arc(unoccluded_segments, visible_arcs_building_copy[idx], obs_x, obs_y, (bx, by), BUILDING_RADIUS, THETA)
                 total += new
         metric.append(total)
 
@@ -171,32 +172,30 @@ while(1):
             arc = arc_utils.get_arc(obs_x, obs_y, BUILDING_RADIUS, (bx, by))
             unoccluded_segments = arc_utils.get_unoccluded_segments(arc, visible_arcs)
             visible_arcs += unoccluded_segments
-            visible_arcs_building[idx], _ = arc_utils.update_building_arc(unoccluded_segments, visible_arcs_building[idx], obs_x, obs_y, (bx, by), BUILDING_RADIUS)
+            visible_arcs_building[idx], _ = arc_utils.update_building_arc(unoccluded_segments, visible_arcs_building[idx], obs_x, obs_y, (bx, by), BUILDING_RADIUS, THETA)
     
     if(not (counter % 10)):
         plot.plotter(WORLD_WIDTH, WORLD_HEIGHT, BUILDING_RADIUS, buildings, visible_arcs_building, poses, EDGE, matrix)
     
+# while(1):
 
+#     obs_x, obs_y = generator.choose_observer(BUILDING_RADIUS, WORLD_WIDTH, WORLD_HEIGHT, buildings)
+#     sorted_buildings = generator.sort_buildings(buildings, obs_x, obs_y)
 
-while(1):
+#     visible_arcs = []
 
-    obs_x, obs_y = generator.choose_observer(BUILDING_RADIUS, WORLD_WIDTH, WORLD_HEIGHT, buildings)
-    sorted_buildings = generator.sort_buildings(buildings, obs_x, obs_y)
+#     for idx, (bx, by) in sorted_buildings:
+#         dx, dy = bx - obs_x, by - obs_y
+#         d = np.hypot(dx, dy)
 
-    visible_arcs = []
+#         assert(d > BUILDING_RADIUS)
 
-    for idx, (bx, by) in sorted_buildings:
-        dx, dy = bx - obs_x, by - obs_y
-        d = np.hypot(dx, dy)
+#         if(d >= OBS_RADIUS):
+#             break
 
-        assert(d > BUILDING_RADIUS)
+#         arc = arc_utils.get_arc(obs_x, obs_y, BUILDING_RADIUS, (bx, by))
+#         unoccluded_segments = arc_utils.get_unoccluded_segments(arc, visible_arcs)
+#         visible_arcs += unoccluded_segments
+#         visible_arcs_building[idx], _ = arc_utils.update_building_arc(unoccluded_segments, visible_arcs_building[idx], obs_x, obs_y, (bx, by), BUILDING_RADIUS)
 
-        if(d >= OBS_RADIUS):
-            break
-
-        arc = arc_utils.get_arc(obs_x, obs_y, BUILDING_RADIUS, (bx, by))
-        unoccluded_segments = arc_utils.get_unoccluded_segments(arc, visible_arcs)
-        visible_arcs += unoccluded_segments
-        visible_arcs_building[idx], _ = arc_utils.update_building_arc(unoccluded_segments, visible_arcs_building[idx], obs_x, obs_y, (bx, by), BUILDING_RADIUS)
-
-    plot.plotter(WORLD_WIDTH, WORLD_HEIGHT, BUILDING_RADIUS, buildings, visible_arcs_building, [(obs_x / EDGE, obs_y / EDGE)], EDGE, matrix)
+#     plot.plotter(WORLD_WIDTH, WORLD_HEIGHT, BUILDING_RADIUS, buildings, visible_arcs_building, [(obs_x / EDGE, obs_y / EDGE)], EDGE, matrix)
