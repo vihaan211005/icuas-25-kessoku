@@ -1,4 +1,6 @@
 import numpy as np
+import json
+import sys
 import plot
 import arc as arc_utils
 import generator
@@ -25,15 +27,51 @@ matrix = los.create_matrix(WORLD_WIDTH, WORLD_HEIGHT, buildings, EDGE, BUILDING_
 poses = [(0,0), (0,1), (1,0), (1,1)]
 vis = np.zeros((M, N))
 
+class Solution:
+    def __init__(self):
+        self.poses = []
+        self.yaws = []
+
+solution = Solution()
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: python main.py <config_file.json>")
+        sys.exit(1)
+
+    json_file_path = sys.argv[1]
+
+    try:
+        with open(json_file_path, 'r') as f:
+            config = json.load(f)
+
+        buildings = [tuple(b) for b in config.get("buildings", buildings)]
+        NUM_DRONES = config.get("num_drones", NUM_DRONES)
+        poses = poses[:NUM_DRONES]
+
+        print("Buildings:", buildings)
+        print("Number of Drones:", num_drones)
+        print("Poses:", poses)
+
+        # Call your main logic here using buildings, num_drones, poses
+        # e.g. run_simulation(buildings, num_drones, poses)
+
+    except FileNotFoundError:
+        print(f"Error: File '{json_file_path}' not found.")
+    except json.JSONDecodeError as e:
+        print(f"Error: Invalid JSON format in '{json_file_path}': {e}")
+
 # false_count = np.sum(matrix == False)
 # true_count = np.sum(matrix == True)
 # print(false_count)
 # print(true_count)
 
+''''PEHLA'''
+yaws = [[] for i in range(NUM_DRONES)]
 for i in range(NUM_DRONES):
     obs_x, obs_y = poses[i][0] * EDGE, poses[i][1] * EDGE
     obs_x_int, obs_y_int = poses[i]
-    vis[obs_x_int][obs_y_int] -= 1e-4
+    vis[obs_x_int][obs_y_int] -= NUM_BUILDINGS
     sorted_buildings = generator.sort_buildings(buildings, obs_x, obs_y)
     
     visible_arcs = []
@@ -50,12 +88,19 @@ for i in range(NUM_DRONES):
         arc = arc_utils.get_arc(obs_x, obs_y, BUILDING_RADIUS, (bx, by))
         unoccluded_segments = arc_utils.get_unoccluded_segments(arc, visible_arcs)
         visible_arcs += unoccluded_segments
-        visible_arcs_building[idx], _ = arc_utils.update_building_arc(unoccluded_segments, visible_arcs_building[idx], obs_x, obs_y, (bx, by), BUILDING_RADIUS, THETA)
+        visible_arcs_building[idx], _, dekha = arc_utils.update_building_arc(unoccluded_segments, visible_arcs_building[idx], obs_x, obs_y, (bx, by), BUILDING_RADIUS, THETA)
+        if dekha:
+            yaws[i].append(np.arctan2(dy, dx))
+solution.poses.append(poses)
+solution.yaws.append(yaws)
 plot.plotter(WORLD_WIDTH, WORLD_HEIGHT, BUILDING_RADIUS, buildings, visible_arcs_building, poses, EDGE, matrix)
 
 counter = 0
 while(1):
+    ''''CHOOSING'''
     counter += 1
+    if(counter == 300):
+        break
     print(counter)
     new_poses = poses.copy()
 
@@ -81,7 +126,8 @@ while(1):
                 new_poses[i] = (poses[i][0] - 1, poses[i][1])
             else:
                 new_poses[i] = (poses[i][0], poses[i][1])
-
+        
+        ''''INVALID'''
         invalid_state = False
         for i in range(NUM_DRONES):
             if(new_poses[i][0] < 0 or new_poses[i][1] < 0 or new_poses[i][0] * EDGE > WORLD_WIDTH or new_poses[i][1] * EDGE > WORLD_HEIGHT):
@@ -114,35 +160,35 @@ while(1):
             metric2.append(-np.inf)
             continue
 
-
-        
+        ''''UPDATING METRIC'''
         for i in range(NUM_DRONES):
-            obs_x, obs_y = new_poses[i][0] * EDGE, new_poses[i][1] * EDGE
+            # obs_x, obs_y = new_poses[i][0] * EDGE, new_poses[i][1] * EDGE
             obs_x_int, obs_y_int = new_poses[i]
 
-            total += vis[obs_x_int][obs_y_int]
+            # total += vis[o bs_x_int][obs_y_int]
+            total2 += vis[obs_x_int][obs_y_int]
             total2 += prob_matrix[obs_x_int][obs_y_int]
-            sorted_buildings = generator.sort_buildings(buildings, obs_x, obs_y)
+        #     sorted_buildings = generator.sort_buildings(buildings, obs_x, obs_y)
             
-            visible_arcs = []
+        #     visible_arcs = []
 
-            for idx, (bx, by) in sorted_buildings:
-                dx, dy = bx - obs_x, by - obs_y
-                d = np.hypot(dx, dy)
+        #     for idx, (bx, by) in sorted_buildings:
+        #         dx, dy = bx - obs_x, by - obs_y
+        #         d = np.hypot(dx, dy)
 
-                assert(d > BUILDING_RADIUS)
+        #         assert(d > BUILDING_RADIUS)
 
-                if(d >= OBS_RADIUS):
-                    break
+        #         if(d >= OBS_RADIUS):
+        #             break
 
-                arc = arc_utils.get_arc(obs_x, obs_y, BUILDING_RADIUS, (bx, by))
-                unoccluded_segments = arc_utils.get_unoccluded_segments(arc, visible_arcs)
-                visible_arcs += unoccluded_segments
-                visible_arcs_building_copy[idx], new = arc_utils.update_building_arc(unoccluded_segments, visible_arcs_building_copy[idx], obs_x, obs_y, (bx, by), BUILDING_RADIUS, THETA)
-                total += new
-        metric.append(total)
+        #         arc = arc_utils.get_arc(obs_x, obs_y, BUILDING_RADIUS, (bx, by))
+        #         unoccluded_segments = arc_utils.get_unoccluded_segments(arc, visible_arcs)
+        #         visible_arcs += unoccluded_segments
+        #         visible_arcs_building_copy[idx], new = arc_utils.update_building_arc(unoccluded_segments, visible_arcs_building_copy[idx], obs_x, obs_y, (bx, by), BUILDING_RADIUS, THETA)
+        #         total += new
+        # metric.append(total)
         metric2.append(total2)
-
+    '''CHOOSE BEST'''
     # plot.stats(metric)
     # plot.stats(metric2)
     max_val = np.max(metric)
@@ -166,10 +212,11 @@ while(1):
             new_poses[i] = (poses[i][0], poses[i][1])
     poses = new_poses
 
+    yaws = [[] for i in range(NUM_DRONES)]
     for i in range(NUM_DRONES):
         obs_x, obs_y = poses[i][0] * EDGE, poses[i][1] * EDGE
         obs_x_int, obs_y_int = poses[i]
-        vis[obs_x_int][obs_y_int] -= 1e-4
+        vis[obs_x_int][obs_y_int] -= NUM_BUILDINGS
         sorted_buildings = generator.sort_buildings(buildings, obs_x, obs_y)
         
         visible_arcs = []
@@ -186,11 +233,18 @@ while(1):
             arc = arc_utils.get_arc(obs_x, obs_y, BUILDING_RADIUS, (bx, by))
             unoccluded_segments = arc_utils.get_unoccluded_segments(arc, visible_arcs)
             visible_arcs += unoccluded_segments
-            visible_arcs_building[idx], _ = arc_utils.update_building_arc(unoccluded_segments, visible_arcs_building[idx], obs_x, obs_y, (bx, by), BUILDING_RADIUS, THETA)
-    
-    if(not (counter % 10)):
+            visible_arcs_building[idx], _, dekha = arc_utils.update_building_arc(unoccluded_segments, visible_arcs_building[idx], obs_x, obs_y, (bx, by), BUILDING_RADIUS, THETA)
+            if dekha:
+                yaws[i].append(np.arctan2(dy, dx))
+    solution.poses.append(poses)
+    solution.yaws.append(yaws)
+    if(not (counter % 100)):
+        print(solution)
         plot.plotter(WORLD_WIDTH, WORLD_HEIGHT, BUILDING_RADIUS, buildings, visible_arcs_building, poses, EDGE, matrix)
-    
+
+data = json.dumps(solution.__dict__)
+with open("solution.json", "w") as f:
+    f.write(data)
 # while(1):
 
 #     obs_x, obs_y = generator.choose_observer(BUILDING_RADIUS, WORLD_WIDTH, WORLD_HEIGHT, buildings)

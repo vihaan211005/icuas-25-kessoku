@@ -93,4 +93,7 @@ def update_building_arc(unoccluded_segments, existing_arcs, x, y, building, r, t
             total += arc_diff(s, e) * r
         existing_arcs_copy = new_ones + existing_arcs_copy
     existing_arcs_copy = existing_arcs_copy[:-extra]
-    return existing_arcs_copy, total
+    dekha = False
+    if total > 0:
+        dekha = True
+    return existing_arcs_copy, total, dekha

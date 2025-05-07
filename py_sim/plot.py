@@ -113,3 +113,12 @@ def stats(data):
     # Show all plots
     plt.tight_layout()
     plt.show()
+
+def plot_XY(X, Y):
+    plt.figure(figsize=(8, 5))
+    plt.plot(X, Y, marker='o', linestyle='-', color='blue')
+    plt.xlabel('X-axis')
+    plt.ylabel('Y-axis')
+    plt.title('Plot of Y vs X')
+    plt.grid(True)
+    plt.show()
