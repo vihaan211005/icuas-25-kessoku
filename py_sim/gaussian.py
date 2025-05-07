@@ -46,6 +46,14 @@ def funx(x, y, building, sigma, visited, theta):
     assert p1 * p2 > -1e-6
     return max(p1 * p2, 0)
 
+def make_matrix(buildings, edge, m, n, sigma, theta, visible_arcs_building):
+    prob_matrix = np.zeros((m, n))
+    for idx, building in enumerate(buildings):
+        for i in range(m):
+            for j in range(n):
+                prob_matrix[i][j] += funx(i * edge, j * edge, building, sigma, visible_arcs_building[idx], theta)
+    return prob_matrix
+
 # Plotting and testing
 def test_case(building, visited, sigma, theta, title):
     x = np.linspace(-10, 10, 300)

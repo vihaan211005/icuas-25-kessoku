@@ -30,7 +30,7 @@ def plotter(world_width, world_height, r, buildings, visible_arcs_building, pose
 
     for i in range(len(new_poses)):
         for j in range(i + 1, len(new_poses)):
-            if(matrix[new_poses[i][1]][new_poses[i][0]][new_poses[j][1]][new_poses[j][0]]):
+            if(matrix[new_poses[i][0]][new_poses[i][1]][new_poses[j][0]][new_poses[j][1]]):
                 start_x = new_poses[i][0] * edge
                 start_y = new_poses[i][1] * edge
                 end_x = new_poses[j][0] * edge
@@ -43,8 +43,8 @@ def plotter(world_width, world_height, r, buildings, visible_arcs_building, pose
     plt.show()
 
 def plot_matrix(world_width, world_height, r, buildings, edge, matrix):
-    m = (int)(world_height / edge) + 1
-    n = (int)(world_width / edge) + 1
+    m = (int)(world_width / edge) + 1
+    n = (int)(world_height / edge) + 1
 
     for i1 in range(m):
         for j1 in range(n):
@@ -65,7 +65,7 @@ def plot_matrix(world_width, world_height, r, buildings, edge, matrix):
                 for j2 in range(n):
                     if matrix[i1][j1][i2][j2]:
                         ax.plot(j2 * edge, i2 * edge, 'go')
-            ax.plot(j1 * edge, i1 * edge, 'ro', ms=3)
+            ax.plot(i1 * edge, j1 * edge, 'ro', ms=3)
             plt.title("Matrix")
             plt.show()
 

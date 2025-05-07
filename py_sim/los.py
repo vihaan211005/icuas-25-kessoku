@@ -25,16 +25,16 @@ def in_los(buildings, r, p1, p2, c, x_min, x_max, y_min, y_max):
     return True
 
 def create_matrix(world_width, world_height, buildings, edge, r, c):
-    m = (int)(world_height / edge) + 1
-    n = (int)(world_width / edge) + 1
+    m = (int)(world_width / edge) + 1
+    n = (int)(world_height / edge) + 1
     matrix = np.zeros((m, n, m, n), dtype=bool)
 
     for i1 in range(m):
         for j1 in range(n):
             for i2 in range(i1, m):
                 for j2 in range(n):
-                    x1, y1 = j1 * edge, i1 * edge
-                    x2, y2 = j2 * edge, i2 * edge
+                    x1, y1 = i1 * edge, j1 * edge
+                    x2, y2 = i2 * edge, j2 * edge
                     matrix[i1][j1][i2][j2] = in_los(buildings, r, (x1, y1), (x2, y2), c, min(x1, x2) - edge, max(x1, x2) + edge, min(y1, y2) - edge, max(y1, y2) + edge)
                     matrix[i2][j2][i1][j1] = matrix[i1][j1][i2][j2]
     return matrix

@@ -3,6 +3,7 @@ import plot
 import arc as arc_utils
 import generator
 import los
+import gaussian
 
 WORLD_WIDTH = 5.4
 WORLD_HEIGHT = 7.2
@@ -12,16 +13,17 @@ OBS_RADIUS = 0.7
 EDGE = 0.3
 CLEARANCE = 0.1
 NUM_DRONES = 4
-M = (int)(WORLD_HEIGHT / EDGE) + 1
-N = (int)(WORLD_WIDTH / EDGE) + 1
+M = (int)(WORLD_WIDTH / EDGE) + 1
+N = (int)(WORLD_HEIGHT / EDGE) + 1
 THETA = np.pi / 9
+SIGMA = 2
 np.random.seed(0)
 
 buildings = generator.generate(NUM_BUILDINGS, BUILDING_RADIUS, WORLD_WIDTH, WORLD_HEIGHT, NUM_DRONES, EDGE)
 visible_arcs_building = [[] for _ in range(NUM_BUILDINGS)]
 matrix = los.create_matrix(WORLD_WIDTH, WORLD_HEIGHT, buildings, EDGE, BUILDING_RADIUS, CLEARANCE)
 poses = [(0,0), (0,1), (1,0), (1,1)]
-vis = np.zeros((N, M))
+vis = np.zeros((M, N))
 
 # false_count = np.sum(matrix == False)
 # true_count = np.sum(matrix == True)
@@ -58,9 +60,14 @@ while(1):
     new_poses = poses.copy()
 
     metric = [-np.inf]
+
+    prob_matrix = gaussian.make_matrix(buildings, EDGE, M, N, SIGMA, THETA, visible_arcs_building)
+    metric2 = [-np.inf]
+
     for state in range(1, pow(5, NUM_DRONES)):
         visible_arcs_building_copy = visible_arcs_building.copy()
         total = 0.0
+        total2 = 0.0
 
         for i in range(NUM_DRONES):
             config = ((int)(state / pow(5, i)) % 5)
@@ -80,7 +87,7 @@ while(1):
             if(new_poses[i][0] < 0 or new_poses[i][1] < 0 or new_poses[i][0] * EDGE > WORLD_WIDTH or new_poses[i][1] * EDGE > WORLD_HEIGHT):
                 invalid_state = True
                 break
-            if(not matrix[new_poses[i][1]][new_poses[i][0]][new_poses[i][1]][new_poses[i][0]]):
+            if(not matrix[new_poses[i][0]][new_poses[i][1]][new_poses[i][0]][new_poses[i][1]]):
                 invalid_state = True
                 break
             for j in range(i + 1, NUM_DRONES):
@@ -95,7 +102,7 @@ while(1):
                 size1 = len(in_los)
                 for i in in_los:
                     for j in new_poses:
-                        if j not in in_los and matrix[i[1]][i[0]][j[1]][j[0]]:
+                        if j not in in_los and matrix[i[0]][i[1]][j[0]][j[1]]:
                             in_los.append(j)
                 if(size1 == len(in_los)):
                     break
@@ -104,6 +111,7 @@ while(1):
         
         if(invalid_state):
             metric.append(-np.inf)
+            metric2.append(-np.inf)
             continue
 
 
@@ -113,6 +121,7 @@ while(1):
             obs_x_int, obs_y_int = new_poses[i]
 
             total += vis[obs_x_int][obs_y_int]
+            total2 += prob_matrix[obs_x_int][obs_y_int]
             sorted_buildings = generator.sort_buildings(buildings, obs_x, obs_y)
             
             visible_arcs = []
@@ -132,12 +141,17 @@ while(1):
                 visible_arcs_building_copy[idx], new = arc_utils.update_building_arc(unoccluded_segments, visible_arcs_building_copy[idx], obs_x, obs_y, (bx, by), BUILDING_RADIUS, THETA)
                 total += new
         metric.append(total)
+        metric2.append(total2)
 
     # plot.stats(metric)
+    # plot.stats(metric2)
     max_val = np.max(metric)
+    max_val2 = np.max(metric2)
     indices = np.where(metric == max_val)[0]
+    indices2 = np.where(metric2 == max_val2)[0]
 
-    state_new = indices[0]
+    # state_new = indices[0]
+    state_new = indices2[0]
     for i in range(NUM_DRONES):
         config = ((int)(state_new / pow(5, i)) % 5)
         if(config == 1):
