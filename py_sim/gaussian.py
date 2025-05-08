@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-def linear(angle, visited, theta):
+def linear(angle, visited, theta, testing = False):
     sorted_existing = sorted(visited)
     def overlap(arc, existing):
         start_arc, end_arc = arc
@@ -22,6 +22,10 @@ def linear(angle, visited, theta):
         return total
     start_range = (angle - theta) % (2 * np.pi)
     end_range = (angle + theta) % (2 * np.pi)
+    if(testing):
+        start_range = 0
+        end_range = 2 * np.pi
+        theta = np.pi
     ans = 0
     if(end_range < start_range):
         ans += overlap((start_range, 2 * np.pi), sorted_existing)
