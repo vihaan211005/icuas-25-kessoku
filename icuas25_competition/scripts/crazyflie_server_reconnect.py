@@ -34,7 +34,7 @@ from crazyflie_interfaces.msg import Status, Hover, LogDataGeneric, FullState
 from motion_capture_tracking_interfaces.msg import NamedPoseArray
 
 from std_srvs.srv import Empty
-from std_msgs.msg import String
+from std_msgs.msg import String, Bool
 from geometry_msgs.msg import Twist
 from geometry_msgs.msg import PoseStamped, TransformStamped
 from sensor_msgs.msg import LaserScan
@@ -190,6 +190,9 @@ class CrazyflieServer(Node):
             msg = String()
             msg.data = self._ros_parameters['robot_description'].replace("$NAME", name)
             pub.publish(msg)
+            
+            self.mission_start = False
+            self.mission_start_pub = self.create_publisher(Bool, "/mission_start", 10)
 
             self.create_service(
                 Empty, name +
@@ -634,6 +637,11 @@ class CrazyflieServer(Node):
 
         # use len(self.cf_dict) - 1, since cf_dict contains "all" as well
         if all(self.fully_connected.values()):
+            if not self.mission_start:
+                self.mission_start = True
+                msg = Bool()
+                msg.data = self.mission_start
+                self.mission_start_pub.publish(msg)
             self.time_all_crazyflie_connected = self.get_clock().now().nanoseconds * 1e-9
             self.get_logger().info(f"All Crazyflies are fully connected! It took {self.time_all_crazyflie_connected - self.time_open_link} seconds")
             # if self.swarm.query_all_values_on_connect:
@@ -953,6 +961,7 @@ class CrazyflieServer(Node):
             )
 
         return response
+        
 
     def _go_to_callback(self, request, response, uri="all"):
         """
