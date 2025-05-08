@@ -40,7 +40,8 @@ include_directories(include)
 ament_python_install_package(${PROJECT_NAME})
 # Install Python executables
 install(PROGRAMS
-  scripts/aideck_streamer.py
+  scripts/aideck_streamer_tcp.py
+  scripts/aideck_streamer_udp.py
   scripts/crazyflie_server_reconnect.py
   DESTINATION lib/${PROJECT_NAME}
 )

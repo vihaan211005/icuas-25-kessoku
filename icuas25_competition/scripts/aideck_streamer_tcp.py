@@ -29,6 +29,9 @@ class AIDeckClient:
         self.deck_ip = deck_ip
         self.deck_port = deck_port
 
+        self.stop_event = threading.Event()
+        self.socket_lock = threading.Lock() 
+
         # Start monitor thread to check if there has been some time since last image was received
         self.last_image_time = time.time()
         self.monitor_thread = threading.Thread(target=self.monitor_loop, daemon=True)
@@ -38,13 +41,17 @@ class AIDeckClient:
         self.camera_info_msg = self._construct_camera_info(camera_info_config)
 
         self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        try:
-            self.client_socket.connect((deck_ip, deck_port))
-            self.node.get_logger().info(f"[{cf_id}] Connected to socket on {deck_ip}:{deck_port}")
-        except OSError as e:
-            self.node.get_logger().error(f"[{cf_id}] Failed to connect at {deck_ip}:{deck_port}. Error: {e}. Will retry later.")
-       
+        while True:
+            try:
+                self.client_socket.connect((deck_ip, deck_port))
+                self.node.get_logger().info(f"[{cf_id}] Connected to socket on {deck_ip}:{deck_port}")
+                break  # Exit loop on successful connection
+            except OSError as e:
+                self.node.get_logger().warn(f"[{cf_id}] Retry: failed to connect to {deck_ip}:{deck_port}. Error: {e}")
+                time.sleep(1.0)
+
         self.image = None
+        self.thread = None 
         self.thread = threading.Thread(target=self.stream_loop, daemon=True)
         self.thread.start()
 
@@ -64,8 +71,17 @@ class AIDeckClient:
 
     def _rx_bytes(self, size):
         data = bytearray()
-        while len(data) < size:
-            data.extend(self.client_socket.recv(size - len(data)))
+        while len(data) < size and not self.stop_event.is_set():
+            try:
+                with self.socket_lock:
+                    self.client_socket.settimeout(1.0)  # avoid blocking forever
+                    chunk = self.client_socket.recv(size - len(data))
+                    if not chunk:
+                        return None  # Trigger stream_loop to exit
+                    data.extend(chunk)
+            except (socket.timeout, ConnectionResetError, BrokenPipeError) as e:
+                self.node.get_logger().warn(f"[{self.cf_id}] Socket read failed: {e}")
+                return None
         return data
 
 
@@ -76,12 +92,19 @@ class AIDeckClient:
             Instead of reading selected bytes, we read byte by byte, ensuring that if sync 
             is lost, we can again sync with the server by finding the next magic byte.
             """
-            while rclpy.ok():
+            while rclpy.ok() and not self.stop_event.is_set():
                 try:
-                    magic_candidate = self._rx_bytes(1)[0]
+                    magic_byte = self._rx_bytes(1)
+                    if magic_byte is None:
+                        return None, None, None, None, None  # Socket error or stop requested
+
+                    magic_candidate = magic_byte[0]
                     # self.node.get_logger().info(f"[{self.cf_id}] Byte: 0x{magic_candidate:02X}")
-                    if magic_candidate == 0xBC: #
-                        header_rest = self._rx_bytes(10)  # Remaining bytes of BHHBBI
+                    if magic_candidate == 0xBC:
+                        header_rest = self._rx_bytes(10)
+                        if header_rest is None:
+                            return None, None, None, None, None
+
                         full_header = bytes([magic_candidate]) + header_rest
                         [magic, width, height, depth, format, size] = struct.unpack('<BHHBBI', full_header)
 
@@ -91,22 +114,34 @@ class AIDeckClient:
                             return width, height, depth, format, size
                 except Exception:
                     continue
+            return None, None, None, None, None
 
-        while rclpy.ok():
+        while rclpy.ok() and not self.stop_event.is_set():
             try:
                 # Ignore packetInfoRaw entirely, just search for magic byte 0xBC
                 width, height, depth, format, size = resync_to_header()
+                if None in (width, height, depth, format, size):
+                    break
 
                 imgStream = bytearray()
-                while len(imgStream) < size:
+                while len(imgStream) < size and not self.stop_event.is_set():
                     packetInfoRaw = self._rx_bytes(4)
+                    if packetInfoRaw is None:
+                        break  # socket issue or stop event
+
                     [length, dst, src] = struct.unpack('<HBB', packetInfoRaw)
+
                     chunk = self._rx_bytes(length - 2)
+                    if chunk is None:
+                        break
                     imgStream.extend(chunk)
+
+                if self.stop_event.is_set() or len(imgStream) < size:
+                    break
 
                 if format == 0:
                     raw_img = np.frombuffer(imgStream, dtype=np.uint8)
-                    raw_img.shape = (width, height)
+                    raw_img.shape = (height, width)
                 else:   # for jpeg
                     nparr = np.frombuffer(imgStream, np.uint8)
                     raw_img = cv2.imdecode(nparr, cv2.IMREAD_GRAYSCALE)
@@ -117,6 +152,7 @@ class AIDeckClient:
 
                 # Publish the image
                 now = self.node.get_clock().now().to_msg()
+                self.image_msg = Image()
                 self.image_msg.header.stamp = now
                 self.image_msg.header.frame_id = f"{self.cf_id}/camera"
                 self.camera_info_msg.header.stamp = now
@@ -135,6 +171,9 @@ class AIDeckClient:
 
             except Exception as e:
                 self.node.get_logger().error(f"[{self.cf_id}] Streaming error during image receive: {e}")
+                break
+
+        self.node.get_logger().info(f"[{self.cf_id}] stream_loop exited.")
 
 
     def monitor_loop(self):
@@ -144,23 +183,46 @@ class AIDeckClient:
             if time.time() - self.last_image_time > 2:
                 self.node.get_logger().warn(f"[{self.cf_id}] No image received in the last 2 seconds. Attempting to reconnect...")
 
-                try: # Try to close the socket cleanly and reconnect
-                    self.client_socket.close()
-                    self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    self.client_socket.settimeout(10)  # Avoid long hangs
-                    self.client_socket.connect((self.deck_ip, self.deck_port))
-                    self.node.get_logger().info(f"[{self.cf_id}] Reconnected to {self.deck_ip}:{self.deck_port}")
+                # Stop old stream thread
+                self.stop_event.set()
+                if getattr(self, "thread", None) is not None:
+                    if self.thread.is_alive():
+                        self.node.get_logger().info(f"[{self.cf_id}] Waiting for old stream thread to finish...")
+                        self.thread.join(timeout=2.0)
+                        if self.thread.is_alive():
+                            self.node.get_logger().warn(f"[{self.cf_id}] WARNING: old stream thread is still alive after join().")
+                else:
+                    self.node.get_logger().warn(f"[{self.cf_id}] Cannot reconnect — stream thread was never started.")
+                    continue  # Skip reconnect and retry on next cycle
 
-                    # Restart stream thread
-                    self.thread = threading.Thread(target=self.stream_loop, daemon=True)
-                    self.thread.start()
+                # Begin reconnection attempts
+                while rclpy.ok():
+                    try:
+                        self.node.get_logger().info(f"[{self.cf_id}] Closing old socket...")
+                        with self.socket_lock:
+                            self.client_socket.close()
 
-                    # Reset timer to avoid repeated reconnect attempts
-                    self.last_image_time = time.time()
+                        self.node.get_logger().info(f"[{self.cf_id}] Creating new socket...")
+                        self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                        self.client_socket.settimeout(10)
 
-                except Exception as e:
-                    self.node.get_logger().error(f"[{self.cf_id}] Reconnection failed: {e}")
-    
+                        self.node.get_logger().info(f"[{self.cf_id}] Attempting to connect to {self.deck_ip}:{self.deck_port}...")
+                        self.client_socket.connect((self.deck_ip, self.deck_port))
+                        self.node.get_logger().info(f"[{self.cf_id}] Successfully reconnected.")
+                        break
+
+                    except Exception as e:
+                        self.node.get_logger().warn(f"[{self.cf_id}] Reconnect failed: {e}")
+                        time.sleep(1.0)
+
+                # Restart stream thread
+                self.node.get_logger().info(f"[{self.cf_id}] Starting new stream thread...")
+                self.stop_event.clear()
+                self.thread = threading.Thread(target=self.stream_loop, daemon=True)
+                self.thread.start()
+
+                # Reset timer
+                self.last_image_time = time.time()
 
 
 class ImageStreamerNode(Node):
@@ -180,17 +242,13 @@ class ImageStreamerNode(Node):
 
         self.streamers = []
         for cf_id, cam in cameras.items():
-            try:
-                client = AIDeckClient(self, cf_id, cam["deck_ip"], cam["deck_port"], camera_info)
-                self.streamers.append(client)
-                self.publish_static_camera_transform(self, cf_id)
-            except ConnectionError as e:
-                self.get_logger().error(str(e))
-                self.get_logger().warn(f"Skipping {cf_id} due to connection failure. Will attempt reconnection in monitor loop if needed.")
-
-
+            client = AIDeckClient(self, cf_id, cam["deck_ip"], cam["deck_port"], camera_info)
+            self.streamers.append(client)
+            self.publish_static_camera_transform(self, cf_id)
+          
         self.get_logger().info(f"Started streaming for: {', '.join(cameras.keys())}")
-    
+
+
     def publish_static_camera_transform(self, node, cf_id):
         """
         Publishes a static transform from cf_id -> cf_id/camera with camera convention:

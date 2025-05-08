@@ -10,7 +10,7 @@ def generate_launch_description():
     launch_description = []
     launch_description.append(Node(
                                 package="icuas25_competition",
-                                executable="aideck_streamer.py",
-                                name="aideck_streamer",
+                                executable="aideck_streamer_udp.py",
+                                name="aideck_streamer_udp",
                                 parameters=[{"aideck_config_path": aideck_config_path}]))
     return LaunchDescription(launch_description)
