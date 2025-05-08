@@ -6,12 +6,12 @@ robots:
     initial_position: [0.0, -1.25, 0.0]
     type: cf21  # see robot_types
   cf_2:
-    enabled: false
-    uri: radio://0/95/2M/E7E7E7E7E7
+    enabled: true
+    uri: radio://0/100/2M/E7E7E7E7E7
     initial_position: [-1.25, -1.25, 0.0]
     type: cf21  # see robot_types
   cf_3:
-    enabled: false
+    enabled: true
     uri: radio://0/100/2M/E7E7E7E7E0
     initial_position: [1.25, -1.25, 0.0]
     type: cf21  # see robot_types
@@ -72,10 +72,10 @@ all:
         frequency: 10 # Hz
       status:
         frequency: 1 # Hz
-    #custom_topics:
-    #  topic_name2:
-    #    frequency: 1 # Hz
-    #    vars: ["stabilizer.roll", "stabilizer.pitch", "stabilizer.yaw"]
+    custom_topics:
+      velocity:
+        frequency: 10 # Hz
+        vars: ['kalman.statePX', 'kalman.statePY', 'kalman.statePZ',]
   # firmware parameters for all drones (use robot_types/type_name to set per type, or
   # robots/drone_name to set per drone)
   firmware_params:
