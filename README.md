@@ -61,7 +61,10 @@ For connecting with ROS2 crazyswarm2 package follow [instructions] (https://imrc
 
 ## Start:
 
-To connect with crazyflies with crazyswarm2 navigate to `/root/ros2_ws/src/icuas25_competition/startup`. and run `./start.sh`. This will start node to connect the camera to the wifi, crazyflie_server, octomap_server and the emergency script.
+To connect with crazyflies with crazyswarm2 navigate to `/root/ros2_ws/src/icuas25_competition/startup`. and run `./start.sh`. This will start node to connect the camera to the wifi, crazyflie_server, octomap_server and the emergency script. Mentioned programms are obligated to run the whole time during your run! You can start your code only after all crazyflies are fully connected. Once they are fully connected, the topic `/mission start` will publish `True` message.
+
+### Battery Monitoring
+Information about the battery is available on topic `/cf_x/status`, where `cf_x` is the namespace of a specific Crazyflie. Message type is [`Status`](https://github.com/IMRCLab/crazyswarm2/blob/main/crazyflie_interfaces/msg/Status.msg) defined in `crazyflie_interfaces` of `Crazyswarm2` repo. The field `battery_voltage` indicates battery level in Volts. You can either follow its status on your own, or/and  you can subscribe to topic `/return_to_base`. This topic publishes `Bool` message. If `True` it signals that battery is at critical level and you have enough charge to safely return to base. Battery is considered fully charged if its voltage level is above 4V.
 
 
 ## INFO part
@@ -75,19 +78,6 @@ General information about Cfclient can be found [here](https://www.bitcraze.io/d
 
 More info about Crazyswarm2 is described in [here](https://imrclab.github.io/crazyswarm2/).
 
-## Bonus section
 The provided Docker image comes with a few preinstalled tools and configs which may simplify your life.
-
 **Tmuxinator** is a tool that allows you to start a tmux session with a complex layout and automatically run commands by configuring a simple yaml configuration file. Tmux is a terminal multiplexer - it can run multiple terminal windows inside a single window. This approach is simpler than having to do `docker exec` every time you need a new terminal. You can move between terminal panes by holding down `Ctrl` key and navigating with arrow keys. Switching between tabs is done with `Shift` and arrow keys. If you have a lot of open panes and tabs in your tmux, you can simply kill everything and exit by pressing `Ctrl+b` and then `k`.
-
 Here are some links: [Tmuxinator](https://github.com/tmuxinator/tmuxinator), [Getting starded with Tmux](https://linuxize.com/post/getting-started-with-tmux/), [Tmux Cheat Sheet](https://tmuxcheatsheet.com/)
-
-**Ranger** is a command-line file browser for Linux. While inside the Docker container, you can run the default file browser `nautilus` with a graphical interface, but it is often easier and quicker to view the files directly in the terminal window. You can start ranger with the command `ra`. Moving up and down the folders is done with arrow keys and you can exit with a `q`. When you exit, the working directory in your terminal will be set to the last directory you opened while in Ranger.
-
-**Htop** is a better version of `top` - command line interface task manager. Start it with the command `htop` and exit with `q`.
-
-**Mcap** is a format to bag data in ROS2, it is added in this dockerfile and you can use it to store data from runs. Check [this link] (https://mcap.dev/guides/getting-started/ros-2).
-
-**VS Code** - If you normally use VS Code as your IDE, you can install [Dev Containers](https://code.visualstudio.com/docs/remote/containers#_sharing-git-credentials-with-your-container) extension which will allow you to continue using it inside the container. Simply start the container in your terminal (`docker start -i mrs_project`) and then attach to it from the VS code (open action tray with `Ctrl+Shift+P` and select `Dev Containers: Attach to Running Container`).
-
-**Foxglove** - this is a data visualization tool. You can download it on your laptop [here](https://foxglove.dev/download) After the download you can start it from the Apps, there will be purple icon. You can visualize data or plot raw messages live, as you are flying (There is already rosbridge_websocker launched.). Checkout this [link](https://docs.foxglove.dev/docs/connecting-to-data/frameworks/ros2#rosbridge). Additionally you can record bags using mcap or any other tool, transfer the bag on your laptop and open it with foxglove. 
