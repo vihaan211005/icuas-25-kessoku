@@ -67,7 +67,7 @@ install(DIRECTORY
   DESTINATION share/${PROJECT_NAME}/
 )
 
-add_executable(crazyflie_client src/crazyflie_client.cpp include/traversal.hpp)
+add_executable(crazyflie_client src/crazyflie_client.cpp)
 target_link_libraries(crazyflie_client 
   ompl
   fcl
