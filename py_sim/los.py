@@ -1,6 +1,6 @@
 import numpy as np
 
-def in_los(buildings, r, p1, p2, c, x_min, x_max, y_min, y_max):
+def in_los(buildings, r, p1, p2, c, x_min, x_max, y_min, y_max, comm_range):
     def point_line_distance(px, py, x1, y1, x2, y2):
         line_mag = np.hypot(x2 - x1, y2 - y1)
         if line_mag == 0:
@@ -14,7 +14,7 @@ def in_los(buildings, r, p1, p2, c, x_min, x_max, y_min, y_max):
 
     x1, y1 = p1
     x2, y2 = p2
-    if(np.hypot(x2 - x1, y2 - y1) > 2.5):
+    if(np.hypot(x2 - x1, y2 - y1) > comm_range):
         return False
     for bx, by in buildings:
         if(bx >= x_max or bx <= x_min or by >= y_max or by <= y_min):
@@ -24,7 +24,7 @@ def in_los(buildings, r, p1, p2, c, x_min, x_max, y_min, y_max):
             return False
     return True
 
-def create_matrix(world_width, world_height, buildings, edge, r, c):
+def create_matrix(world_width, world_height, buildings, edge, r, c, comm_range):
     m = (int)(world_width / edge) + 1
     n = (int)(world_height / edge) + 1
     matrix = np.zeros((m, n, m, n), dtype=bool)
@@ -35,6 +35,6 @@ def create_matrix(world_width, world_height, buildings, edge, r, c):
                 for j2 in range(n):
                     x1, y1 = i1 * edge, j1 * edge
                     x2, y2 = i2 * edge, j2 * edge
-                    matrix[i1][j1][i2][j2] = in_los(buildings, r, (x1, y1), (x2, y2), c, min(x1, x2) - edge, max(x1, x2) + edge, min(y1, y2) - edge, max(y1, y2) + edge)
+                    matrix[i1][j1][i2][j2] = in_los(buildings, r, (x1, y1), (x2, y2), c, min(x1, x2) - edge, max(x1, x2) + edge, min(y1, y2) - edge, max(y1, y2) + edge, comm_range)
                     matrix[i2][j2][i1][j1] = matrix[i1][j1][i2][j2]
     return matrix

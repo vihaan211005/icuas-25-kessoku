@@ -76,13 +76,15 @@ std::vector<Circle> findCirclesOnSlice(const std::vector<std::vector<uint8_t>>& 
 }
 
 int main(int argc, char** argv) {
-    if (argc < 3) {
+    if (argc < 2) {
         std::cerr << "Usage: " << argv[0] << " <octomap.bt> <output.json>\n";
         return 1;
     }
 
     std::string bt_file = argv[1];
-    std::string json_file = argv[2];
+    std::string json_file = "/output.json";
+    if(argc > 2)
+        std::string json_file = argv[2];
 
     octomap::OcTree tree(bt_file);
 
