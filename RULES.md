@@ -38,7 +38,7 @@ export DOCKER_BUILDKIT=1
 Run Dockerfile from the project root directory using the following commands:
 ```bash
 # Build a Dockerfile
-docker build --ssh default -t crazysim_icuas_img .
+docker build --ssh default -t crazysim_icuas_sim .
 
 # Run the crazysim_img2 container for the fist time
 ./first_run.sh
