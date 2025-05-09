@@ -43,3 +43,16 @@ namespace utils{
         return os << "\033[" << static_cast<int>(code) << "m";
     }
 }
+
+class Bounds
+{
+public:
+    Eigen::Vector3d min, max;
+    Bounds(Eigen::Vector3d min = Eigen::Vector3d(0, 0, 0), Eigen::Vector3d max = Eigen::Vector3d(0, 0, 0)) : min(min), max(max) {}
+
+    friend std::ostream &operator<<(std::ostream &os, const Bounds &b)
+    {
+        os << "Bounds(" << b.min << ", " << b.max << ")";
+        return os;
+    }
+};

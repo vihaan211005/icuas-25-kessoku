@@ -69,6 +69,9 @@ public:
         Node("crazyflie_command_client"), 
         num_cf(std::getenv("NUM_ROBOTS") ? std::stoi(std::getenv("NUM_ROBOTS")) : 0), 
         range(std::getenv("COMM_RANGE") ? std::stod(std::getenv("COMM_RANGE")) : 0.0),
+        drone_h(0.6),
+        diff_h(0.4),
+        edge_length(0.3),
         start_positions(num_cf),    
         odom_linear(std::vector<geometry_msgs::msg::Point>(num_cf)),
         odom_linear_vel(std::vector<geometry_msgs::msg::Vector3>(num_cf)),
@@ -128,7 +131,21 @@ public:
         RCLCPP_INFO(this->get_logger(), "Getting Octomap...");
         get_octomap();
         generateOctomapJSON(*tree);
-        
+        std::ifstream file("/output.json");
+        if (!file) {
+            std::cerr << "Could not open octomap JSON file.\n";
+            return 1;
+        }
+
+        json config;
+        file >> config;
+        min_bound = j["min_bound"].get<std::vector<double>>();
+        max_bound = j["max_bound"].get<std::vector<double>>(); 
+        octomap_resolution = j["resolution"].get<double>();
+        octomap_dimensions = j["dimensions"].get<std::vector<double>>();
+        size_t n_circles = j["circles"].size();
+
+        std::cout << utils::Color::FG_BLUE << "Number of circles/pillars detected: " << n_circles << utils::Color::FG_DEFAULT << std::endl;
 
         // init fcl collision geometries
         fcl::OcTree<double>* fcl_tree = new fcl::OcTree<double>(std::shared_ptr<const octomap::OcTree>(tree));
@@ -144,7 +161,8 @@ public:
         
         //init planner
         RCLCPP_INFO(this->get_logger(), "Initializing Path Planner object...");
-        planner = std::make_shared<Planner>(Planner(tree, solver->mapBounds, this->get_logger()));
+        Bounds mapBounds(Eigen::Vector3d(min_bound[0], min_bound[1], min_bound[2] + 0.1), Eigen::Vector3d(max_bound[0], max_bound[1], max_bound[2]));
+        planner = std::make_shared<Planner>(Planner(tree, mapBounds, this->get_logger()));
 
         RCLCPP_INFO(this->get_logger(), "Starting search...");
         res_publisher_ = this->create_publisher<icuas25_msgs::msg::TargetInfo>("target_found", 10);
@@ -311,8 +329,7 @@ public:
             }
 
             // generate path
-            double EDGE = 0.3;
-            system("python3 main.py %d /output.json", 0.3); // "Usage: python main.py <EDGE> <OCTOMAP.JSON>"
+            system("python3 main.py %d /output.json", edge_length); // "Usage: python main.py <EDGE> <OCTOMAP.JSON>"
             std::ifstream file("/solution.json");
             if (!file) {
                 std::cerr << "Could not open solution JSON file.\n";
@@ -402,11 +419,11 @@ private:
     }
 
     double coord_x(double x){
-        return min_bound_x + edge_length*x
+        return min_bound[0] + edge_length*x
     }
 
     double coord_y(double y){
-        return min_bound_y + edge_length*y
+        return min_bound[0] + edge_length*y
     }
 
     double get_yaw(int drone){
@@ -598,14 +615,17 @@ private:
     std::shared_ptr<Solver> solver;
 
     int num_cf;
+    bool flag = false;
+    bool mission_started = false;
     double range;
     double drone_h;
-    double min_bound_x;
-    double min_bound_y;
+    double h_diff;
     double edge_length;
-    bool flag = false;
+    double octomap_resolution;
+    std::vector<double> min_bound;
+    std::vector<double> max_bound;
+    std::vector<double> octomap_dimensions;
     std::shared_ptr<Planner> planner;
-    bool mission_started = false;
 
     Eigen::Vector4d start;
     Eigen::Vector4d goal;
