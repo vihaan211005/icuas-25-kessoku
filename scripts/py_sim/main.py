@@ -123,7 +123,7 @@ def main():
     counter = 0
     ''''PEHLA'''
     do_it(THETA, OBS_RADIUS, VISIBLE_PENALTY, NUM_DRONES, EDGE, poses, vis, buildings, BUILDING_RADIUS, visible_arcs_building, solution)
-    plot.plotter(WORLD_WIDTH, WORLD_HEIGHT, BUILDING_RADIUS, buildings, visible_arcs_building, poses, EDGE, matrix)
+    # plot.plotter(WORLD_WIDTH, WORLD_HEIGHT, BUILDING_RADIUS, buildings, visible_arcs_building, poses, EDGE, matrix)
     while(1):
         ''''CHOOSING'''
         counter += 1
@@ -185,7 +185,7 @@ def main():
             vis = np.zeros((M, N))
         if(not (counter % 100)):
             # plot.stats(metric)
-            plot.plotter(WORLD_WIDTH, WORLD_HEIGHT, BUILDING_RADIUS, buildings, visible_arcs_building, poses, EDGE, matrix)
+            # plot.plotter(WORLD_WIDTH, WORLD_HEIGHT, BUILDING_RADIUS, buildings, visible_arcs_building, poses, EDGE, matrix)
 
     data = json.dumps(solution.__dict__)
     with open("/solution.json", "w") as f:

@@ -418,8 +418,8 @@ private:
             for(int j = i + 1; j < num_cf; j++){
                 fcl::CollisionResult<double> collisionResult;
                 fcl::collide(&collision_objects[i], &collision_objects[j], requestType, collisionResult);
-                if (collisionResult.isCollision()){
-                    std::cout << utils::Color::FG_RED << "Collision happened between " << i + 1 << " and " << j + 1 << utils::Color::FG_DEFAULT << std::endl;
+                if (collisionResult.isCollision()){ /*TODO: fix this*/
+                    // std::cout << utils::Color::FG_RED << "Collision happened between " << i + 1 << " and " << j + 1 << utils::Color::FG_DEFAULT << std::endl;
                 }
             }
         }
