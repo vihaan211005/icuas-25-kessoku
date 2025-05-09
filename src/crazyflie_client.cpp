@@ -270,7 +270,7 @@ public:
         return T;
     }
 
-    int go_back(bool bring_back = false){
+    int go_back_using_planner(bool bring_back = false){
         std::cout << utils::Color::FG_RED << "All drones going back to base!" << utils::Color::FG_DEFAULT << std::endl;
         std::vector<std::vector<double>> prev_positions(num_cf);
         for(int i = 0; i < num_cf; i++){
@@ -306,6 +306,7 @@ public:
                 }
             }
         }
+        return 0;
     }
 
     int run_mission(){
@@ -315,7 +316,8 @@ public:
             }
 
             // generate path
-            system("python3 main.py 0.3");
+            double EDGE = 0.3;
+            system("python3 main.py %d", 0.3);
             std::ifstream file("solution.json");
             if (!file) {
                 std::cerr << "Could not open JSON file.\n";
@@ -326,13 +328,14 @@ public:
             mission_started = true;
             json j;
             file >> j;
-            auto poses = j["poses"];
-            auto yaws = j["yaws"];
-            auto json_graph = j["matrix"];
+            auto poses = j["poses"].get<std::vector<std::vector<double>>>();;
+            auto yaws = j["yaws"].get<std::vector<std::vector<double>>>();;
+            auto matrix = j["matrix"].get<std::vector<std::vector<std::vector<std::vector<int>>>>>();
                 
             for (size_t goal_idx = 0; goal_idx < poses.size(); ++goal_idx) {
                 if(recharge_flag){ // go_to_recharge all drones
-                    go_back(true);
+                    go_back_using_planner(true);
+                    // go_back_using_matrix(matrix, true);
                 }
                 for(size_t drone_idx = 0; drone_idx < num_cf; drone_idx++){
                     auto pose = poses[goal_idx][drone_idx];
@@ -354,7 +357,8 @@ public:
             }
 
             std::cout << utils::Color::FG_GREEN << "Mission ended! Recalling all drones going back to base!" << utils::Color::FG_DEFAULT << std::endl;
-            go_back(false);
+            go_back_using_planner(false);
+            // go_back_using_matrix(false);
             
             flag = true;
         }

@@ -27,6 +27,7 @@ find_package(Boost REQUIRED)
 find_package(Eigen3 3.3 REQUIRED)
 find_package(ompl REQUIRED)
 find_package(fcl REQUIRED)
+find_package(nlohmann_json REQUIRED)
 
 include_directories(
   include
@@ -71,6 +72,7 @@ add_executable(crazyflie_client src/crazyflie_client.cpp)
 target_link_libraries(crazyflie_client 
   ompl
   fcl
+  nlohmann_json::nlohmann_json
 )
 ament_target_dependencies(crazyflie_client 
   rclcpp 
