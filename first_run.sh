@@ -44,4 +44,4 @@ docker run -it \
     --privileged \
     --gpus all \
     --name crazysim_icuas_cont \
-    crazysim_icuas_img
+    icuas_sim_img
