@@ -44,6 +44,7 @@
 
 #include "planner.hpp"
 #include "utils.hpp"
+#include "octomap_utils.hpp"
 #include <nlohmann/json.hpp>
 
 using json = nlohmann::json;
@@ -126,6 +127,8 @@ public:
 
         RCLCPP_INFO(this->get_logger(), "Getting Octomap...");
         get_octomap();
+        generateOctomapJSON(*tree);
+        
 
         // init fcl collision geometries
         fcl::OcTree<double>* fcl_tree = new fcl::OcTree<double>(std::shared_ptr<const octomap::OcTree>(tree));
@@ -138,20 +141,12 @@ public:
         for(int i = 0; i < num_cf; i++){
             collision_objects.push_back(fcl::CollisionObject<double> (quad_obj[i]));
         }
-
-        // init solver
-        RCLCPP_INFO(this->get_logger(), "Initializing Solver object...");
-        solver = std::make_shared<Solver>(Eigen::Vector3d(0, 0, 1), *tree, range, 5);
-        solver->dist_down = 1;
-        solver->initialSetup();
-
+        
         //init planner
         RCLCPP_INFO(this->get_logger(), "Initializing Path Planner object...");
         planner = std::make_shared<Planner>(Planner(tree, solver->mapBounds, this->get_logger()));
 
-
         RCLCPP_INFO(this->get_logger(), "Starting search...");
-
         res_publisher_ = this->create_publisher<icuas25_msgs::msg::TargetInfo>("target_found", 10);
         run_mission_timer_ = this->create_wall_timer(500ms, std::bind(&CrazyflieCommandClient::run_mission, this), run_mission_cb_group_);
         check_collision_timer_ = this->create_wall_timer(500ms, std::bind(&CrazyflieCommandClient::check_collision, this), check_collision_cb_group_);
@@ -317,10 +312,10 @@ public:
 
             // generate path
             double EDGE = 0.3;
-            system("python3 main.py %d", 0.3);
-            std::ifstream file("solution.json");
+            system("python3 main.py %d /output.json", 0.3); // "Usage: python main.py <EDGE> <OCTOMAP.JSON>"
+            std::ifstream file("/solution.json");
             if (!file) {
-                std::cerr << "Could not open JSON file.\n";
+                std::cerr << "Could not open solution JSON file.\n";
                 return 1;
             }
                 
@@ -328,37 +323,50 @@ public:
             mission_started = true;
             json j;
             file >> j;
-            auto poses = j["poses"].get<std::vector<std::vector<double>>>();;
-            auto yaws = j["yaws"].get<std::vector<std::vector<double>>>();;
-            auto matrix = j["matrix"].get<std::vector<std::vector<std::vector<std::vector<int>>>>>();
-                
+
+            auto poses = j["poses"].get<std::vector<std::vector<std::array<int, 2>>>>();
+            auto yaws = j["yaws"].get<std::vector<std::vector<std::vector<double>>>>();
+            auto matrix = j["matrix"].get<std::vector<std::vector<std::vector<std::vector<bool>>>>>();
+            
             for (size_t goal_idx = 0; goal_idx < poses.size(); ++goal_idx) {
-                if(recharge_flag){ // go_to_recharge all drones
+
+                if(recharge_flag){
                     go_back_using_planner(true);
-                    // go_back_using_matrix(matrix, true);
                 }
+                
+                std::vector<int> scan_drones;
+
+                /*go to next state*/
                 for(size_t drone_idx = 0; drone_idx < num_cf; drone_idx++){
                     auto pose = poses[goal_idx][drone_idx];
-                    auto yaw = yaws[goal_idx];
-                    // std::cout << "Drone " << drone_idx << ": " << << " Pose: (" << pose[0] << ", " << pose[1] << ") " << " Yaw: " << yaw;
-                    
-                    go_to(drone_idx + 1, pose[0], pose[1], drone_h);
-                    if(yaw != 0){ // not empty, then there is building
-                        std::cout << utils::Color::FG_BLUE << "Drone " << drone_idx << " : Scanning building at (" << pose[0] << "," << pose[1] << ")" << utils::Color::FG_DEFAULT << std::endl;
-                        go_to(drone_idx + 1, pose[0], pose[1], drone_h - 0.2);
-                        wait_to_reach();
-                        go_to(drone_idx + 1, pose[0], pose[1], drone_h + 0.2);
-                        wait_to_reach();
-                        go_to(drone_idx + 1, pose[0], pose[1], drone_h);
-                        wait_to_reach();
-                    }
+                    auto yaw = yaws[goal_idx][drone_idx]; 
+                    if(yaw.empty()){ // not empty
+                        go_to(drone_idx + 1, coord_x(pose[0]), coord_y(pose[1]), drone_h, 0);
+                        scan_drones.push_back(drone_idx);
+                    } 
+                    else go_to(drone_idx + 1, coord_x(pose[0]), coord_y(pose[1]), drone_h, yaw[0]);
+                }
+                wait_to_reach();
+
+                /*scan buildings*/
+                for(int drone : scan_drones){
+                    go_to(drone + 1, coord_x(poses[goal_idx][drone][0]), coord_y(poses[goal_idx][drone][0]), drone_h - h_diff, yaws[goal_idx][drone][0])
+                }
+                wait_to_reach();
+
+                for(int drone : scan_drones){
+                    go_to(drone + 1, coord_x(poses[goal_idx][drone][0]), coord_y(poses[goal_idx][drone][0]), drone_h + h_diff, yaws[goal_idx][drone][0])
+                }
+                wait_to_reach();
+
+                for(int drone : scan_drones){
+                    go_to(drone + 1, coord_x(poses[goal_idx][drone][0]), coord_y(poses[goal_idx][drone][0]), drone_h - h_diff, yaws[goal_idx][drone][0])
                 }
                 wait_to_reach();
             }
 
             std::cout << utils::Color::FG_GREEN << "Mission ended! Recalling all drones going back to base!" << utils::Color::FG_DEFAULT << std::endl;
             go_back_using_planner(false);
-            // go_back_using_matrix(false);
             
             flag = true;
         }
@@ -391,6 +399,14 @@ private:
                 std::cout << utils::Color::FG_RED << "Collision happened between " << i + 1 << " and building" << utils::Color::FG_DEFAULT << std::endl;
             }
         }
+    }
+
+    double coord_x(double x){
+        return min_bound_x + edge_length*x
+    }
+
+    double coord_y(double y){
+        return min_bound_y + edge_length*y
     }
 
     double get_yaw(int drone){
@@ -583,13 +599,16 @@ private:
 
     int num_cf;
     double range;
+    double drone_h;
+    double min_bound_x;
+    double min_bound_y;
+    double edge_length;
     bool flag = false;
     std::shared_ptr<Planner> planner;
     bool mission_started = false;
 
     Eigen::Vector4d start;
     Eigen::Vector4d goal;
-    std::map<int,double> drone_h;
     std::vector<std::vector<double>> start_positions;
 
     std::vector<geometry_msgs::msg::Point> odom_linear;
