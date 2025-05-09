@@ -42,8 +42,8 @@
 #include <fstream>
 #include "math.h"
 
-#include "planner.hpp"
 #include "utils.hpp"
+#include "planner.hpp"
 #include "octomap_utils.hpp"
 #include <nlohmann/json.hpp>
 
@@ -70,15 +70,15 @@ public:
         num_cf(std::getenv("NUM_ROBOTS") ? std::stoi(std::getenv("NUM_ROBOTS")) : 0), 
         range(std::getenv("COMM_RANGE") ? std::stod(std::getenv("COMM_RANGE")) : 0.0),
         drone_h(0.6),
-        diff_h(0.4),
+        h_diff(0.4),
         edge_length(0.3),
         start_positions(num_cf),    
         odom_linear(std::vector<geometry_msgs::msg::Point>(num_cf)),
+        odom_quat(std::vector<geometry_msgs::msg::Quaternion>(num_cf)),
         odom_linear_vel(std::vector<geometry_msgs::msg::Vector3>(num_cf)),
         odom_angular_vel(std::vector<geometry_msgs::msg::Vector3>(num_cf)),
-        odom_quat(std::vector<geometry_msgs::msg::Quaternion>(num_cf)),
-        odom_subscriptions_(num_cf),
         pose_subscriptions_(num_cf),
+        odom_subscriptions_(num_cf),
         aruco_subscriptions_(num_cf),
         battery_subscriptions_(num_cf),
         battery_status_(num_cf, 100),
@@ -134,16 +134,16 @@ public:
         std::ifstream file("/output.json");
         if (!file) {
             std::cerr << "Could not open octomap JSON file.\n";
-            return 1;
+            exit(1);
         }
 
         json config;
         file >> config;
-        min_bound = j["min_bound"].get<std::vector<double>>();
-        max_bound = j["max_bound"].get<std::vector<double>>(); 
-        octomap_resolution = j["resolution"].get<double>();
-        octomap_dimensions = j["dimensions"].get<std::vector<double>>();
-        size_t n_circles = j["circles"].size();
+        min_bound = config["min_bound"].get<std::vector<double>>();
+        max_bound = config["max_bound"].get<std::vector<double>>(); 
+        octomap_resolution = config["resolution"].get<double>();
+        octomap_dimensions = config["dimensions"].get<std::vector<double>>();
+        size_t n_circles = config["circles"].size();
 
         std::cout << utils::Color::FG_BLUE << "Number of circles/pillars detected: " << n_circles << utils::Color::FG_DEFAULT << std::endl;
 
@@ -292,13 +292,13 @@ public:
 
         for(int i = 0; i < num_cf; i++){
             std::vector<Eigen::Vector4d> pathArray;
-            octomap::point3d(0, 0, 0);
-            Eigen::Vector3d start(prev_positions[i][0], prev_positions[i][1], prev_positions[i][2], 0);
-            Eigen::Vector3d goal(start_positions[i][0], start_positions[i][1], start_positions[i][2], 0);
-            run_planner(octomap::point3d center, Eigen::Vector3d goal, Eigen::Vector3d start, std::vector<Eigen::Vector4d>& pathArray)
+            octomap::point3d center(0, 0, 0);
+            Eigen::Vector3d start(prev_positions[i][0], prev_positions[i][1], prev_positions[i][2]);
+            Eigen::Vector3d goal(start_positions[i][0], start_positions[i][1], start_positions[i][2]);
+            run_planner(center, goal, start, pathArray);
 
-            for(int j = 0; j < pathArray.size(); j++){
-                go_to(i, pathArray[0], pathArray[1], pathArray[2], pathArray[3]);
+            for(uint j = 0; j < pathArray.size(); j++){
+                go_to(i, pathArray[j][0], pathArray[j][1], pathArray[j][2], pathArray[j][3]);
                 wait_to_reach();
             }
             if(bring_back) rclcpp::sleep_for(std::chrono::milliseconds(2000));
@@ -308,13 +308,13 @@ public:
             std::cout << utils::Color::FG_GREEN << "Bringing back all drones back to vertices!" << utils::Color::FG_DEFAULT << std::endl;
             for(int i = 0; i < num_cf; i++){
                 std::vector<Eigen::Vector4d> pathArray;
-                octomap::point3d(0, 0, 0);
-                Eigen::Vector3d start(start_positions[i][0], start_positions[i][1], start_positions[i][2], 0);
-                Eigen::Vector3d goal(prev_positions[i][0], prev_positions[i][1], prev_positions[i][2], 0);
+                octomap::point3d center(0, 0, 0);
+                Eigen::Vector3d start(start_positions[i][0], start_positions[i][1], start_positions[i][2]);
+                Eigen::Vector3d goal(prev_positions[i][0], prev_positions[i][1], prev_positions[i][2]);
+                run_planner(center, goal, start, pathArray);
 
-                run_planner(octomap::point3d center, Eigen::Vector3d goal, Eigen::Vector3d start, std::vector<Eigen::Vector4d>& pathArray)
-                for(int j = 0; j < pathArray.size(); j++){
-                    go_to(i, pathArray[0], pathArray[1], pathArray[2], pathArray[3]);
+                for(uint j = 0; j < pathArray.size(); j++){
+                    go_to(i, pathArray[j][0], pathArray[j][1], pathArray[j][2], pathArray[j][3]);
                     wait_to_reach();
                 }
             }
@@ -329,7 +329,14 @@ public:
             }
 
             // generate path
-            system("python3 $PATH_GEN %d /output.json", edge_length); // "Usage: python main.py <EDGE> <OCTOMAP.JSON>"
+            std::ostringstream oss;
+            oss << "python $PATH_GEN " << edge_length << " /output.json";
+            auto res = std::system(oss.str().c_str()); // "Usage: python main.py <EDGE> <OCTOMAP.JSON>"
+            if(res){
+                std::cerr << "Failed to run pysim program" << std::endl;
+                exit(1);
+            }
+
             std::ifstream file("/solution.json");
             if (!file) {
                 std::cerr << "Could not open solution JSON file.\n";
@@ -345,22 +352,22 @@ public:
             auto yaws = j["yaws"].get<std::vector<std::vector<std::vector<double>>>>();
             auto matrix = j["matrix"].get<std::vector<std::vector<std::vector<std::vector<bool>>>>>();
             
-            for (size_t goal_idx = 0; goal_idx < poses.size(); ++goal_idx) {
+            for (uint goal_idx = 0; goal_idx < poses.size(); goal_idx++){
 
                 if(recharge_flag){
                     go_back_using_planner(true);
                 }
                 
                 std::vector<int> scan_drones;
-                int max_n_buildings = 0;
+                uint max_n_buildings = 0;
 
                 /*go to next state*/
-                for(size_t drone_idx = 0; drone_idx < num_cf; drone_idx++){
+                for(int drone_idx = 0; drone_idx < num_cf; drone_idx++){
                     auto pose = poses[goal_idx][drone_idx];
                     auto yaw = yaws[goal_idx][drone_idx]; 
                     if(yaw.empty()){ // no building found
                         if(!yaw.empty()) {
-                            max_n_buildings = std::max(max_n_buildings, yaw.size());
+                            max_n_buildings = yaw.size() > max_n_buildings? yaw.size() : max_n_buildings;
                             scan_drones.push_back(drone_idx);
                         }
                         go_to(drone_idx + 1, coord_x(pose[0]), coord_y(pose[1]), drone_h, 0);
@@ -370,22 +377,22 @@ public:
                 wait_to_reach();
 
                 /*scan buildings*/
-                for(int k = 0; k < max_n_buildings; k++){
+                for(uint k = 0; k < max_n_buildings; k++){
                     for(int drone : scan_drones){
                         if(k < yaws[goal_idx][drone].size())
-                            go_to(drone + 1, coord_x(poses[goal_idx][drone][0]), coord_y(poses[goal_idx][drone][1]), drone_h - h_diff, yaws[goal_idx][drone][k])
+                            go_to(drone + 1, coord_x(poses[goal_idx][drone][0]), coord_y(poses[goal_idx][drone][1]), drone_h - h_diff, yaws[goal_idx][drone][k]);
                     }
                     wait_to_reach();
     
                     for(int drone : scan_drones){
                         if(k < yaws[goal_idx][drone].size())
-                            go_to(drone + 1, coord_x(poses[goal_idx][drone][0]), coord_y(poses[goal_idx][drone][1]), drone_h + h_diff, yaws[goal_idx][drone][k])
+                            go_to(drone + 1, coord_x(poses[goal_idx][drone][0]), coord_y(poses[goal_idx][drone][1]), drone_h + h_diff, yaws[goal_idx][drone][k]);
                     }
                     wait_to_reach();
     
                     for(int drone : scan_drones){
                         if(k < yaws[goal_idx][drone].size())
-                            go_to(drone + 1, coord_x(poses[goal_idx][drone][0]), coord_y(poses[goal_idx][drone][1]), drone_h, yaws[goal_idx][drone][k])
+                            go_to(drone + 1, coord_x(poses[goal_idx][drone][0]), coord_y(poses[goal_idx][drone][1]), drone_h, yaws[goal_idx][drone][k]);
                     }
                     wait_to_reach();
                 }
@@ -428,11 +435,11 @@ private:
     }
 
     double coord_x(double x){
-        return min_bound[0] + edge_length*x
+        return min_bound[0] + edge_length*x;
     }
 
     double coord_y(double y){
-        return min_bound[0] + edge_length*y
+        return min_bound[1] + edge_length*y;
     }
 
     double get_yaw(int drone){
@@ -621,7 +628,6 @@ private:
     }
 
     octomap::OcTree* tree;
-    std::shared_ptr<Solver> solver;
 
     int num_cf;
     bool flag = false;

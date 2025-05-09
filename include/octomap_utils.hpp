@@ -120,7 +120,7 @@ int generateOctomapJSON(octomap::OcTree tree){
             {"grid_index", {c.index_x, c.index_y}}
         });
     }
-
+    std::string json_file = "/output.json";
     std::ofstream ofs(json_file);
     if (!ofs) {
         std::cerr << "Failed to open output file: " << json_file << "\n";
