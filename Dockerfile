@@ -119,7 +119,7 @@ RUN /bin/sh -c 'sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/m
 RUN apt update && sudo apt install -y \
    python3-rosdep \
    ros-dev-tools \
-   nlohmann-json-dev
+   nlohmann-json3-dev
 
 RUN apt-get update &&  apt-get upgrade -y && sudo apt install ros-${ROS2_DISTRO}-desktop -y
 
