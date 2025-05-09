@@ -220,12 +220,13 @@ RUN apt install -y ros-${ROS2_DISTRO}-ros-gz${GZ_RELEASE}
 
 RUN echo "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$HOME/acados/lib" >> $HOME/.bashrc
 
-RUN mkdir -p $HOME/CrazySim/ros2_ws/src/icuas25_competition/ext && \
-    cd $HOME/CrazySim/ros2_ws/src/icuas25_competition/ext && \
-    git clone --recursive https://github.com/pulak-gautam/uav_trajectories.git traj && \
-    mkdir -p traj/build && cd traj/build && \
-    cmake .. && make 
-RUN echo "export TRAJ_GEN=/root/CrazySim/ros2_ws/src/icuas25_competition/ext/traj/build/genTrajectory" >> $HOME/.bashrc
+# setup traj utils
+# RUN mkdir -p $HOME/CrazySim/ros2_ws/src/icuas25_competition/ext && \
+#     cd $HOME/CrazySim/ros2_ws/src/icuas25_competition/ext && \
+#     git clone --recursive https://github.com/pulak-gautam/uav_trajectories.git traj && \
+#     mkdir -p traj/build && cd traj/build && \
+#     cmake .. && make 
+# RUN echo "export TRAJ_GEN=/root/CrazySim/ros2_ws/src/icuas25_competition/ext/traj/build/genTrajectory" >> $HOME/.bashrc
 
 # setup ros2 environment variables
 RUN echo "export ROS_LOCALHOST_ONLY=1" >> $HOME/.bashrc
@@ -239,6 +240,7 @@ COPY worlds $HOME/CrazySim/ros2_ws/src/icuas25_competition/worlds
 RUN bash -c "chmod +x $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/edit.sh && $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/edit.sh"
 RUN bash -c "chmod +x $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/add_markers.py && $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/add_markers.py"
 RUN cat $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/build.sh >> $HOME/.bashrc
+RUN echo "export PATH_GEN=/root/CrazySim/ros2_ws/src/icuas25_competition/scripts/py_sim/main.py" >> $HOME/.bashrc
 
 COPY config $HOME/CrazySim/ros2_ws/src/icuas25_competition/config
 COPY src $HOME/CrazySim/ros2_ws/src/icuas25_competition/src

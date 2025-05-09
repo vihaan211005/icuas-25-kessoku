@@ -329,7 +329,7 @@ public:
             }
 
             // generate path
-            system("python3 main.py %d /output.json", edge_length); // "Usage: python main.py <EDGE> <OCTOMAP.JSON>"
+            system("python3 $PATH_GEN %d /output.json", edge_length); // "Usage: python main.py <EDGE> <OCTOMAP.JSON>"
             std::ifstream file("/solution.json");
             if (!file) {
                 std::cerr << "Could not open solution JSON file.\n";
@@ -352,34 +352,43 @@ public:
                 }
                 
                 std::vector<int> scan_drones;
+                int max_n_buildings = 0;
 
                 /*go to next state*/
                 for(size_t drone_idx = 0; drone_idx < num_cf; drone_idx++){
                     auto pose = poses[goal_idx][drone_idx];
                     auto yaw = yaws[goal_idx][drone_idx]; 
-                    if(yaw.empty()){ // not empty
+                    if(yaw.empty()){ // no building found
+                        if(!yaw.empty()) {
+                            max_n_buildings = std::max(max_n_buildings, yaw.size());
+                            scan_drones.push_back(drone_idx);
+                        }
                         go_to(drone_idx + 1, coord_x(pose[0]), coord_y(pose[1]), drone_h, 0);
-                        scan_drones.push_back(drone_idx);
                     } 
-                    else go_to(drone_idx + 1, coord_x(pose[0]), coord_y(pose[1]), drone_h, yaw[0]);
+
                 }
                 wait_to_reach();
 
                 /*scan buildings*/
-                for(int drone : scan_drones){
-                    go_to(drone + 1, coord_x(poses[goal_idx][drone][0]), coord_y(poses[goal_idx][drone][0]), drone_h - h_diff, yaws[goal_idx][drone][0])
+                for(int k = 0; k < max_n_buildings; k++){
+                    for(int drone : scan_drones){
+                        if(k < yaws[goal_idx][drone].size())
+                            go_to(drone + 1, coord_x(poses[goal_idx][drone][0]), coord_y(poses[goal_idx][drone][1]), drone_h - h_diff, yaws[goal_idx][drone][k])
+                    }
+                    wait_to_reach();
+    
+                    for(int drone : scan_drones){
+                        if(k < yaws[goal_idx][drone].size())
+                            go_to(drone + 1, coord_x(poses[goal_idx][drone][0]), coord_y(poses[goal_idx][drone][1]), drone_h + h_diff, yaws[goal_idx][drone][k])
+                    }
+                    wait_to_reach();
+    
+                    for(int drone : scan_drones){
+                        if(k < yaws[goal_idx][drone].size())
+                            go_to(drone + 1, coord_x(poses[goal_idx][drone][0]), coord_y(poses[goal_idx][drone][1]), drone_h, yaws[goal_idx][drone][k])
+                    }
+                    wait_to_reach();
                 }
-                wait_to_reach();
-
-                for(int drone : scan_drones){
-                    go_to(drone + 1, coord_x(poses[goal_idx][drone][0]), coord_y(poses[goal_idx][drone][0]), drone_h + h_diff, yaws[goal_idx][drone][0])
-                }
-                wait_to_reach();
-
-                for(int drone : scan_drones){
-                    go_to(drone + 1, coord_x(poses[goal_idx][drone][0]), coord_y(poses[goal_idx][drone][0]), drone_h - h_diff, yaws[goal_idx][drone][0])
-                }
-                wait_to_reach();
             }
 
             std::cout << utils::Color::FG_GREEN << "Mission ended! Recalling all drones going back to base!" << utils::Color::FG_DEFAULT << std::endl;
