@@ -31,7 +31,7 @@ def give_pose(state, NUM_DRONES, poses):
             new_poses[i] = (poses[i][0], poses[i][1])
     return new_poses
 
-def do_it(THETA, OBS_RADIUS, VISIBLE_PENALTY, NUM_DRONES, EDGE, poses, vis, buildings, BUILDING_RADIUS, visible_arcs_building, solution):
+def do_it(THETA, OBS_RADIUS, VISIBLE_PENALTY, NUM_DRONES, EDGE, poses, vis, buildings, BUILDING_RADIUS, visible_arcs_building, solution, heights):
     kitna_dekha = 0.0
     yaws = [[] for i in range(NUM_DRONES)]
     for i in range(NUM_DRONES):
@@ -58,6 +58,7 @@ def do_it(THETA, OBS_RADIUS, VISIBLE_PENALTY, NUM_DRONES, EDGE, poses, vis, buil
             if dekha:
                 kitna_dekha += kitna
                 yaws[i].append(np.arctan2(dy, dx))
+                yaws[i].append(heights[idx])
     solution.poses.append(poses)
     solution.yaws.append(yaws)
     return kitna_dekha
@@ -83,6 +84,7 @@ def main():
     N = None
     
     buildings = None
+    heights = None
     visible_arcs_building = None
     matrix = None
     poses = [(0,0), (0,1), (1,0), (1,1)]
@@ -105,9 +107,11 @@ def main():
     min_bound = data.get("min_bound", [MIN_X, MIN_Y, 0])
     MIN_X, MIN_Y = float(min_bound[0]), float(min_bound[1])
     circles = data.get("circles")
-    circles = [i["real_world_center"] for i in circles]
-    buildings = [(x[0] - MIN_X, x[1] - MIN_Y) for x in circles]
-
+    circles_centers = [i["real_world_center"] for i in circles]
+    circles_heights = [i["height"] for i in circles]
+    buildings = [(x[0] - MIN_X, x[1] - MIN_Y) for x in circles_centers]
+    heights = [float(x) for x in circles_heights]
+    
     '''UPDATING'''
     M = (int)(WORLD_WIDTH / EDGE) + 1
     N = (int)(WORLD_HEIGHT / EDGE) + 1
@@ -122,7 +126,7 @@ def main():
 
     counter = 0
     ''''PEHLA'''
-    do_it(THETA, OBS_RADIUS, VISIBLE_PENALTY, NUM_DRONES, EDGE, poses, vis, buildings, BUILDING_RADIUS, visible_arcs_building, solution)
+    do_it(THETA, OBS_RADIUS, VISIBLE_PENALTY, NUM_DRONES, EDGE, poses, vis, buildings, BUILDING_RADIUS, visible_arcs_building, solution, heights)
     plot.plotter(WORLD_WIDTH, WORLD_HEIGHT, BUILDING_RADIUS, buildings, visible_arcs_building, poses, EDGE, matrix)
     while(1):
         ''''CHOOSING'''
@@ -180,7 +184,7 @@ def main():
         '''CHOOSE BEST'''
         state_new = np.argmax(metric)
         poses = give_pose(state_new, NUM_DRONES, poses)
-        do_it(THETA, OBS_RADIUS, VISIBLE_PENALTY, NUM_DRONES, EDGE, poses, vis, buildings, BUILDING_RADIUS, visible_arcs_building, solution)
+        do_it(THETA, OBS_RADIUS, VISIBLE_PENALTY, NUM_DRONES, EDGE, poses, vis, buildings, BUILDING_RADIUS, visible_arcs_building, solution, heights)
         if(not (counter  % RESET_TIMER)):
             vis = np.zeros((M, N))
         if(not (counter % 100)):
