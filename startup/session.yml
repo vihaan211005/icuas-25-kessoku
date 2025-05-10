@@ -16,16 +16,20 @@ windows:
       layout: tiled
       panes:
         - history -s "ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args --remap cmd_vel:=/cf_1/cmd_vel"
+        - >
+          history -s 'ros2 topic pub /mission_start std_msgs/msg/Bool "{data: true}"'
+        - >
+          history -s 'ros2 topic pub /return_to_base std_msgs/msg/Bool "{data: true}"'
 
   - submission:
       layout: tiled
       panes:
-        - waitForCfGazebo; sleep 25; ros2 run icuas25_competition crazyflie_client
-        - waitForCfGazebo; sleep 25; while true; do ros2 topic echo /target_found 2>/dev/null | grep .; sleep 1; done
-        - waitForCfGazebo; sleep 25; python3 /root/CrazySim/ros2_ws/src/icuas25_competition/scripts/odom_logger.py
-        - waitForCfGazebo; sleep 25; python3 /root/CrazySim/ros2_ws/src/icuas25_competition/scripts/battery_logger.py
-  - octomap_viz:
-      layout: tiled
-      panes:
-        - waitForCfGazebo; sleep 25; ros2 run tf2_ros static_transform_publisher 0 0 0 0 0 0 world map
-        - waitForCfGazebo; sleep 25; echo "ros2 run octomap_server octomap_server_node --ros-args --params-file ../config/octomap.yaml"
+        - waitForCfGazebo; waitForMissionStart; ros2 run icuas25_competition crazyflie_client
+        - waitForCfGazebo; waitForMissionStart; while true; do ros2 topic echo /target_found 2>/dev/null | grep .; sleep 1; done
+        - waitForCfGazebo; waitForMissionStart; python3 /root/CrazySim/ros2_ws/src/icuas25_competition/scripts/odom_logger.py
+        - waitForCfGazebo; waitForMissionStart; python3 /root/CrazySim/ros2_ws/src/icuas25_competition/scripts/battery_logger.py
+  # - octomap_viz:
+  #     layout: tiled
+  #     panes:
+  #       - waitForCfGazebo; waitForMissionStart; ros2 run tf2_ros static_transform_publisher 0 0 0 0 0 0 world map
+  #       - waitForCfGazebo; waitForMissionStart; echo "ros2 run octomap_server octomap_server_node --ros-args --params-file ../config/octomap.yaml"

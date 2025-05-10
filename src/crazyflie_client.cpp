@@ -38,7 +38,8 @@
 #include <vector>
 #include <stack>
 #include <deque>
-#include <cstdlib>  
+#include <cstdlib>
+#include <chrono>
 #include <fstream>
 #include "math.h"
 
@@ -62,11 +63,14 @@ double ARUCO_EPS = 1.0;
 double land_h = 1;
 double land_h_0 = 0.03;
 
+int target_seconds = (9) * 60 + (50);
+
 class CrazyflieCommandClient : public rclcpp::Node
 {
 public:
     CrazyflieCommandClient() : 
         Node("crazyflie_command_client"), 
+        start_time(std::chrono::steady_clock::now()),
         num_cf(std::getenv("NUM_ROBOTS") ? std::stoi(std::getenv("NUM_ROBOTS")) : 0), 
         range(std::getenv("COMM_RANGE") ? std::stod(std::getenv("COMM_RANGE")) : 0.0),
         drone_h(0.6),
@@ -80,7 +84,6 @@ public:
         pose_subscriptions_(num_cf),
         odom_subscriptions_(num_cf),
         aruco_subscriptions_(num_cf),
-        battery_subscriptions_(num_cf),
         battery_status_(num_cf, 100),
         drone_status(num_cf, std::make_pair(true, Eigen::Vector3d())),
         quad_obj(num_cf),
@@ -119,15 +122,20 @@ public:
                                             [this, i](const ros2_aruco_interfaces::msg::ArucoMarkers::SharedPtr msg) {
                                                 this->aruco_callback(*msg, i + 1);
                                             }, aruco_cb_options);
-
+                                            
+            // no need to subscribe to battery_status of each drone
+            /*
             battery_subscriptions_[i] = this->create_subscription<sensor_msgs::msg::BatteryState>(
                                             "/cf_" + std::to_string(i+1) + "/battery_status", 
                                             10,
                                             [this, i](const sensor_msgs::msg::BatteryState::SharedPtr msg) {
                                                 this->battery_callback(*msg, i + 1);
                                             }, battery_cb_options);
+            */
         }
-
+        battery_subscription_ = this->create_subscription<std_msgs::msg::Bool>(
+                "/return_to_base", 10, std::bind(&CrazyflieCommandClient::battery_callback, this, std::placeholders::_1));
+                                            
         RCLCPP_INFO(this->get_logger(), "Getting Octomap...");
         get_octomap();
         generateOctomapJSON(*tree);
@@ -168,6 +176,7 @@ public:
         res_publisher_ = this->create_publisher<icuas25_msgs::msg::TargetInfo>("target_found", 10);
         run_mission_timer_ = this->create_wall_timer(500ms, std::bind(&CrazyflieCommandClient::run_mission, this), run_mission_cb_group_);
         check_collision_timer_ = this->create_wall_timer(500ms, std::bind(&CrazyflieCommandClient::check_collision, this), check_collision_cb_group_);
+        check_timelimit_timer_ = this->create_wall_timer(500ms, std::bind(&CrazyflieCommandClient::check_timelimit, this), check_timelimit_cb_group_);
     }
     
     int get_octomap(const std::string &octomap_topic_ = "/octomap_binary"){
@@ -294,14 +303,16 @@ public:
             std::vector<Eigen::Vector4d> pathArray;
             octomap::point3d center(0, 0, 0);
             Eigen::Vector3d start(prev_positions[i][0], prev_positions[i][1], prev_positions[i][2]);
-            Eigen::Vector3d goal(start_positions[i][0], start_positions[i][1], start_positions[i][2]);
+            Eigen::Vector3d goal(start_positions[i][0], start_positions[i][1], start_positions[i][2] + land_h);
             run_planner(center, goal, start, pathArray);
 
             for(uint j = 0; j < pathArray.size(); j++){
                 go_to(i + 1, pathArray[j][0], pathArray[j][1], pathArray[j][2], pathArray[j][3]);
                 wait_to_reach();
             }
-            if(bring_back) rclcpp::sleep_for(std::chrono::milliseconds(2000));
+            land(i + 1);
+
+            if(bring_back) rclcpp::sleep_for(std::chrono::milliseconds(1000));
         }
 
         if(bring_back){
@@ -309,15 +320,19 @@ public:
             for(int i = 0; i < num_cf; i++){
                 std::vector<Eigen::Vector4d> pathArray;
                 octomap::point3d center(0, 0, 0);
-                Eigen::Vector3d start(start_positions[i][0], start_positions[i][1], start_positions[i][2]);
+                Eigen::Vector3d start(start_positions[i][0], start_positions[i][1], start_positions[i][2] + land_h);
                 Eigen::Vector3d goal(prev_positions[i][0], prev_positions[i][1], prev_positions[i][2]);
                 run_planner(center, goal, start, pathArray);
-
+                
+                takeoff(i + 1);
                 for(uint j = 0; j < pathArray.size(); j++){
-                    go_to(i, pathArray[j][0], pathArray[j][1], pathArray[j][2], pathArray[j][3]);
+                    go_to(i + 1, pathArray[j][0], pathArray[j][1], pathArray[j][2], pathArray[j][3]);
                     wait_to_reach();
                 }
             }
+        }
+        else{
+            std::cout << utils::Color::FG_GREEN << "Mission ended!" << utils::Color::FG_DEFAULT << std::endl;
         }
         return 0;
     }
@@ -351,10 +366,15 @@ public:
             auto poses = j["poses"].get<std::vector<std::vector<std::array<int, 2>>>>();
             auto yaws = j["yaws"].get<std::vector<std::vector<std::vector<double>>>>();
             auto matrix = j["matrix"].get<std::vector<std::vector<std::vector<std::vector<bool>>>>>();
+            int curr_elasped;
             
             for (uint goal_idx = 0; goal_idx < poses.size(); goal_idx++){
-                std::cout << utils::Color::FG_RED << "At counter: " << goal_idx << utils::Color::FG_DEFAULT << "\n";
+                curr_elasped = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - start_time).count(); 
+                std::cout << utils::Color::FG_RED << "[" << curr_elasped << "] At counter: " << goal_idx << utils::Color::FG_DEFAULT << "\n";
                 
+                if(timelimit_reached){
+                    go_back_using_planner(false);
+                }
                 if(recharge_flag){
                     go_back_using_planner(true);
                 }
@@ -404,8 +424,6 @@ public:
                     wait_to_reach();
                 }
             }
-
-            std::cout << utils::Color::FG_GREEN << "Mission ended! Recalling all drones going back to base!" << utils::Color::FG_DEFAULT << std::endl;
             go_back_using_planner(false);
             
             flag = true;
@@ -414,7 +432,7 @@ public:
     }
 
 private:
-    void check_collision() {
+    void check_collision(){
         for(int i = 0; i < num_cf; i++){
             fcl::Vector3d translation(odom_linear[i].x, odom_linear[i].y, odom_linear[i].z);
             fcl::Quaterniond rotation(odom_quat[i].w, odom_quat[i].x, odom_quat[i].y, odom_quat[i].z);
@@ -438,6 +456,13 @@ private:
             if (collisionResult.isCollision()){
                 std::cout << utils::Color::FG_RED << "Collision happened between " << i + 1 << " and building" << utils::Color::FG_DEFAULT << std::endl;
             }
+        }
+    }
+
+    void check_timelimit(){
+        if (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - start_time).count() > target_seconds) {
+            timelimit_reached = true;
+            std::cout << utils::Color::FG_RED << "TIMELIMIT REACHED!" << utils::Color::FG_DEFAULT << std::endl;
         }
     }
 
@@ -513,6 +538,8 @@ private:
         }
     }
 
+    // no need to subscribe battery volts
+    /*
     void battery_callback(const sensor_msgs::msg::BatteryState & msg, const int drone_namespace_){
         if(mission_started){
             int k = drone_namespace_ - 1;
@@ -539,6 +566,13 @@ private:
             else{
                 // std::cout << "Recharge flag not set" << std::endl;
             }
+        }
+    }
+    */
+
+    void battery_callback(const std_msgs::msg::Bool & msg){
+        if(msg.data){
+            recharge_flag = true;
         }
     }
 
@@ -634,11 +668,13 @@ private:
         return std::sqrt(res);
     }
 
+    std::chrono::steady_clock::time_point start_time;
     octomap::OcTree* tree;
 
     int num_cf;
     bool flag = false;
     bool mission_started = false;
+    bool timelimit_reached = false;
     double range;
     double drone_h;
     double h_diff;
@@ -663,6 +699,7 @@ private:
     rclcpp::CallbackGroup::SharedPtr battery_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
     rclcpp::CallbackGroup::SharedPtr run_mission_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
     rclcpp::CallbackGroup::SharedPtr check_collision_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+    rclcpp::CallbackGroup::SharedPtr check_timelimit_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
     
     rclcpp::SubscriptionOptions aruco_cb_options;
     rclcpp::SubscriptionOptions battery_cb_options;
@@ -670,11 +707,14 @@ private:
     rclcpp::TimerBase::SharedPtr aruco_timer_;
     rclcpp::TimerBase::SharedPtr run_mission_timer_;
     rclcpp::TimerBase::SharedPtr check_collision_timer_;
+    rclcpp::TimerBase::SharedPtr check_timelimit_timer_;
 
     std::vector<rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr> pose_subscriptions_;
     std::vector<rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr> odom_subscriptions_;
     std::vector<rclcpp::Subscription<ros2_aruco_interfaces::msg::ArucoMarkers>::SharedPtr> aruco_subscriptions_;
-    std::vector<rclcpp::Subscription<sensor_msgs::msg::BatteryState>::SharedPtr> battery_subscriptions_;
+    /*no need to subscribe to battery_status*/
+    // std::vector<rclcpp::Subscription<sensor_msgs::msg::BatteryState>::SharedPtr> battery_subscriptions_;
+    rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr battery_subscription_;
     rclcpp::Publisher<icuas25_msgs::msg::TargetInfo>::SharedPtr res_publisher_;
 
     double curr_aruco_id;

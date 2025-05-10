@@ -240,6 +240,7 @@ COPY worlds $HOME/CrazySim/ros2_ws/src/icuas25_competition/worlds
 RUN bash -c "chmod +x $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/edit.sh && $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/edit.sh"
 RUN bash -c "chmod +x $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/add_markers.py && $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/add_markers.py"
 RUN cat $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/build.sh >> $HOME/.bashrc
+RUN cat $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/wait_for_start.sh >> $HOME/.bashrc
 RUN echo "export PATH_GEN=/root/CrazySim/ros2_ws/src/icuas25_competition/scripts/py_sim/main.py" >> $HOME/.bashrc
 
 COPY config $HOME/CrazySim/ros2_ws/src/icuas25_competition/config
