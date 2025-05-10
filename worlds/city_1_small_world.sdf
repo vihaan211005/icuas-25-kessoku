@@ -2,7 +2,7 @@
 <sdf version="1.9">
   <world name="city_1_small_world">
     <physics type="ode">
-      <max_step_size>0.001</max_step_size>
+      <max_step_size>0.002</max_step_size>
       <real_time_factor>1.0</real_time_factor>
       <real_time_update_rate>1000</real_time_update_rate>
     </physics>
@@ -22,7 +22,7 @@
       <grid>false</grid>
       <ambient>0.4 0.4 0.4 1</ambient>
       <background>0.7 0.7 0.7 1</background>
-      <shadows>true</shadows>
+      <shadows>false</shadows>
     </scene>
     <model name="ground_plane">
       <pose>50 50 0 0 0 0</pose>
@@ -55,8 +55,80 @@
       <pose>0 0 0 0 0 0</pose>
       <uri>model://city_1_small</uri>
     </include>
+    <include>
+        <pose>32.624 78.667 2.768 1.571 -0.0 -0.814</pose>
+        <uri>model://aruco_markers/aruco_marker_1</uri>
+        </include>
+    <include>
+        <pose>47.495 84.149 2.413 -1.71 -0.007 3.14</pose>
+        <uri>model://aruco_markers/aruco_marker_2</uri>
+        </include>
+    <include>
+        <pose>52.331 63.819 12.129 1.571 -0.0 -1.491</pose>
+        <uri>model://aruco_markers/aruco_marker_3</uri>
+        </include>
+    <include>
+        <pose>72.0 21.467 9.239 1.571 -0.0 -2.32</pose>
+        <uri>model://aruco_markers/aruco_marker_4</uri>
+        </include>
+    <include>
+        <pose>33.296 25.196 1.209 1.571 -0.0 4.372</pose>
+        <uri>model://aruco_markers/aruco_marker_5</uri>
+        </include>
+    <include>
+        <pose>19.611 21.426 1.244 1.571 -0.0 -0.806</pose>
+        <uri>model://aruco_markers/aruco_marker_6</uri>
+        </include>
+    <include>
+        <pose>35.654 21.547 9.348 1.571 -0.0 1.7</pose>
+        <uri>model://aruco_markers/aruco_marker_7</uri>
+        </include>
+    <include>
+        <pose>48.5 14.249 2.335 1.571 -0.0 5.672</pose>
+        <uri>model://aruco_markers/aruco_marker_8</uri>
+        </include>
+    <include>
+        <pose>59.403 84.909 3.508 1.571 -0.0 2.315</pose>
+        <uri>model://aruco_markers/aruco_marker_9</uri>
+        </include>
+    <include>
+        <pose>51.525 70.316 3.803 1.571 -0.0 3.175</pose>
+        <uri>model://aruco_markers/aruco_marker_10</uri>
+        </include>
+    <include>
+        <pose>37.717 49.693 10.92 1.571 -0.0 3.005</pose>
+        <uri>model://aruco_markers/aruco_marker_11</uri>
+        </include>
+    <include>
+        <pose>56.138 40.36 5.785 1.571 -0.0 7.242</pose>
+        <uri>model://aruco_markers/aruco_marker_12</uri>
+        </include>
+    <include>
+        <pose>72.729 44.92 3.599 1.571 -0.0 7.304</pose>
+        <uri>model://aruco_markers/aruco_marker_13</uri>
+        </include>
+    <include>
+        <pose>72.729 44.92 3.599 1.571 -0.0 7.304</pose>
+        <uri>model://aruco_markers/aruco_marker_14</uri>
+        </include>
+    <include>
+        <pose>23.667 63.025 5.829 1.571 -0.0 4.689</pose>
+        <uri>model://aruco_markers/aruco_marker_15</uri>
+        </include>
+    <include>
+        <pose>5.6583 32.881 4.1206 1.531 0.005 -0.8</pose>
+        <uri>model://aruco_markers/aruco_marker_16</uri>
+        </include>
+    <include>
+        <pose>39.822 16.807 8.459 1.5 -1.475 -1.8</pose>
+        <uri>model://aruco_markers/aruco_marker_17</uri>
+        </include>
+    <include>
+        <pose>42.446 17.168 0.779 -1.567 0.014 -0.302</pose>
+        <uri>model://aruco_markers/aruco_marker_18</uri>
+        </include>
     <light type="directional" name="sun">
-      <cast_shadows>true</cast_shadows>
+      <cast_shadows>false</cast_shadows>
       <pose>0 0 100 0 0 0</pose>
       <diffuse>0.8 0.8 0.8 1</diffuse>
       <specular>0.2 0.2 0.2 1</specular>
