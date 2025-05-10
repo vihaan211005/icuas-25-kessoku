@@ -15,7 +15,6 @@ windows:
   - topic_pane:
       layout: tiled
       panes:
-        - history -s "ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args --remap cmd_vel:=/cf_1/cmd_vel"
         - >
           history -s 'ros2 topic pub /mission_start std_msgs/msg/Bool "{data: true}"'
         - >

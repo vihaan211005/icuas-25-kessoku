@@ -134,7 +134,7 @@ public:
             */
         }
         battery_subscription_ = this->create_subscription<std_msgs::msg::Bool>(
-                "/return_to_base", 10, std::bind(&CrazyflieCommandClient::battery_callback, this, std::placeholders::_1));
+                "/return_to_base", 10, std::bind(&CrazyflieCommandClient::battery_callback, this, std::placeholders::_1), battery_cb_options);
                                             
         RCLCPP_INFO(this->get_logger(), "Getting Octomap...");
         get_octomap();
@@ -293,13 +293,14 @@ public:
     }
 
     int go_back_using_planner(bool bring_back = false){
-        std::cout << utils::Color::FG_RED << "All drones going back to base!" << utils::Color::FG_DEFAULT << std::endl;
+        std::cout << utils::Color::FG_RED << "\nAll drones going back to base!\n" << utils::Color::FG_DEFAULT << std::endl;
         std::vector<std::vector<double>> prev_positions(num_cf);
         for(int i = 0; i < num_cf; i++){
             prev_positions[i] = std::vector<double>({odom_linear[i].x, odom_linear[i].y, odom_linear[i].z});
         }
 
         for(int i = 0; i < num_cf; i++){
+            std::cout << "Drone: " << i << " going to base (" << start_positions[i][0] << "," << start_positions[i][1] << "," << start_positions[i][2] << ")" << std::endl;
             std::vector<Eigen::Vector4d> pathArray;
             octomap::point3d center(0, 0, 0);
             Eigen::Vector3d start(prev_positions[i][0], prev_positions[i][1], prev_positions[i][2]);
@@ -311,12 +312,18 @@ public:
                 wait_to_reach();
             }
             land(i + 1);
-
-            if(bring_back) rclcpp::sleep_for(std::chrono::milliseconds(1000));
         }
 
         if(bring_back){
-            std::cout << utils::Color::FG_GREEN << "Bringing back all drones back to vertices!" << utils::Color::FG_DEFAULT << std::endl;
+
+            while(recharge_flag){
+                std::cout << "Waiting for \'false\' to be published on /return_to_base!" << std::endl;
+                rclcpp::sleep_for(std::chrono::milliseconds(100));
+            }
+            rclcpp::sleep_for(std::chrono::milliseconds(1000));
+
+
+            std::cout << utils::Color::FG_GREEN << "\nBringing back all drones back to vertices!\n" << utils::Color::FG_DEFAULT << std::endl;
             for(int i = 0; i < num_cf; i++){
                 std::vector<Eigen::Vector4d> pathArray;
                 octomap::point3d center(0, 0, 0);
@@ -341,6 +348,7 @@ public:
         if(!flag){
             for(int i = 0; i < num_cf; i++){
                 start_positions[i] = std::vector<double>({odom_linear[i].x, odom_linear[i].y, odom_linear[i].z});
+                std::cout << "Drone: " << i << " base_position (" << start_positions[i][0] << "," << start_positions[i][1] << "," << start_positions[i][2] << ")" << std::endl;
             }
 
             // generate path
@@ -571,9 +579,7 @@ private:
     */
 
     void battery_callback(const std_msgs::msg::Bool & msg){
-        if(msg.data){
-            recharge_flag = true;
-        }
+        recharge_flag = msg.data;
     }
 
     bool check(){
