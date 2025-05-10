@@ -236,7 +236,7 @@ public:
 
     double go_to(int drone, double x, double y, double z, double yaw)
     {
-        RCLCPP_INFO(this->get_logger(), "Initialized CrazyflieCommandClient::go_to for namespace: %d", drone);
+        // RCLCPP_INFO(this->get_logger(), "Initialized CrazyflieCommandClient::go_to for namespace: %d", drone);
         auto client = this->create_client<crazyflie_interfaces::srv::GoTo>("/cf_" + std::to_string(drone) + "/go_to", rmw_qos_profile_services_default, service_cb_group_);
         auto request = std::make_shared<crazyflie_interfaces::srv::GoTo::Request>();
 
@@ -267,8 +267,8 @@ public:
         wait_for_service(client, "/cf_" + std::to_string(drone) + "/go_to");
 
         int i = drone - 1;
-        RCLCPP_INFO(this->get_logger(), "GoTo request sent to %d with goal: [%.2f, %.2f, %.2f] yaw: [%.2f], distance: %.2f",
-                    drone, x, y, z, yaw, dist(std::vector<double>({x, y, z}), std::vector<double>({odom_linear[i].x, odom_linear[i].y, odom_linear[i].z})));
+        // RCLCPP_INFO(this->get_logger(), "GoTo request sent to %d with goal: [%.2f, %.2f, %.2f] yaw: [%.2f], distance: %.2f",
+                    // drone, x, y, z, yaw, dist(std::vector<double>({x, y, z}), std::vector<double>({odom_linear[i].x, odom_linear[i].y, odom_linear[i].z})));
 
         auto result = client->async_send_request(request).get();
 
@@ -298,7 +298,7 @@ public:
             run_planner(center, goal, start, pathArray);
 
             for(uint j = 0; j < pathArray.size(); j++){
-                go_to(i, pathArray[j][0], pathArray[j][1], pathArray[j][2], pathArray[j][3]);
+                go_to(i + 1, pathArray[j][0], pathArray[j][1], pathArray[j][2], pathArray[j][3]);
                 wait_to_reach();
             }
             if(bring_back) rclcpp::sleep_for(std::chrono::milliseconds(2000));
@@ -353,7 +353,8 @@ public:
             auto matrix = j["matrix"].get<std::vector<std::vector<std::vector<std::vector<bool>>>>>();
             
             for (uint goal_idx = 0; goal_idx < poses.size(); goal_idx++){
-
+                std::cout << utils::Color::FG_RED << "At counter: " << goal_idx << utils::Color::FG_DEFAULT << "\n";
+                
                 if(recharge_flag){
                     go_back_using_planner(true);
                 }
@@ -365,34 +366,40 @@ public:
                 for(int drone_idx = 0; drone_idx < num_cf; drone_idx++){
                     auto pose = poses[goal_idx][drone_idx];
                     auto yaw = yaws[goal_idx][drone_idx]; 
-                    if(yaw.empty()){ // no building found
-                        if(!yaw.empty()) {
-                            max_n_buildings = yaw.size() > max_n_buildings? yaw.size() : max_n_buildings;
-                            scan_drones.push_back(drone_idx);
-                        }
-                        go_to(drone_idx + 1, coord_x(pose[0]), coord_y(pose[1]), drone_h, 0);
-                    } 
-
+                    std::cout << utils::Color::FG_BLUE << "Drone " << drone_idx << ": (" << coord_x(pose[0]) << "," << coord_y(pose[1]) << "); yaw_empty: " << yaw.empty() << "\n" << utils::Color::FG_DEFAULT;
+                    if(!yaw.empty()) {
+                        max_n_buildings = yaw.size() > max_n_buildings? yaw.size() : max_n_buildings;
+                        scan_drones.push_back(drone_idx);
+                    }
+                    go_to(drone_idx + 1, coord_x(pose[0]), coord_y(pose[1]), drone_h, 0);
                 }
                 wait_to_reach();
 
                 /*scan buildings*/
+                std::cout << "max number of buildings: " << max_n_buildings << "number of scan_drones: " << scan_drones.size() << std::endl;
+
                 for(uint k = 0; k < max_n_buildings; k++){
                     for(int drone : scan_drones){
-                        if(k < yaws[goal_idx][drone].size())
+                        if(k < yaws[goal_idx][drone].size()){
+                            std::cout << "Drone " << drone << " going up!" << std::endl;
                             go_to(drone + 1, coord_x(poses[goal_idx][drone][0]), coord_y(poses[goal_idx][drone][1]), drone_h - h_diff, yaws[goal_idx][drone][k]);
+                        }
                     }
                     wait_to_reach();
     
                     for(int drone : scan_drones){
-                        if(k < yaws[goal_idx][drone].size())
+                        if(k < yaws[goal_idx][drone].size()){
+                            std::cout << "Drone " << drone << " going down!" << std::endl;
                             go_to(drone + 1, coord_x(poses[goal_idx][drone][0]), coord_y(poses[goal_idx][drone][1]), drone_h + h_diff, yaws[goal_idx][drone][k]);
+                        }
                     }
                     wait_to_reach();
     
                     for(int drone : scan_drones){
-                        if(k < yaws[goal_idx][drone].size())
+                        if(k < yaws[goal_idx][drone].size()){
+                            std::cout << "Drone " << drone << " going back to level!" << std::endl;
                             go_to(drone + 1, coord_x(poses[goal_idx][drone][0]), coord_y(poses[goal_idx][drone][1]), drone_h, yaws[goal_idx][drone][k]);
+                        }
                     }
                     wait_to_reach();
                 }
@@ -515,7 +522,7 @@ private:
             double curr_min = 100.0;
             int curr_min_k = -1;
     
-            for(int k = 0; k < battery_status_.size(); k++){
+            for(uint k = 0; k < battery_status_.size(); k++){
                 if(dist(std::vector<double>({odom_linear[k].x, odom_linear[k].y, odom_linear[k].z}), start_positions[k]) < 10 * EPS){
                     continue;
                 }
@@ -548,7 +555,7 @@ private:
                 }
             }
             if(drone_status[i].first == false){
-                std::cout << "Going to goal: [" << i + 1 << "] " << x << "," << y << "," << z << " odom: " << odom_linear[i].x << "," << odom_linear[i].y << "," << odom_linear[i].z << std::endl;
+                // std::cout << "Going to goal: [" << i + 1 << "] " << x << "," << y << "," << z << " odom: " << odom_linear[i].x << "," << odom_linear[i].y << "," << odom_linear[i].z << std::endl;
                 return true;
             }
         }
