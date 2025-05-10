@@ -292,6 +292,157 @@ public:
         return T;
     }
 
+    int find_max_tree(std::vector<int> &parent, std::vector<bool> &at_base){
+        std::vector<bool> has_child(num_cf, false);
+
+        for (int i = 0; i < num_cf; ++i) {
+            if (parent[i] != -1) {
+                has_child[parent[i]] = true;
+            }
+        }
+
+        for (int i = 0; i < num_cf; ++i) {
+            if (!has_child[i] && !at_base[i]) {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    void go_back_recursion(std::vector<std::array<int, 2>> &cur, std::vector<int> &parent, bool mid_transition, int mid_transition_drone, std::vector<bool> &at_base){
+        bool end_rec = true;
+        for(int i = 0; i < num_cf; ++i)
+            if(!at_base[i])
+                end_rec = false;
+        if(end_rec)
+            return;
+        if(!mid_transition){
+            int max_tree = find_max_tree(parent);
+            if(parent[max_tree] == -1){
+                // go_to base and land
+                go_to(max_tree + 1, coord_x(0), coord_y(0), drone_h, 0);
+                wait_to_reach();
+                //land
+                land(max_tree + 1);
+
+                at_base[max_tree] = true;
+                cur[max_tree] = std::array<int, 2>{0, 0};
+                return go_back_recursion(cur, parent, false, -1, at_base);
+            }
+            else{
+                // go to parent with offset of 0.3
+                double start_x = coord_x(cur[max_tree][0]);
+                double start_y = coord_y(cur[max_tree][1]);
+                double end_x = coord_x(cur[parent[max_tree]][0]);
+                double end_y = coord_y(cur[parent[max_tree]][1]);
+                double dx = end_x - start_x;
+                double dy = end_y - start_y;
+                double dist = std::sqrt(dx * dx + dy * dy);
+                double offset_x = edge_length * dx / dist;
+                double offset_y = edge_length * dy / dist;
+                end_x = end_x - offset_x;
+                end_y = end_y - offset_y;
+                go_to(max_tree + 1, end_x, end_y, drone_h, 0);
+                wait_to_reach();
+
+                cur[max_tree] = cur[parent[max_tree]];
+                for(int i = 0; i < num_cf; ++i)
+                    if(parent[i] == parent[max_tree] && i != max_tree)
+                        parent[i] = max_tree;
+                return go_back_recursion(cur, parent, true, max_tree, at_base);
+            }
+        }else{
+            //mid_transition_drone go to its own cur real index
+            go_to(mid_transition_drone + 1, coord_x(cur[mid_transition_drone][0]), coord_y(cur[mid_transition_drone][1]), drone_h, 0);
+            if(parent[parent[mid_transition_drone]] == -1){
+                // go parent[mid_transition_drone] to base and land
+                go_to(parent[mid_transition_drone] + 1, coord_x(0), coord_y(0), drone_h, 0);
+                wait_to_reach();
+                // land
+                land(parent[mid_transition_drone] + 1);
+
+                parent[mid_transition] = -1;
+                cur[parent[mid_transition_drone]] = std::array<int, 2>{0, 0};
+                at_base[parent[mid_transition_drone]] = true;
+                return go_back_recursion(cur, parent, false, -1, at_base);
+            }else{
+                //parent[mid_transition_drone] go to parent[parent[mid_transition_drone]] with offset of 0.3
+                double start_x = coord_x(cur[parent[mid_transition_drone]][0]);
+                double start_y = coord_y(cur[parent[mid_transition_drone]][1]);
+                double end_x = coord_x(cur[parent[parent[mid_transition_drone]]][0]);
+                double end_y = coord_y(cur[parent[parent[mid_transition_drone]]][1]);
+                double dx = end_x - start_x;
+                double dy = end_y - start_y;
+                double dist = std::sqrt(dx * dx + dy * dy);
+                double offset_x = edge_length * dx / dist;
+                double offset_y = edge_length * dy / dist;
+                end_x = end_x - offset_x;
+                end_y = end_y - offset_y;
+                go_to(parent[mid_transition_drone] + 1, end_x, end_y, drone_h, 0);
+                wait_to_reach();
+
+                cur[parent[mid_transition_drone]] = cur[parent[parent[mid_transition_drone]]];
+                for(int i = 0; i < num_cf; ++i)
+                    if(parent[i] == parent[parent[mid_transition_drone]] && i != parent[mid_transition_drone])
+                        parent[i] = parent[mid_transition_drone];
+                return go_back_recursion(cur, parent, true, parent[mid_transition_drone], at_base);
+            }
+        }
+    }
+
+    void go_back_using_algo(std::vector<std::array<int, 2>> &cur, std::vector<std::vector<std::vector<std::vector<bool>>>> los_matrix){
+        std::cout << utils::Color::FG_RED << "All drones going back to base using algo!" << utils::Color::FG_DEFAULT << std::endl;
+
+        std::vector<int> parent(num_cf, -2);
+        std::queue<int> q;
+
+        // Drones with LOS from (0, 0)
+        for (int i = 0; i < num_cf; ++i) {
+            int x = cur[i][0];
+            int y = cur[i][1];
+            if (los_matrix[x][y][0][0]) { // drone i has LOS to base
+                parent[i] = -1; // root
+                q.push(i);
+            }
+        }
+
+        // Assigning parents based on LOS
+        while (!q.empty()) {
+            int u = q.front();
+            q.pop();
+            int x_u = cur[u][0];
+            int y_u = cur[u][1];
+
+            for (int v = 0; v < num_cf; ++v) {
+                if (parent[v] == -2) { // not yet assigned
+                    int x = cur[v][0];
+                    int y = cur[v][1];
+                    if (los_matrix[x_u][y_u][x][y]) {
+                        parent[v] = u;
+                        q.push(v);
+                    }
+                }
+            }
+        }
+
+        // Debug print
+        for (int i = 0; i < num_cf; ++i) {
+            std::cout << "Drone " << i << " parent: " << parent[i] << std::endl;
+        }
+
+        std::vector<bool> at_base(num_cf, false);
+        // Jo Jo 0,0 pe hai land krado
+        for(int i = 0; i < num_cf; ++i){
+            if (cur[i] == std::array<int, 2>{0, 0}){
+                //land ith drone
+                land(i + 1);
+                at_base[i] = true;
+            }
+        }
+        go_back_recursion(cur, parent, false, -1, at_base);
+    }
+
     int go_back_using_planner(bool bring_back = false){
         std::cout << utils::Color::FG_RED << "\nAll drones going back to base!\n" << utils::Color::FG_DEFAULT << std::endl;
         std::vector<std::vector<double>> prev_positions(num_cf);
