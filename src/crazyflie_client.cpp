@@ -66,11 +66,12 @@ double land_h_0 = 0.03;
 class stack_objects{
 public:
     stack_objects();
-    stack_objects(double x, double y, double z, double start_x, double start_y, double start_z, int drone, std::string type) : 
+    stack_objects(double x, double y, double z, double start_x, double start_y, double start_z, int drone, std::string type, bool should_wait) : 
         x(x), y(y), z(z), start_x(start_x), 
         start_y(start_y), start_z(start_z),  
         drone(drone),
-        type(type) 
+        type(type),
+        should_wait(should_wait)
     {
     }
 
@@ -78,6 +79,7 @@ public:
     double start_x, start_y, start_z;
     int drone;
     std::string type;
+    bool should_wait;
 };
 
 int target_seconds = (9) * 60 + (50);
@@ -243,7 +245,7 @@ public:
 
     int land(int drone)
     {
-        RCLCPP_INFO(this->get_logger(), "Called CrazyflieCommandClient::land for namespace: %d", drone);
+        RCLCPP_INFO(this->get_logger(), "Called CrazyflieCommandClient::land for namespace: %d", drone - 1);
 
         auto client = this->create_client<crazyflie_interfaces::srv::Land>("/cf_" + std::to_string(drone) + "/land", rmw_qos_profile_services_default, service_cb_group_);
         auto request = std::make_shared<crazyflie_interfaces::srv::Land::Request>();
@@ -294,7 +296,7 @@ public:
 
         int i = drone - 1;
         // RCLCPP_INFO(this->get_logger(), "GoTo request sent to %d with goal: [%.2f, %.2f, %.2f] yaw: [%.2f], distance: %.2f",
-                    // drone, x, y, z, yaw, dist(std::vector<double>({x, y, z}), std::vector<double>({odom_linear[i].x, odom_linear[i].y, odom_linear[i].z})));
+                    // drone - 1, x, y, z, yaw, dist(std::vector<double>({x, y, z}), std::vector<double>({odom_linear[i].x, odom_linear[i].y, odom_linear[i].z})));
 
         auto result = client->async_send_request(request).get();
 
@@ -338,6 +340,8 @@ public:
             int max_tree = find_max_tree(parent, at_base);
             if(parent[max_tree] == -1){
                 // go_to base and land
+                std::cout << utils::Color::FG_RED << "Drone: " << max_tree << " go to base and land" << utils::Color::FG_DEFAULT << std::endl;
+
                 if(!just_calc)
                     go_to(max_tree + 1, start_positions[max_tree][0], start_positions[max_tree][1], start_positions[max_tree][2] + land_h, 0);
 
@@ -349,7 +353,8 @@ public:
                     coord_y(cur[max_tree][1]),
                     drone_h,
                     max_tree + 1,
-                    "go_to"
+                    "go_to",
+                    true
                 ));
 
                 if(!just_calc)
@@ -368,7 +373,8 @@ public:
                     drone_h,
 
                     max_tree + 1,
-                    "land"
+                    "land",
+                    false
                 ));
 
                 at_base[max_tree] = true;
@@ -377,6 +383,8 @@ public:
             }
             else{
                 // go to parent with offset of 0.3
+                std::cout << utils::Color::FG_RED << "Drone: " << max_tree << " to Drone: " << parent[max_tree] << "" << utils::Color::FG_DEFAULT << std::endl;
+
                 double start_x = coord_x(cur[max_tree][0]);
                 double start_y = coord_y(cur[max_tree][1]);
                 double end_x = coord_x(cur[parent[max_tree]][0]);
@@ -399,7 +407,8 @@ public:
                     start_y,
                     drone_h,
                     max_tree + 1,
-                    "go_to"
+                    "go_to",
+                    true
                 ));
 
                 if(!just_calc)
@@ -413,9 +422,22 @@ public:
             }
         }else{
             //mid_transition_drone go to its own cur real index
+            std::cout << utils::Color::FG_RED << "Drone: " << mid_transition_drone << " travelling offset" << utils::Color::FG_DEFAULT << std::endl;
             if(!just_calc)
                 go_to(mid_transition_drone + 1, coord_x(cur[mid_transition_drone][0]), coord_y(cur[mid_transition_drone][1]), drone_h, 0);
+            movements.push(stack_objects(
+                coord_x(cur[mid_transition_drone][0]),
+                coord_y(cur[mid_transition_drone][1]),
+                drone_h,
+                odom_linear[mid_transition_drone].x,
+                odom_linear[mid_transition_drone].y,
+                odom_linear[mid_transition_drone].z,
+                mid_transition_drone + 1,
+                "go_to",
+                true
+            ));
             if(parent[parent[mid_transition_drone]] == -1){
+                std::cout << utils::Color::FG_RED << "Drone: " << parent[mid_transition_drone] << " go to base and land(mid_transit)" << utils::Color::FG_DEFAULT << std::endl;
                 // go parent[mid_transition_drone] to base and land
                 if(!just_calc)
                     go_to(parent[mid_transition_drone] + 1, start_positions[parent[mid_transition_drone]][0], start_positions[parent[mid_transition_drone]][1], start_positions[parent[mid_transition_drone]][2] + land_h, 0);
@@ -428,7 +450,8 @@ public:
                     coord_y(cur[parent[mid_transition_drone]][1]),
                     drone_h,
                     parent[mid_transition_drone] + 1,
-                    "go_to"
+                    "go_to",
+                    false
                 ));
 
                 if(!just_calc)
@@ -447,15 +470,17 @@ public:
                     drone_h,
 
                     parent[mid_transition_drone] + 1,
-                    "land"
+                    "land",
+                    false
                 ));
 
-                parent[mid_transition] = -1;
-                cur[parent[mid_transition_drone]] = std::array<int, 2>{0, 0};
                 at_base[parent[mid_transition_drone]] = true;
+                cur[parent[mid_transition_drone]] = std::array<int, 2>{0, 0};
+                parent[mid_transition_drone] = -1;
                 return go_back_recursion(cur, parent, false, -1, at_base, movements, just_calc);
             }else{
                 //parent[mid_transition_drone] go to parent[parent[mid_transition_drone]] with offset of 0.3
+                std::cout << utils::Color::FG_RED << "Drone: " << parent[mid_transition_drone] << " to drone: " << parent[parent[mid_transition_drone]] << "(mid_transit)" << utils::Color::FG_DEFAULT << std::endl;
                 double start_x = coord_x(cur[parent[mid_transition_drone]][0]);
                 double start_y = coord_y(cur[parent[mid_transition_drone]][1]);
                 double end_x = coord_x(cur[parent[parent[mid_transition_drone]]][0]);
@@ -477,7 +502,8 @@ public:
                     start_y,
                     drone_h,
                     parent[mid_transition_drone] + 1,
-                    "go_to"
+                    "go_to",
+                    false
                 ));
                 if(!just_calc)
                     wait_to_reach();
@@ -560,6 +586,8 @@ public:
             movements.pop();
             if(movement.type == "go_to"){
                 go_to(movement.drone, movement.start_x, movement.start_y, movement.start_z, 0);
+                if(movement.should_wait)
+                    wait_to_reach();
             }else{
                 takeoff(movement.drone);
             }
@@ -624,6 +652,9 @@ public:
                 start_positions[i] = std::vector<double>({odom_linear[i].x, odom_linear[i].y, odom_linear[i].z});
                 std::cout << "Drone: " << i << " base_position (" << start_positions[i][0] << "," << start_positions[i][1] << "," << start_positions[i][2] << ")" << std::endl;
             }
+            start_positions[0] = std::vector<double>({-1.9178107999999998, -2.9331224, 0});
+            start_positions[1] = std::vector<double>({-1.9178107999999998, -2.9331224 + 0.3, 0});
+            start_positions[2] = std::vector<double>({-1.9178107999999998 + 0.3, -2.9331224, 0});
 
             // generate path
             std::ostringstream oss;
@@ -869,9 +900,6 @@ private:
 
             if(drone_status[i].first == false && dist(std::vector<double>({x, y, z}), std::vector<double>({odom_linear[i].x, odom_linear[i].y, odom_linear[i].z})) < EPS){
                 drone_status[i].first = true; // reached at destination
-                if(drone_status[i].second.x() == start_positions[i][0] && drone_status[i].second.y() == start_positions[i][1]){
-                    land(i+1);
-                }
             }
             if(drone_status[i].first == false){
                 // std::cout << "Going to goal: [" << i + 1 << "] " << x << "," << y << "," << z << " odom: " << odom_linear[i].x << "," << odom_linear[i].y << "," << odom_linear[i].z << std::endl;
