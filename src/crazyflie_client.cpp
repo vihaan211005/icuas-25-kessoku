@@ -63,6 +63,13 @@ double ARUCO_EPS = 1.0;
 double land_h = 1;
 double land_h_0 = 0.03;
 
+struct stack_objects{
+    double x, y, z;
+    double start_x, start_y, start_z;
+    int drone;
+    std::string type;
+};
+
 int target_seconds = (9) * 60 + (50);
 
 class CrazyflieCommandClient : public rclcpp::Node
@@ -310,7 +317,7 @@ public:
         return -1;
     }
 
-    void go_back_recursion(std::vector<std::array<int, 2>> &cur, std::vector<int> &parent, bool mid_transition, int mid_transition_drone, std::vector<bool> &at_base){
+    void go_back_recursion(std::vector<std::array<int, 2>> &cur, std::vector<int> &parent, bool mid_transition, int mid_transition_drone, std::vector<bool> &at_base, std::stack<stack_objects> &movements, bool just_calc){
         bool end_rec = true;
         for(int i = 0; i < num_cf; ++i)
             if(!at_base[i])
@@ -318,17 +325,34 @@ public:
         if(end_rec)
             return;
         if(!mid_transition){
-            int max_tree = find_max_tree(parent);
+            int max_tree = find_max_tree(parent, at_base);
             if(parent[max_tree] == -1){
                 // go_to base and land
-                go_to(max_tree + 1, coord_x(0), coord_y(0), drone_h, 0);
-                wait_to_reach();
+                if(!just_calc)
+                    go_to(max_tree + 1, start_positions[max_tree][0], start_positions[max_tree][1], start_positions[max_tree][2] + land_h, 0);
+                movements.push(stack_objects{
+                    .type = "go_to",
+                    .drone = max_tree + 1,
+                    .x = start_positions[max_tree][0],
+                    .y = start_positions[max_tree][1],
+                    .z = start_positions[max_tree][2] + land_h,
+                    .start_x = coord_x(cur[max_tree][0]),
+                    .start_y = coord_y(cur[max_tree][1]),
+                    .start_z = drone_h
+                });
+                if(!just_calc)
+                    wait_to_reach();
                 //land
-                land(max_tree + 1);
+                if(!just_calc)
+                    land(max_tree + 1);
+                movements.push_back(stack_objects{
+                    .type = "land",
+                    .drone = max_tree + 1
+                })
 
                 at_base[max_tree] = true;
                 cur[max_tree] = std::array<int, 2>{0, 0};
-                return go_back_recursion(cur, parent, false, -1, at_base);
+                return go_back_recursion(cur, parent, false, -1, at_base, movements, just_calc);
             }
             else{
                 // go to parent with offset of 0.3
@@ -343,29 +367,59 @@ public:
                 double offset_y = edge_length * dy / dist;
                 end_x = end_x - offset_x;
                 end_y = end_y - offset_y;
-                go_to(max_tree + 1, end_x, end_y, drone_h, 0);
-                wait_to_reach();
+                if(!just_calc)
+                    go_to(max_tree + 1, end_x, end_y, drone_h, 0);
+                movements.push(stack_objects{
+                    .type = "go_to",
+                    .drone = max_tree + 1,
+                    .x = end_x,
+                    .y = end_y,
+                    .z = drone_h,
+                    .start_x = start_x,
+                    .start_y = start_y,
+                    .start_z = drone_h
+                });
+                if(!just_calc)
+                    wait_to_reach();
 
                 cur[max_tree] = cur[parent[max_tree]];
                 for(int i = 0; i < num_cf; ++i)
                     if(parent[i] == parent[max_tree] && i != max_tree)
                         parent[i] = max_tree;
-                return go_back_recursion(cur, parent, true, max_tree, at_base);
+                return go_back_recursion(cur, parent, true, max_tree, at_base, movements, just_calc);
             }
         }else{
             //mid_transition_drone go to its own cur real index
-            go_to(mid_transition_drone + 1, coord_x(cur[mid_transition_drone][0]), coord_y(cur[mid_transition_drone][1]), drone_h, 0);
+            if(!just_calc)
+                go_to(mid_transition_drone + 1, coord_x(cur[mid_transition_drone][0]), coord_y(cur[mid_transition_drone][1]), drone_h, 0);
             if(parent[parent[mid_transition_drone]] == -1){
                 // go parent[mid_transition_drone] to base and land
-                go_to(parent[mid_transition_drone] + 1, coord_x(0), coord_y(0), drone_h, 0);
-                wait_to_reach();
+                if(!just_calc)
+                    go_to(parent[mid_transition_drone] + 1, start_positions[parent[mid_transition_drone]][0], start_positions[parent[mid_transition_drone]][1], start_positions[parent[mid_transition_drone]][2] + land_h, 0);
+                movements.push(stack_objects{
+                    .type = "go_to",
+                    .drone = parent[mid_transition_drone] + 1,
+                    .x = start_positions[parent[mid_transition_drone]][0],
+                    .y = start_positions[parent[mid_transition_drone]][1],
+                    .z = start_positions[parent[mid_transition_drone]][2] + land_h,
+                    .start_x = coord_x(cur[parent[mid_transition_drone]][0]),
+                    .start_y = coord_y(cur[parent[mid_transition_drone]][1]),
+                    .start_z = drone_h
+                });
+                if(!just_calc)
+                    wait_to_reach();
                 // land
-                land(parent[mid_transition_drone] + 1);
+                if(!just_calc)
+                    land(parent[mid_transition_drone] + 1);
+                movements.push(stack_objects{
+                    .type = "land",
+                    .drone = parent[mid_transition_drone] + 1
+                });
 
                 parent[mid_transition] = -1;
                 cur[parent[mid_transition_drone]] = std::array<int, 2>{0, 0};
                 at_base[parent[mid_transition_drone]] = true;
-                return go_back_recursion(cur, parent, false, -1, at_base);
+                return go_back_recursion(cur, parent, false, -1, at_base, movements, just_calc);
             }else{
                 //parent[mid_transition_drone] go to parent[parent[mid_transition_drone]] with offset of 0.3
                 double start_x = coord_x(cur[parent[mid_transition_drone]][0]);
@@ -379,21 +433,34 @@ public:
                 double offset_y = edge_length * dy / dist;
                 end_x = end_x - offset_x;
                 end_y = end_y - offset_y;
-                go_to(parent[mid_transition_drone] + 1, end_x, end_y, drone_h, 0);
-                wait_to_reach();
+                if(!just_calc)
+                    go_to(parent[mid_transition_drone] + 1, end_x, end_y, drone_h, 0);
+                movements.push(stack_objects{
+                    .type = "go_to",
+                    .drone = parent[mid_transition_drone] + 1,
+                    .x = end_x,
+                    .y = end_y,
+                    .z = drone_h,
+                    .start_x = start_x,
+                    .start_y = start_y,
+                    .start_z = drone_h
+                });
+                if(!just_calc)
+                    wait_to_reach();
 
                 cur[parent[mid_transition_drone]] = cur[parent[parent[mid_transition_drone]]];
                 for(int i = 0; i < num_cf; ++i)
                     if(parent[i] == parent[parent[mid_transition_drone]] && i != parent[mid_transition_drone])
                         parent[i] = parent[mid_transition_drone];
-                return go_back_recursion(cur, parent, true, parent[mid_transition_drone], at_base);
+                return go_back_recursion(cur, parent, true, parent[mid_transition_drone], at_base, movements, just_calc);
             }
         }
     }
 
-    void go_back_using_algo(std::vector<std::array<int, 2>> &cur, std::vector<std::vector<std::vector<std::vector<bool>>>> los_matrix){
+    std::stack<stack_objects> go_back_using_algo(std::vector<std::array<int, 2>> &cur, std::vector<std::vector<std::vector<std::vector<bool>>>> los_matrix, bool just_calc, bool go_back){
         std::cout << utils::Color::FG_RED << "All drones going back to base using algo!" << utils::Color::FG_DEFAULT << std::endl;
-
+        
+        std::stack<stack_objects> movements;
         std::vector<int> parent(num_cf, -2);
         std::queue<int> q;
 
@@ -440,7 +507,29 @@ public:
                 at_base[i] = true;
             }
         }
-        go_back_recursion(cur, parent, false, -1, at_base);
+        go_back_recursion(cur, parent, false, -1, at_base, movements);
+
+        if(go_back){
+            while(recharge_flag){
+                std::cout << "Waiting for \'false\' to be published on /return_to_base!" << std::endl;
+                rclcpp::sleep_for(std::chrono::milliseconds(100));
+            }
+            rclcpp::sleep_for(std::chrono::milliseconds(1000));
+            use_stack(movements);
+        }
+        return movements;
+    }
+
+    void use_stack(std::stack<stack_objects> &movements){
+        while(!movements.empty()){
+            stack_objects movement = movement.top();
+            movements.pop();
+            if(movement.type == "go_to"){
+                go_to(movement.drone, start_x, start_y, start_z, 0);
+            }else{
+                takeoff(movement.drone);
+            }
+        }
     }
 
     int go_back_using_planner(bool bring_back = false){
