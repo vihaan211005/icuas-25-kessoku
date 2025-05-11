@@ -63,7 +63,17 @@ double ARUCO_EPS = 1.0;
 double land_h = 1;
 double land_h_0 = 0.03;
 
-struct stack_objects{
+class stack_objects{
+public:
+    stack_objects();
+    stack_objects(double x, double y, double z, double start_x, double start_y, double start_z, int drone, std::string type) : 
+        x(x), y(y), z(z), start_x(start_x), 
+        start_y(start_y), start_z(start_z),  
+        drone(drone),
+        type(type) 
+    {
+    }
+
     double x, y, z;
     double start_x, start_y, start_z;
     int drone;
@@ -330,25 +340,36 @@ public:
                 // go_to base and land
                 if(!just_calc)
                     go_to(max_tree + 1, start_positions[max_tree][0], start_positions[max_tree][1], start_positions[max_tree][2] + land_h, 0);
-                movements.push(stack_objects{
-                    .type = "go_to",
-                    .drone = max_tree + 1,
-                    .x = start_positions[max_tree][0],
-                    .y = start_positions[max_tree][1],
-                    .z = start_positions[max_tree][2] + land_h,
-                    .start_x = coord_x(cur[max_tree][0]),
-                    .start_y = coord_y(cur[max_tree][1]),
-                    .start_z = drone_h
-                });
+
+                movements.push(stack_objects(
+                    start_positions[max_tree][0],
+                    start_positions[max_tree][1],
+                    start_positions[max_tree][2] + land_h,
+                    coord_x(cur[max_tree][0]),
+                    coord_y(cur[max_tree][1]),
+                    drone_h,
+                    max_tree + 1,
+                    "go_to"
+                ));
+
                 if(!just_calc)
                     wait_to_reach();
                 //land
                 if(!just_calc)
                     land(max_tree + 1);
-                movements.push_back(stack_objects{
-                    .type = "land",
-                    .drone = max_tree + 1
-                })
+
+                movements.push(stack_objects(
+                    0.0,
+                    0.0,
+                    0.0,
+
+                    0.0,
+                    0.0,
+                    drone_h,
+
+                    max_tree + 1,
+                    "land"
+                ));
 
                 at_base[max_tree] = true;
                 cur[max_tree] = std::array<int, 2>{0, 0};
@@ -369,16 +390,18 @@ public:
                 end_y = end_y - offset_y;
                 if(!just_calc)
                     go_to(max_tree + 1, end_x, end_y, drone_h, 0);
-                movements.push(stack_objects{
-                    .type = "go_to",
-                    .drone = max_tree + 1,
-                    .x = end_x,
-                    .y = end_y,
-                    .z = drone_h,
-                    .start_x = start_x,
-                    .start_y = start_y,
-                    .start_z = drone_h
-                });
+
+                movements.push(stack_objects(
+                    end_x,
+                    end_y,
+                    drone_h,
+                    start_x,
+                    start_y,
+                    drone_h,
+                    max_tree + 1,
+                    "go_to"
+                ));
+
                 if(!just_calc)
                     wait_to_reach();
 
@@ -396,25 +419,36 @@ public:
                 // go parent[mid_transition_drone] to base and land
                 if(!just_calc)
                     go_to(parent[mid_transition_drone] + 1, start_positions[parent[mid_transition_drone]][0], start_positions[parent[mid_transition_drone]][1], start_positions[parent[mid_transition_drone]][2] + land_h, 0);
-                movements.push(stack_objects{
-                    .type = "go_to",
-                    .drone = parent[mid_transition_drone] + 1,
-                    .x = start_positions[parent[mid_transition_drone]][0],
-                    .y = start_positions[parent[mid_transition_drone]][1],
-                    .z = start_positions[parent[mid_transition_drone]][2] + land_h,
-                    .start_x = coord_x(cur[parent[mid_transition_drone]][0]),
-                    .start_y = coord_y(cur[parent[mid_transition_drone]][1]),
-                    .start_z = drone_h
-                });
+
+                movements.push(stack_objects(
+                    start_positions[parent[mid_transition_drone]][0],
+                    start_positions[parent[mid_transition_drone]][1],
+                    start_positions[parent[mid_transition_drone]][2] + land_h,
+                    coord_x(cur[parent[mid_transition_drone]][0]),
+                    coord_y(cur[parent[mid_transition_drone]][1]),
+                    drone_h,
+                    parent[mid_transition_drone] + 1,
+                    "go_to"
+                ));
+
                 if(!just_calc)
                     wait_to_reach();
                 // land
                 if(!just_calc)
                     land(parent[mid_transition_drone] + 1);
-                movements.push(stack_objects{
-                    .type = "land",
-                    .drone = parent[mid_transition_drone] + 1
-                });
+
+                movements.push(stack_objects(
+                    0.0,
+                    0.0,
+                    0.0,
+
+                    0.0,
+                    0.0,
+                    drone_h,
+
+                    parent[mid_transition_drone] + 1,
+                    "land"
+                ));
 
                 parent[mid_transition] = -1;
                 cur[parent[mid_transition_drone]] = std::array<int, 2>{0, 0};
@@ -435,16 +469,16 @@ public:
                 end_y = end_y - offset_y;
                 if(!just_calc)
                     go_to(parent[mid_transition_drone] + 1, end_x, end_y, drone_h, 0);
-                movements.push(stack_objects{
-                    .type = "go_to",
-                    .drone = parent[mid_transition_drone] + 1,
-                    .x = end_x,
-                    .y = end_y,
-                    .z = drone_h,
-                    .start_x = start_x,
-                    .start_y = start_y,
-                    .start_z = drone_h
-                });
+                movements.push(stack_objects(
+                    end_x,
+                    end_y,
+                    drone_h,
+                    start_x,
+                    start_y,
+                    drone_h,
+                    parent[mid_transition_drone] + 1,
+                    "go_to"
+                ));
                 if(!just_calc)
                     wait_to_reach();
 
@@ -507,7 +541,7 @@ public:
                 at_base[i] = true;
             }
         }
-        go_back_recursion(cur, parent, false, -1, at_base, movements);
+        go_back_recursion(cur, parent, false, -1, at_base, movements, just_calc);
 
         if(go_back){
             while(recharge_flag){
@@ -522,10 +556,10 @@ public:
 
     void use_stack(std::stack<stack_objects> &movements){
         while(!movements.empty()){
-            stack_objects movement = movement.top();
+            stack_objects movement = movements.top();
             movements.pop();
             if(movement.type == "go_to"){
-                go_to(movement.drone, start_x, start_y, start_z, 0);
+                go_to(movement.drone, movement.start_x, movement.start_y, movement.start_z, 0);
             }else{
                 takeoff(movement.drone);
             }
@@ -615,16 +649,19 @@ public:
             auto yaws = j["yaws"].get<std::vector<std::vector<std::vector<double>>>>();
             auto matrix = j["matrix"].get<std::vector<std::vector<std::vector<std::vector<bool>>>>>();
             int curr_elasped;
+            std::vector<std::array<int, 2>> curr_drone_pos(num_cf, {0, 0});
             
             for (uint goal_idx = 0; goal_idx < poses.size(); goal_idx++){
                 curr_elasped = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - start_time).count(); 
                 std::cout << utils::Color::FG_RED << "[" << curr_elasped << "] At counter: " << goal_idx << utils::Color::FG_DEFAULT << "\n";
                 
                 if(timelimit_reached){
-                    go_back_using_planner(false);
+                    // go_back_using_planner(false);
+                    go_back_using_algo(curr_drone_pos, matrix, false, false);
                 }
                 if(recharge_flag){
-                    go_back_using_planner(true);
+                    // go_back_using_planner(true);
+                    go_back_using_algo(curr_drone_pos, matrix, false, true);
                 }
                 
                 std::vector<int> scan_drones;
@@ -640,6 +677,7 @@ public:
                         scan_drones.push_back(drone_idx);
                     }
                     go_to(drone_idx + 1, coord_x(pose[0]), coord_y(pose[1]), drone_h, 0);
+                    curr_drone_pos[drone_idx] = {pose[0], pose[1]};
                 }
                 wait_to_reach();
 
@@ -672,7 +710,8 @@ public:
                     wait_to_reach();
                 }
             }
-            go_back_using_planner(false);
+            // go_back_using_planner(false);
+            go_back_using_algo(curr_drone_pos, matrix, false, false);
             
             flag = true;
         }
