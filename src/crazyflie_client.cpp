@@ -331,7 +331,7 @@ public:
         return -1;
     }
 
-    void go_back_recursion(std::vector<std::array<int, 2>> &cur, std::vector<int> &parent, bool mid_transition, int mid_transition_drone, std::vector<bool> &at_base, std::stack<stack_objects> &movements, bool just_calc){
+    void go_back_recursion(std::vector<std::array<int, 2>> &cur, std::vector<int> &parent, bool mid_transition, int mid_transition_drone, std::vector<bool> &at_base, std::stack<stack_objects> &movements, bool just_calc, double off_x = 0, double off_y = 0, double off_z = 0){
         bool end_rec = true;
         for(int i = 0; i < num_cf; ++i)
             if(!at_base[i])
@@ -420,7 +420,7 @@ public:
                 for(int i = 0; i < num_cf; ++i)
                     if(parent[i] == parent[max_tree] && i != max_tree)
                         parent[i] = max_tree;
-                return go_back_recursion(cur, parent, true, max_tree, at_base, movements, just_calc);
+                return go_back_recursion(cur, parent, true, max_tree, at_base, movements, just_calc, end_x, end_y, drone_h);
             }
         }else{
             //mid_transition_drone go to its own cur real index
@@ -431,9 +431,9 @@ public:
                 coord_x(cur[mid_transition_drone][0]),
                 coord_y(cur[mid_transition_drone][1]),
                 drone_h,
-                odom_linear[mid_transition_drone].x,
-                odom_linear[mid_transition_drone].y,
-                odom_linear[mid_transition_drone].z,
+                off_x,
+                off_y,
+                off_z,
                 mid_transition_drone + 1,
                 "go_to",
                 true
@@ -514,12 +514,12 @@ public:
                 for(int i = 0; i < num_cf; ++i)
                     if(parent[i] == parent[parent[mid_transition_drone]] && i != parent[mid_transition_drone])
                         parent[i] = parent[mid_transition_drone];
-                return go_back_recursion(cur, parent, true, parent[mid_transition_drone], at_base, movements, just_calc);
+                return go_back_recursion(cur, parent, true, parent[mid_transition_drone], at_base, movements, just_calc, end_x, end_y, drone_h);
             }
         }
     }
 
-    std::stack<stack_objects> go_back_using_algo(std::vector<std::array<int, 2>> &cur, std::vector<std::vector<std::vector<std::vector<bool>>>> los_matrix, bool just_calc, bool go_back){
+    std::stack<stack_objects> go_back_using_algo(std::vector<std::array<int, 2>> cur, std::vector<std::vector<std::vector<std::vector<bool>>>> los_matrix, bool just_calc, bool go_back){
         std::cout << utils::Color::FG_RED << "All drones going back to base using algo!" << utils::Color::FG_DEFAULT << std::endl;
         
         std::stack<stack_objects> movements;
@@ -587,10 +587,12 @@ public:
             stack_objects movement = movements.top();
             movements.pop();
             if(movement.type == "go_to"){
+                std::cout << "Drone: " << movement.drone - 1 << " going to" << movement.start_x << "," << movement.start_y << "," << movement.start_z << ") from (" << movement.x << "," << movement.y << "," << movement.z << ")" << std::endl;
                 go_to(movement.drone, movement.start_x, movement.start_y, movement.start_z, 0);
                 if(movement.should_wait)
-                    wait_to_reach();
-            }else{
+                wait_to_reach();
+        }else{
+                std::cout << "Drone: " << movement.drone - 1 << " taking off" << std::endl;
                 takeoff(movement.drone);
             }
         }
@@ -685,11 +687,16 @@ public:
             std::vector<std::array<int, 2>> curr_drone_pos(num_cf, {0, 0});
 
             int first_positive = -1;            
-            for (uint goal_idx = 0; goal_idx < poses.size(); goal_idx++)
-                if(!yaws[goal_idx].empty()){
+            for (uint goal_idx = 0; goal_idx < poses.size(); goal_idx++){
+                bool is_empty = true;
+                for(int i = 0 ; i < num_cf; ++i){
+                    is_empty = is_empty && yaws[goal_idx][i].empty();
+                }
+                if(!is_empty){
                     first_positive = goal_idx;
                     break;
                 }
+            }
 
             if(first_positive == -1){
                 std::cout << utils::Color::FG_RED << "FUCKED" << utils::Color::FG_DEFAULT << "\n";
@@ -702,10 +709,15 @@ public:
             for (uint goal_idx = first_positive; goal_idx < poses.size(); goal_idx++){
                 
                 int next_positive = -1;
-                for (uint i = goal_idx; i < poses.size(); ++i)
-                if(!yaws[i].empty()){
-                    next_positive = i;
-                    break;
+                for (uint i = goal_idx; i < poses.size(); ++i){
+                    bool is_empty = true;
+                    for(int drone_idx = 0 ; drone_idx < num_cf; ++drone_idx){
+                        is_empty = is_empty && yaws[i][drone_idx].empty();
+                    }
+                    if(!is_empty){
+                        next_positive = i;
+                        break;
+                    }
                 }
                 if(next_positive == -1){
                     std::cout << utils::Color::FG_RED << "MISSION_END" << utils::Color::FG_DEFAULT << "\n";
@@ -716,6 +728,7 @@ public:
                     std::cout << utils::Color::FG_RED << "[" << curr_elasped << "] Going to counter: " << next_positive << utils::Color::FG_DEFAULT << "\n";
                     go_back_using_algo(curr_drone_pos, matrix, false, false);
                     go_back_using_algo(poses[next_positive], matrix, true, true);
+                    goal_idx = next_positive;
                 }
 
                 curr_elasped = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - start_time).count(); 
@@ -743,6 +756,7 @@ public:
                         max_n_buildings = yaw.size() > max_n_buildings? yaw.size() : max_n_buildings;
                         scan_drones.push_back(drone_idx);
                     }
+                    std::cout << "Going to that problem" << pose[0] << ", " << pose[1] << std::endl;
                     go_to(drone_idx + 1, coord_x(pose[0]), coord_y(pose[1]), drone_h, 0);
                     curr_drone_pos[drone_idx] = {pose[0], pose[1]};
                 }
@@ -755,6 +769,8 @@ public:
                     for(int drone : scan_drones){
                         if(k < yaws[goal_idx][drone].size()){
                             std::cout << "Drone " << drone << " going up!" << std::endl;
+                            std::cout << "Going to that problem num 2" << poses[goal_idx][drone][0] << ", " << poses[goal_idx][drone][1] << std::endl;
+
                             go_to(drone + 1, coord_x(poses[goal_idx][drone][0]), coord_y(poses[goal_idx][drone][1]), drone_h - h_diff, yaws[goal_idx][drone][k]);
                         }
                     }
