@@ -77,8 +77,11 @@ def mkdir(n):
             file.writelines(config_content)
         print(f"Completed Directory {i+6}")
 
+# Model
+model_name = "world_simple_1"
+
 # File path to your SDF file
-sdf_file = f"{ROOT_DIR}/worlds/city_1_small_world.sdf"
+sdf_file = f"{ROOT_DIR}/worlds/{model_name}_world.sdf"
 
 # Hardcoded ArUco marker poses
 aruco_markers = [
@@ -102,6 +105,44 @@ aruco_markers = [
     [42.446, 17.168, 0.779, -1.567, 0.014, -0.302],
 ]
 
+# simple_1
+if model_name == "world_simple_1":
+  aruco_markers = [
+      [4.506, 0.232, 0.796, 1.571, 0.0, 4.442],
+      [0.516, 0.801, 0.195, 1.571, 0.0, 6.601],
+      [2.497, 7.1, 0.933, 1.571, 0.0, 2.18],
+      [4.377, 5.591, 1.346, 1.571, 0.0, 3.739],
+      [3.96, 5.011, 0.27, 1.571, 0.0, 7.494],
+      [0.609, 6.553, 0.93, 1.571, 0.0, 6.788],
+      [1.725, 2.731, 0.601, 1.571, 0.0, 3.678],
+  ]
+
+# simple_2
+if model_name == "world_simple_2":
+  aruco_markers = [
+      [4.692, 5.286, 0.565, 1.571, 0.0, 1.768],
+      [4.015, 4.571, 0.656, 1.571, 0.0, 3.824],
+      [1.26, 2.936, 1.639, 1.571, 0.0, 7.304],
+      [4.366, 3.184, 1.462, 1.571, 0.0, 5.486],
+      [3.833, 0.839, 0.221, 1.571, 0.0, 3.072],
+      [5.281, 3.51, 0.142, 1.571, 0.0, 5.661],
+      [1.776, 3.894, 0.8, 1.571, 0.0, 6.137],
+  ]
+
+# simple_3
+if model_name == "world_simple_3":
+  aruco_markers = [
+      [3.345, 4.66, 0.209, 1.571, 0.0, 6.267],
+      [0.531, 3.186, 0.754, 1.571, 0.0, 5.619],
+      [0.904, 4.45, 0.957, 1.571, 0.0, 7.528],
+      [5.351, 4.437, 0.779, 1.571, 0.0, 3.252],
+      [2.83, 0.031, 0.99, 1.571, 0.0, 7.311],
+      [0.177, 4.165, 1.214, 1.571, 0.0, 4.252],
+      [2.564, 3.303, 1.506, 1.571, 0.0, 4.465],
+  ]
+
+
+
 def add_markers():
     # ArUco marker template
     marker_template = """    <include>
@@ -115,7 +156,7 @@ def add_markers():
 
     # Find the index of the city model include
     for i, line in enumerate(sdf_content):
-        if "<uri>model://city_1_small</uri>" in line:
+        if f"<uri>model://{model_name}</uri>" in line:
             insert_index = i + 2  # Insert after this line
             break
 
@@ -131,7 +172,7 @@ def add_markers():
     with open(sdf_file, "w") as file:
         file.writelines(sdf_content)
 
-    print("ArUco markers added successfully to city_1_small_world.sdf!")
+    print(f"ArUco markers added successfully to {model_name}_world.sdf!")
 
 mkdir(13)
 add_markers()
