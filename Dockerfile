@@ -122,7 +122,8 @@ RUN  apt update && apt install -y \
    python3-rosdep \
    ros-dev-tools  \
    libboost-program-options-dev \
-   python-is-python3
+   python-is-python3 \
+   nlohmann-json3-dev
 
 RUN apt-get update && apt-get upgrade -y && apt install ros-${ROS2_DISTRO}-desktop -y
 
@@ -161,7 +162,15 @@ RUN apt install -y ros-${ROS2_DISTRO}-tf-transformations \
                    ros-${ROS2_DISTRO}-rosbridge-suite\
                    ros-${ROS2_DISTRO}-octomap-ros \
                    ros-${ROS2_DISTRO}-octomap-server \
-                   ros-${ROS2_DISTRO}-rosbag2-storage-mcap
+                   ros-${ROS2_DISTRO}-rosbag2-storage-mcap \
+                   ros-${ROS2_DISTRO}-octomap-msgs \
+                   libeigen3-dev \
+                   libompl-dev \
+                   ompl-demos \
+                   libboost-program-options-dev \
+                   libboost-filesystem-dev \
+                   libnlopt-cxx-dev \
+                   libgoogle-glog-dev 
 
 
 RUN mkdir -p $HOME/ros2_ws/src && cd $HOME/ros2_ws/src \
@@ -183,9 +192,21 @@ RUN echo "export ROS_DOMAIN_ID=$(shuf -i 1-101 -n 1)" >> $HOME/.bashrc
 
 WORKDIR $HOME/ros2_ws
 
-# Final build of ROS2 ws
-RUN bash -c "source /opt/ros/${ROS2_DISTRO}/setup.bash;source $HOME/ros2_ws/install/setup.bash;colcon build --symlink-install --merge-install --cmake-args=-DCMAKE_EXPORT_COMPILE_COMMANDS=ON" && \
-    echo "ros2_ws" >> $HOME/.bashrc && echo "source_ros2" >> $HOME/.bashrc
+COPY Dockerfile $HOME/CrazySim/ros2_ws/src/icuas25_competition/
+COPY icuas25_competition/scripts $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts
+COPY icuas25_competition/src $HOME/CrazySim/ros2_ws/src/icuas25_competition/src
+COPY icuas25_competition/startup $HOME/CrazySim/ros2_ws/src/icuas25_competition/startup
+COPY icuas25_competition/include $HOME/CrazySim/ros2_ws/src/icuas25_competition/include
+COPY icuas25_competition/launch $HOME/CrazySim/ros2_ws/src/icuas25_competition/launch
+COPY icuas25_competition/CMakeLists.txt $HOME/CrazySim/ros2_ws/src/icuas25_competition/CMakeLists.txt
+COPY icuas25_competition/package.xml $HOME/CrazySim/ros2_ws/src/icuas25_competition/package.xml
+
+# run/add custom scripts
+RUN bash -c "chmod +x $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/edit.sh && $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/edit.sh"
+# RUN bash -c "chmod +x $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/add_markers.py && $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/add_markers .py"
+RUN cat $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/build.sh >> $HOME/.bashrc
+RUN cat $HOME/CrazySim/ros2_ws/src/icuas25_competition/scripts/wait_for_start.sh >> $HOME/.bashrc
+RUN echo "export PATH_GEN=/root/CrazySim/ros2_ws/src/icuas25_competition/scripts/py_sim/main.py" >> $HOME/.bashrc
 
 RUN  apt install -y\
     libfontconfig1-dev \
@@ -236,6 +257,11 @@ RUN cd $HOME && git clone https://github.com/bitcraze/crazyflie-lib-python.git \
 
 RUN pip install --upgrade pyusb scipy numpy
 RUN pip install numpy==1.26
+RUN pip install open3d
+
+# final build of ROS2 ws
+RUN bash -c "source /opt/ros/${ROS2_DISTRO}/setup.bash;source $HOME/ros2_ws/install/setup.bash;colcon build --symlink-install --merge-install --cmake-args=-DCMAKE_EXPORT_COMPILE_COMMANDS=ON" && \
+    echo "ros2_ws" >> $HOME/.bashrc && echo "source_ros2" >> $HOME/.bashrc
 
 ENV USERNAME=root
 
