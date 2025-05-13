@@ -57,6 +57,8 @@ using json = nlohmann::json;
 #endif
 
 using namespace std::chrono_literals;
+
+int MAX_EMPTY = 10;
                                               
 double EPS = 0.1;
 double ARUCO_EPS = 1.0;
@@ -681,14 +683,48 @@ public:
             auto matrix = j["matrix"].get<std::vector<std::vector<std::vector<std::vector<bool>>>>>();
             int curr_elasped;
             std::vector<std::array<int, 2>> curr_drone_pos(num_cf, {0, 0});
+
+            int first_positive = -1;            
+            for (uint goal_idx = 0; goal_idx < poses.size(); goal_idx++)
+                if(!yaws[goal_idx].empty()){
+                    first_positive = goal_idx;
+                    break;
+                }
+
+            if(first_positive == -1){
+                std::cout << utils::Color::FG_RED << "FUCKED" << utils::Color::FG_DEFAULT << "\n";
+                exit(1);
+            }
             
-            for (uint goal_idx = 0; goal_idx < poses.size(); goal_idx++){
+            std::cout << utils::Color::FG_RED << "[" << curr_elasped << "] Going to counter: " << first_positive << utils::Color::FG_DEFAULT << "\n";
+            go_back_using_algo(poses[first_positive], matrix, true, true);
+            
+            for (uint goal_idx = first_positive; goal_idx < poses.size(); goal_idx++){
+                
+                int next_positive = -1;
+                for (uint i = goal_idx; i < poses.size(); ++i)
+                if(!yaws[i].empty()){
+                    next_positive = i;
+                    break;
+                }
+                if(next_positive == -1){
+                    std::cout << utils::Color::FG_RED << "MISSION_END" << utils::Color::FG_DEFAULT << "\n";
+                    go_back_using_algo(curr_drone_pos, matrix, false, false);
+                    exit(1);
+                }
+                if(next_positive - goal_idx > MAX_EMPTY){
+                    std::cout << utils::Color::FG_RED << "[" << curr_elasped << "] Going to counter: " << next_positive << utils::Color::FG_DEFAULT << "\n";
+                    go_back_using_algo(curr_drone_pos, matrix, false, false);
+                    go_back_using_algo(poses[next_positive], matrix, true, true);
+                }
+
                 curr_elasped = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - start_time).count(); 
                 std::cout << utils::Color::FG_RED << "[" << curr_elasped << "] At counter: " << goal_idx << utils::Color::FG_DEFAULT << "\n";
                 
                 if(timelimit_reached){
                     // go_back_using_planner(false);
                     go_back_using_algo(curr_drone_pos, matrix, false, false);
+                    exit(1);
                 }
                 if(recharge_flag){
                     // go_back_using_planner(true);
