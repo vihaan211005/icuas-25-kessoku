@@ -12,7 +12,7 @@ num_cylinders = 7
 radius = 0.05  # 5 cm
 min_height = 1.5
 max_height = 2.0
-placement_range = (5.4, 7.2)
+placement_range = (7.2, 5.4)
 min_distance = 2 * radius + 0.05
 plane_size = 0.1
 
@@ -46,8 +46,8 @@ for i in range(num_cylinders):
     # Plane position and orientation
     angle = random.uniform(0, 2 * math.pi)
     z_offset = random.uniform(0.1, height - 0.1)
-    px = x + radius * math.cos(angle)
-    py = y + radius * math.sin(angle)
+    px = x + (radius + 0.001) * math.cos(angle)
+    py = y + (radius + 0.001) * math.sin(angle)
     pz = z_offset
 
     roll = math.radians(90)
