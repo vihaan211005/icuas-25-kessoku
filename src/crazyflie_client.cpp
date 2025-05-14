@@ -95,7 +95,7 @@ public:
         num_cf(std::getenv("NUM_ROBOTS") ? std::stoi(std::getenv("NUM_ROBOTS")) : 0), 
         range(std::getenv("COMM_RANGE") ? std::stod(std::getenv("COMM_RANGE")) : 0.0),
         drone_h(0.6),
-        h_diff(0.4),
+        h_diff(0.2),
         edge_length(0.3),
         start_positions(num_cf),    
         odom_linear(std::vector<geometry_msgs::msg::Point>(num_cf)),
@@ -242,6 +242,7 @@ public:
 
         auto result = client->async_send_request(request).get();
 
+        rclcpp::sleep_for(std::chrono::milliseconds(800));
         return 0;
     }
 
@@ -342,7 +343,7 @@ public:
             int max_tree = find_max_tree(parent, at_base);
             if(parent[max_tree] == -1){
                 // go_to base and land
-                std::cout << utils::Color::FG_RED << "Drone: " << max_tree << " go to base and land" << utils::Color::FG_DEFAULT << std::endl;
+                std::cout << "Drone: " << max_tree << " go to base and land" << utils::Color::FG_DEFAULT << std::endl;
 
                 if(!just_calc)
                     go_to(max_tree + 1, start_positions[max_tree][0], start_positions[max_tree][1], start_positions[max_tree][2] + land_h, 0);
@@ -385,7 +386,7 @@ public:
             }
             else{
                 // go to parent with offset of 0.3
-                std::cout << utils::Color::FG_RED << "Drone: " << max_tree << " to Drone: " << parent[max_tree] << "" << utils::Color::FG_DEFAULT << std::endl;
+                std::cout << "Drone: " << max_tree << " to Drone: " << parent[max_tree] << "" << utils::Color::FG_DEFAULT << std::endl;
 
                 double start_x = coord_x(cur[max_tree][0]);
                 double start_y = coord_y(cur[max_tree][1]);
@@ -424,7 +425,7 @@ public:
             }
         }else{
             //mid_transition_drone go to its own cur real index
-            std::cout << utils::Color::FG_RED << "Drone: " << mid_transition_drone << " travelling offset" << utils::Color::FG_DEFAULT << std::endl;
+            std::cout << "Drone: " << mid_transition_drone << " travelling offset" << utils::Color::FG_DEFAULT << std::endl;
             if(!just_calc)
                 go_to(mid_transition_drone + 1, coord_x(cur[mid_transition_drone][0]), coord_y(cur[mid_transition_drone][1]), drone_h, 0);
             movements.push(stack_objects(
@@ -482,7 +483,8 @@ public:
                 return go_back_recursion(cur, parent, false, -1, at_base, movements, just_calc);
             }else{
                 //parent[mid_transition_drone] go to parent[parent[mid_transition_drone]] with offset of 0.3
-                std::cout << utils::Color::FG_RED << "Drone: " << parent[mid_transition_drone] << " to drone: " << parent[parent[mid_transition_drone]] << "(mid_transit)" << utils::Color::FG_DEFAULT << std::endl;
+                std::cout << "Drone: " << parent[mid_transition_drone] << " to drone: " << parent[parent[mid_transition_drone]] << "(mid_transit)" << utils::Color::FG_DEFAULT << std::endl;
+
                 double start_x = coord_x(cur[parent[mid_transition_drone]][0]);
                 double start_y = coord_y(cur[parent[mid_transition_drone]][1]);
                 double end_x = coord_x(cur[parent[parent[mid_transition_drone]]][0]);
@@ -520,7 +522,8 @@ public:
     }
 
     std::stack<stack_objects> go_back_using_algo(std::vector<std::array<int, 2>> cur, std::vector<std::vector<std::vector<std::vector<bool>>>> los_matrix, bool just_calc, bool go_back){
-        std::cout << utils::Color::FG_RED << "All drones going back to base using algo!" << utils::Color::FG_DEFAULT << std::endl;
+        if(!just_calc) std::cout << utils::Color::FG_RED << "All drones going back to base using algo!" << utils::Color::FG_DEFAULT << std::endl;
+        else std::cout << utils::Color::FG_RED << "Just calculating to base using algo!" << utils::Color::FG_DEFAULT << std::endl;
         
         std::stack<stack_objects> movements;
         std::vector<int> parent(num_cf, -2);
@@ -681,8 +684,35 @@ public:
             file >> j;
 
             auto poses = j["poses"].get<std::vector<std::vector<std::array<int, 2>>>>();
-            auto yaws = j["yaws"].get<std::vector<std::vector<std::vector<double>>>>();
+            auto yaws_heights = j["yaws"].get<std::vector<std::vector<std::vector<double>>>>();
             auto matrix = j["matrix"].get<std::vector<std::vector<std::vector<std::vector<bool>>>>>();
+
+
+            std::vector<std::vector<std::vector<double>>> yaws;
+            std::vector<std::vector<std::vector<double>>> heights;
+
+            for(uint i = 0; i < yaws_heights.size(); ++i){
+                std::vector<std::vector<double>> yaws_it;
+                std::vector<std::vector<double>> heights_it;
+
+                for(int j = 0; j < num_cf; ++j){
+                    std::vector<double> yaw_single;
+                    std::vector<double> height_single;
+
+                    for(uint k = 0; k < yaws_heights[i][j].size(); k++){
+                        if(k % 2)
+                            height_single.push_back(yaws_heights[i][j][k]);
+                        else
+                            yaw_single.push_back(yaws_heights[i][j][k]);
+                    }
+                    heights_it.push_back(height_single);
+                    yaws_it.push_back(yaw_single);
+                }
+
+                heights.push_back(heights_it);
+                yaws.push_back(yaws_it);
+            }
+
             int curr_elasped;
             std::vector<std::array<int, 2>> curr_drone_pos(num_cf, {0, 0});
 
@@ -724,7 +754,7 @@ public:
                     go_back_using_algo(curr_drone_pos, matrix, false, false);
                     exit(1);
                 }
-                if(next_positive - goal_idx > MAX_EMPTY){
+                if(next_positive - (int)goal_idx > MAX_EMPTY){
                     std::cout << utils::Color::FG_RED << "[" << curr_elasped << "] Going to counter: " << next_positive << utils::Color::FG_DEFAULT << "\n";
                     go_back_using_algo(curr_drone_pos, matrix, false, false);
                     go_back_using_algo(poses[next_positive], matrix, true, true);
@@ -756,37 +786,40 @@ public:
                         max_n_buildings = yaw.size() > max_n_buildings? yaw.size() : max_n_buildings;
                         scan_drones.push_back(drone_idx);
                     }
-                    std::cout << "Going to that problem" << pose[0] << ", " << pose[1] << std::endl;
+
                     go_to(drone_idx + 1, coord_x(pose[0]), coord_y(pose[1]), drone_h, 0);
                     curr_drone_pos[drone_idx] = {pose[0], pose[1]};
                 }
                 wait_to_reach();
 
                 /*scan buildings*/
-                std::cout << "max number of buildings: " << max_n_buildings << "number of scan_drones: " << scan_drones.size() << std::endl;
+                std::cout << "Max number of buildings: " << max_n_buildings << "\nNumber of scan_drones: " << scan_drones.size() << std::endl;
 
                 for(uint k = 0; k < max_n_buildings; k++){
                     for(int drone : scan_drones){
                         if(k < yaws[goal_idx][drone].size()){
-                            std::cout << "Drone " << drone << " going up!" << std::endl;
-                            std::cout << "Going to that problem num 2" << poses[goal_idx][drone][0] << ", " << poses[goal_idx][drone][1] << std::endl;
+                            std::cout << " drone " << drone << " going up!" << std::endl;
 
-                            go_to(drone + 1, coord_x(poses[goal_idx][drone][0]), coord_y(poses[goal_idx][drone][1]), drone_h - h_diff, yaws[goal_idx][drone][k]);
+                            double up_h = heights[goal_idx][drone][k] - h_diff? heights[goal_idx][drone][k] - h_diff : h_diff;
+                            go_to(drone + 1, coord_x(poses[goal_idx][drone][0]), coord_y(poses[goal_idx][drone][1]), up_h, yaws[goal_idx][drone][k]);
                         }
                     }
                     wait_to_reach();
     
                     for(int drone : scan_drones){
                         if(k < yaws[goal_idx][drone].size()){
-                            std::cout << "Drone " << drone << " going down!" << std::endl;
-                            go_to(drone + 1, coord_x(poses[goal_idx][drone][0]), coord_y(poses[goal_idx][drone][1]), drone_h + h_diff, yaws[goal_idx][drone][k]);
+                            std::cout << " drone " << drone << " going down!" << std::endl;
+
+                            double down_h = h_diff;
+                            go_to(drone + 1, coord_x(poses[goal_idx][drone][0]), coord_y(poses[goal_idx][drone][1]), down_h, yaws[goal_idx][drone][k]);
                         }
                     }
                     wait_to_reach();
     
                     for(int drone : scan_drones){
                         if(k < yaws[goal_idx][drone].size()){
-                            std::cout << "Drone " << drone << " going back to level!" << std::endl;
+                            std::cout << " drone " << drone << " going back to level!" << std::endl;
+                            
                             go_to(drone + 1, coord_x(poses[goal_idx][drone][0]), coord_y(poses[goal_idx][drone][1]), drone_h, yaws[goal_idx][drone][k]);
                         }
                     }
@@ -885,7 +918,7 @@ private:
                     curr_aruco_position = {x, y, z};
                     curr_aruco_id = msg.marker_ids[i];
                     
-                    RCLCPP_INFO(this->get_logger(), "Publishing to /target_found!");
+                    std::cout << utils::Color::FG_GREEN << "Publishing to /target_found!" << utils::Color::FG_DEFAULT << std::endl;
                     auto res = icuas25_msgs::msg::TargetInfo();
 
                     res.id = curr_aruco_id;

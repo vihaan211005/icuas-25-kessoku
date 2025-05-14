@@ -40,10 +40,10 @@ def plotter(world_width, world_height, r, buildings, visible_arcs_building, pose
                 y_lin = np.linspace(start_y, end_y, 30)
                 ax.plot(x_lin, y_lin, 'b', linewidth = 3)
 
-    plt.title(f"Visible Building Arcs, counter:{counter}")
+    plt.title("Visible Building Arcs")
     plt.show()
-    # os.makedirs("/figs", exist_ok=True)
-    # plt.savefig(f"/figs/fig_{counter}", bbox_inches='tight')
+    os.makedirs("/figs", exist_ok=True)
+    plt.savefig(f"/figs/fig_{counter}", bbox_inches='tight')
     plt.close()
 
 def plot_matrix(world_width, world_height, r, buildings, edge, matrix):

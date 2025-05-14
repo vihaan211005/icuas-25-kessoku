@@ -16,18 +16,7 @@ struct Circle {
     double height;
 };
 
-const int directions[80][2] = {
-    {-4, -4}, {-4, -3}, {-4, -2}, {-4, -1}, {-4, 0}, {-4, 1}, {-4, 2}, {-4, 3}, {-4, 4},
-    {-3, -4}, {-3, -3}, {-3, -2}, {-3, -1}, {-3, 0}, {-3, 1}, {-3, 2}, {-3, 3}, {-3, 4},
-    {-2, -4}, {-2, -3}, {-2, -2}, {-2, -1}, {-2, 0}, {-2, 1}, {-2, 2}, {-2, 3}, {-2, 4},
-    {-1, -4}, {-1, -3}, {-1, -2}, {-1, -1}, {-1, 0}, {-1, 1}, {-1, 2}, {-1, 3}, {-1, 4},
-    {0, -4},  {0, -3},  {0, -2},  {0, -1},           {0, 1},  {0, 2},  {0, 3},  {0, 4},
-    {1, -4},  {1, -3},  {1, -2},  {1, -1},  {1, 0},  {1, 1},  {1, 2},  {1, 3},  {1, 4},
-    {2, -4},  {2, -3},  {2, -2},  {2, -1},  {2, 0},  {2, 1},  {2, 2},  {2, 3},  {2, 4},
-    {3, -4},  {3, -3},  {3, -2},  {3, -1},  {3, 0},  {3, 1},  {3, 2},  {3, 3},  {3, 4},
-    {4, -4},  {4, -3},  {4, -2},  {4, -1},  {4, 0},  {4, 1},  {4, 2},  {4, 3},  {4, 4}
-};
-
+const int directions[4][2] = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
 
 bool inBounds(int x, int y, int size_x, int size_y) {
     return x >= 0 && x < size_x && y >= 0 && y < size_y;
@@ -152,17 +141,6 @@ void fillBinaryVolume3D(std::vector<std::vector<std::vector<uint8_t>>>& volume) 
                     volume[z][y][x] = 1;
 }
 
-void printSlice(std::vector<std::vector<uint8_t>>& slice){
-    for(int i = 0; i < slice.size(); ++i)
-    {
-        for(int j = 0; j < slice[0].size(); ++j)
-            std::cout << static_cast<int>(slice[i][j]);
-        std::cout << std::endl;
-    }
-    std::cout << std::endl;
-    std::cout << std::endl;
-}
-
 int generateOctomapJSON(octomap::OcTree tree){
     double min_x, min_y, min_z, max_x, max_y, max_z;
     tree.getMetricMin(min_x, min_y, min_z);
@@ -190,11 +168,8 @@ int generateOctomapJSON(octomap::OcTree tree){
         }
     }
     
-    // printSlice(binary_slice[0]);
-    // printSlice(binary_slice[1]);
     fillBinaryVolume3D(binary_slice);
-    // printSlice(binary_slice[0]);
-    // printSlice(binary_slice[1]);
+    
     std::vector<Circle> circles = findCirclesOnSlice(binary_slice, resolution, min_x, min_y, min_z);
     
     json output;
@@ -233,10 +208,9 @@ int main(int argc, char** argv) {
 
     std::string bt_file = argv[1];
     
-    // if (argc > 2)
-        // std::string json_file = argv[2];
+    if (argc > 2)
+        json_file = argv[2];
 
     octomap::OcTree tree(bt_file); 
-    generateOctomapJSON(tree);
 }
 */
